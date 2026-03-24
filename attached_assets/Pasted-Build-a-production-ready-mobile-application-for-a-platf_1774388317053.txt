@@ -1,0 +1,257 @@
+Build a production-ready mobile application for a platform called "MOTA" using React Native.
+
+The app must fully integrate with an existing backend REST API and implement all core features based on the API specification provided.
+
+-----------------------------------
+🌍 APP CONTEXT
+-----------------------------------
+MOTA is a digital platform for moto-taxi drivers in Rwanda that provides:
+- Ride tracking
+- Wallet and payments (Paypack integration)
+- Driver performance tiers and trophies
+- Loan (fine payment) system
+- Referral system
+- Notifications (SMS + in-app + push)
+- Virtual driver payment identity (card-like system)
+
+The app is used primarily by drivers.
+
+-----------------------------------
+⚙️ TECHNICAL REQUIREMENTS
+-----------------------------------
+- Framework: React Native (Expo preferred)
+- Navigation: React Navigation
+- State Management: Context API or Redux Toolkit
+- API Calls: Axios
+- Environment Config: use `.env` for API base URL and keys
+- Animations: React Native Reanimated or Lottie
+- Notifications: Expo Notifications or Firebase Cloud Messaging (FCM)
+- Internationalization (i18n): Must support:
+  - English
+  - Kinyarwanda
+  - French
+
+-----------------------------------
+🔐 ENVIRONMENT VARIABLES
+-----------------------------------
+Use environment variables:
+
+API_BASE_URL=https://mota-be-v1-0-0-1.onrender.com/api
+APP_NAME=MOTA
+
+All API requests must dynamically use the base URL from `.env`.
+
+-----------------------------------
+🔑 AUTHENTICATION FLOW
+-----------------------------------
+Implement:
+- Register
+- Login
+- OTP Verification
+- JWT secure storage
+
+Endpoints:
+- POST /auth/register
+- POST /auth/login
+- POST /auth/verify-otp
+
+-----------------------------------
+🏠 DRIVER FEATURES (CORE)
+-----------------------------------
+
+1. Dashboard Screen
+- Fetch from: GET /driver/dashboard
+- Show:
+  - Tier
+  - Rides today
+  - Monthly rides
+  - Streak
+  - Wallet balance
+  - Referral count
+
+-----------------------------------
+
+2. Ride Management
+- Log ride:
+  POST /driver/log-ride
+
+- View history:
+  GET /driver/rides
+
+-----------------------------------
+
+3. Wallet System
+- Balance:
+  GET /wallet/balance
+
+- Transactions:
+  GET /wallet/transactions
+
+- Cash-in:
+  POST /wallet/cash-in
+
+- Cash-out:
+  POST /wallet/cash-out
+
+-----------------------------------
+
+4. Payments (Ride Payment)
+- Request payment from passenger:
+  POST /payment/request
+
+-----------------------------------
+
+5. Fine & Loan System
+- Request fine:
+  POST /driver/request-fine
+
+- Request loan:
+  POST /loans/request
+
+- View loans:
+  GET /loans/my-loans
+
+- Repay loan:
+  POST /loans/repay
+
+-----------------------------------
+
+6. Notifications System (IMPORTANT)
+-----------------------------------
+
+Implement BOTH:
+
+A. In-App Notifications
+- Fetch:
+  GET /notifications
+- Mark as read:
+  PATCH /notifications/{id}/read
+
+B. Push Notifications
+- Integrate Expo Notifications or Firebase Cloud Messaging (FCM)
+- Handle:
+  - ride payment success
+  - loan approval
+  - cash-in / cash-out
+  - tier upgrades
+  - system alerts
+
+- Store device token and sync with backend
+
+-----------------------------------
+
+7. Virtual Driver Card (MOTA Card)
+-----------------------------------
+
+Create a virtual card feature that represents the driver wallet.
+
+The card should behave like a digital identity/payment card similar in concept to a Mastercard, but branded as MOTA.
+
+Functional requirements:
+
+- Display:
+  - Driver full name
+  - Unique driver ID or masked number
+  - Wallet balance
+  - QR code or identifier for payments
+
+- Purpose:
+  - Used for receiving payments
+  - Represents driver wallet identity
+  - Can be shown to passengers or agents
+
+- Data source:
+  - Combine data from:
+    GET /users/me
+    GET /wallet/balance
+
+- Optional actions:
+  - Copy ID
+  - Share payment info
+  - Show QR for payment request
+
+NOTE:
+Do NOT copy Mastercard branding — only replicate the concept of a digital payment card.
+
+-----------------------------------
+
+8. Profile Management
+-----------------------------------
+- Get profile:
+  GET /driver/profile
+
+- Update profile:
+  PUT /driver/update-profile
+
+-----------------------------------
+
+🌐 INTERNATIONALIZATION (MANDATORY)
+-----------------------------------
+Implement full translation system:
+- English (default)
+- Kinyarwanda
+- French
+
+All:
+- labels
+- buttons
+- errors
+- notifications
+must be translated.
+
+-----------------------------------
+
+🎬 USER EXPERIENCE REQUIREMENTS
+-----------------------------------
+- Smooth animations for:
+  - screen transitions
+  - wallet updates
+  - ride logging
+  - tier progression
+
+- Use illustration components for:
+  - empty states
+  - transactions
+  - achievements
+
+-----------------------------------
+
+🔔 ERROR HANDLING
+-----------------------------------
+- Handle API errors properly
+- Show user-friendly messages
+- Retry failed requests
+
+-----------------------------------
+
+📦 PROJECT STRUCTURE
+-----------------------------------
+/src
+  /screens
+  /components
+  /navigation
+  /services
+  /context or /store
+  /utils
+  /i18n
+  /notifications
+  /assets
+
+-----------------------------------
+
+🚀 FINAL REQUIREMENT
+-----------------------------------
+The app must be:
+- Fully functional with backend API
+- Production-ready
+- Clean architecture
+- Scalable
+- Ready for deployment
+
+Do NOT focus on UI styling — focus on:
+✔ functionality
+✔ API integration
+✔ architecture
+✔ real-world usability
+
+-----------------------------------
