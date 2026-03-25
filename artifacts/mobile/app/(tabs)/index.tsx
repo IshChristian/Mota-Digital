@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Platform,
 } from "react-native";
 import { useRouter as useExpoRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { driverApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
+import { useTheme } from "@/context/ThemeContext";
 import Colors from "@/constants/colors";
 
 export default function DashboardScreen() {
@@ -23,6 +23,7 @@ export default function DashboardScreen() {
   const t = useT();
   const router = useExpoRouter();
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, refetch, isLoading } = useQuery({
@@ -58,17 +59,17 @@ export default function DashboardScreen() {
     referrals: 0,
   };
 
-  const tierColor = (Colors.tier as any)[dashboardData.tier.toLowerCase()] || Colors.tier.bronze;
+  const tierColor = (Colors.tier as any)[dashboardData.tier?.toLowerCase()] || Colors.tier.bronze;
 
   return (
     <ScrollView
-      style={[styles.container]}
+      style={[{ flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 }]}
       contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 100 }}
       refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
-          onRefresh={onRefresh} 
-          tintColor={Colors.primary} 
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={Colors.primary}
         />
       }
       showsVerticalScrollIndicator={false}
@@ -76,113 +77,116 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{getGreeting()},</Text>
-          <Text style={styles.name}>{user?.firstName || "Driver"}!</Text>
+          <Text style={[styles.greeting, { color: colors.textSecondary }]}>{getGreeting()},</Text>
+          <Text style={[styles.name, { color: colors.textPrimary }]}>{user?.firstName || "Driver"}!</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.iconButton} 
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
             onPress={() => router.push("/card")}
           >
-            <Feather name="credit-card" size={24} color={Colors.textPrimary} />
+            <Feather name="credit-card" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.iconButton}
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
             onPress={() => router.push("/notifications")}
           >
             <View style={styles.badge} />
-            <Feather name="bell" size={24} color={Colors.textPrimary} />
+            <Feather name="bell" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Tier Badge */}
-      <View style={[styles.tierCard, { borderColor: tierColor }]}>
+      <View style={[styles.tierCard, { backgroundColor: colors.backgroundCard, borderColor: tierColor }]}>
         <Feather name="award" size={28} color={tierColor} />
         <View style={styles.tierInfo}>
           <Text style={[styles.tierTitle, { color: tierColor }]}>
-            {dashboardData.tier.toUpperCase()} {t("tier")}
+            {dashboardData.tier?.toUpperCase()} {t("tier")}
           </Text>
-          <Text style={styles.tierSubtitle}>
+          <Text style={[styles.tierSubtitle, { color: colors.textSecondary }]}>
             {dashboardData.multiplier}x Earnings Multiplier
           </Text>
         </View>
       </View>
 
       {/* Wallet Balance */}
-      <View style={styles.walletCard}>
+      <View style={[styles.walletCard, { backgroundColor: Colors.secondary }]}>
         <Text style={styles.walletLabel}>{t("balance")}</Text>
         <Text style={styles.walletAmount}>
-          {dashboardData.wallet.toLocaleString()} RWF
+          {(dashboardData.wallet || 0).toLocaleString()} RWF
         </Text>
       </View>
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/log-ride")}>
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(230, 57, 70, 0.2)' }]}>
+          <View style={[styles.actionIcon, { backgroundColor: isDark ? "rgba(230,57,70,0.18)" : "rgba(230,57,70,0.12)" }]}>
             <Feather name="plus-circle" size={24} color={Colors.primary} />
           </View>
-          <Text style={styles.actionText}>{t("log_ride")}</Text>
+          <Text style={[styles.actionText, { color: colors.textPrimary }]}>{t("log_ride")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/(tabs)/wallet")}>
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+          <View style={[styles.actionIcon, { backgroundColor: isDark ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.12)" }]}>
             <Feather name="arrow-down-circle" size={24} color={Colors.success} />
           </View>
-          <Text style={styles.actionText}>{t("cash_in")}</Text>
+          <Text style={[styles.actionText, { color: colors.textPrimary }]}>{t("cash_in")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/leaderboard")}>
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(244, 162, 97, 0.2)' }]}>
+          <View style={[styles.actionIcon, { backgroundColor: isDark ? "rgba(244,162,97,0.18)" : "rgba(244,162,97,0.12)" }]}>
             <Feather name="bar-chart-2" size={24} color={Colors.accent} />
           </View>
-          <Text style={styles.actionText}>{t("leaderboard")}</Text>
+          <Text style={[styles.actionText, { color: colors.textPrimary }]}>{t("leaderboard")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/loans")}>
-          <View style={[styles.actionIcon, { backgroundColor: 'rgba(29, 53, 87, 0.8)' }]}>
+          <View style={[styles.actionIcon, { backgroundColor: isDark ? "rgba(29,53,87,0.8)" : "rgba(29,53,87,0.12)" }]}>
             <Feather name="briefcase" size={24} color="#81c3d7" />
           </View>
-          <Text style={styles.actionText}>{t("loans")}</Text>
+          <Text style={[styles.actionText, { color: colors.textPrimary }]}>{t("loans")}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
           <Feather name="target" size={20} color={Colors.primary} style={styles.statIcon} />
-          <Text style={styles.statValue}>
-            {dashboardData.ridesToday} <Text style={styles.statSubValue}>/ {dashboardData.target}</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>
+            {dashboardData.ridesToday}{" "}
+            <Text style={[styles.statSubValue, { color: colors.textSecondary }]}>/ {dashboardData.target}</Text>
           </Text>
-          <Text style={styles.statLabel}>{t("rides_today")}</Text>
-          {/* Progress bar */}
-          <View style={styles.progressTrack}>
-            <View 
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t("rides_today")}</Text>
+          <View style={[styles.progressTrack, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }]}>
+            <View
               style={[
-                styles.progressFill, 
-                { width: `${Math.min((dashboardData.ridesToday / dashboardData.target) * 100, 100)}%` }
-              ]} 
+                styles.progressFill,
+                { width: `${Math.min((dashboardData.ridesToday / dashboardData.target) * 100, 100)}%` },
+              ]}
             />
           </View>
         </View>
 
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
           <Feather name="zap" size={20} color={Colors.accent} style={styles.statIcon} />
-          <Text style={styles.statValue}>{dashboardData.streak} <Text style={styles.statSubValue}>days</Text></Text>
-          <Text style={styles.statLabel}>{t("streak")}</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>
+            {dashboardData.streak}{" "}
+            <Text style={[styles.statSubValue, { color: colors.textSecondary }]}>days</Text>
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t("streak")}</Text>
         </View>
 
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
           <Feather name="calendar" size={20} color={Colors.success} style={styles.statIcon} />
-          <Text style={styles.statValue}>{dashboardData.ridesMonth}</Text>
-          <Text style={styles.statLabel}>{t("monthly_rides")}</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{dashboardData.ridesMonth}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t("monthly_rides")}</Text>
         </View>
 
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
           <Feather name="users" size={20} color="#a8dadc" style={styles.statIcon} />
-          <Text style={styles.statValue}>{dashboardData.referrals}</Text>
-          <Text style={styles.statLabel}>{t("referrals")}</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{dashboardData.referrals}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t("referrals")}</Text>
         </View>
       </View>
     </ScrollView>
@@ -190,11 +194,6 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-    paddingHorizontal: 16,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -204,12 +203,10 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
   },
   name: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
   },
   headerActions: {
     flexDirection: "row",
@@ -219,11 +216,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.backgroundCard,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
   },
   badge: {
     position: "absolute",
@@ -238,7 +233,6 @@ const styles = StyleSheet.create({
   tierCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
@@ -254,11 +248,9 @@ const styles = StyleSheet.create({
   tierSubtitle: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   walletCard: {
-    backgroundColor: Colors.secondary,
     padding: 24,
     borderRadius: 16,
     marginBottom: 24,
@@ -272,7 +264,7 @@ const styles = StyleSheet.create({
   walletAmount: {
     fontSize: 32,
     fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
+    color: "#fff",
   },
   quickActions: {
     flexDirection: "row",
@@ -294,7 +286,6 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: Colors.textPrimary,
     textAlign: "center",
   },
   statsGrid: {
@@ -305,11 +296,9 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: "48%",
-    backgroundColor: Colors.backgroundCard,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
   },
   statIcon: {
     marginBottom: 12,
@@ -317,21 +306,17 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
   },
   statSubValue: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   statLabel: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   progressTrack: {
     height: 4,
-    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 2,
     marginTop: 12,
   },
