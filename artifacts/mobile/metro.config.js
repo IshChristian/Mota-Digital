@@ -14,6 +14,9 @@ config.resolver = {
     path.resolve(projectRoot, "node_modules"),
     path.resolve(workspaceRoot, "node_modules"),
   ],
+  // Enable symlink resolution for pnpm
+  unstable_enableSymlinks: true,
+  unstable_enablePackageExports: true,
 };
 
 module.exports = config;

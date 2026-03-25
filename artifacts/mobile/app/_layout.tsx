@@ -16,7 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
-import Colors from "@/constants/colors";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,10 +33,8 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to login if not authenticated
       router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup) {
-      // Redirect to tabs if authenticated
       router.replace("/(tabs)");
     }
   }, [isAuthenticated, isLoading, segments]);
@@ -44,12 +42,19 @@ function RootLayoutNav() {
   if (isLoading) return null;
 
   return (
-    <Stack screenOptions={{ 
+    <ThemedStack />
+  );
+}
+
+function ThemedStack() {
+  const { colors } = useTheme();
+  return (
+    <Stack screenOptions={{
       headerBackTitle: "Back",
-      headerStyle: { backgroundColor: Colors.backgroundDark },
-      headerTintColor: Colors.textPrimary,
-      headerTitleStyle: { color: Colors.textPrimary },
-      contentStyle: { backgroundColor: Colors.backgroundDark }
+      headerStyle: { backgroundColor: colors.background },
+      headerTintColor: colors.textPrimary,
+      headerTitleStyle: { color: colors.textPrimary },
+      contentStyle: { backgroundColor: colors.background },
     }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -58,6 +63,9 @@ function RootLayoutNav() {
       <Stack.Screen name="log-ride" options={{ presentation: 'modal', title: 'Log Ride' }} />
       <Stack.Screen name="loans" options={{ presentation: 'modal', title: 'Loans' }} />
       <Stack.Screen name="leaderboard" options={{ presentation: 'modal', title: 'Leaderboard' }} />
+      <Stack.Screen name="profile/personal-info" options={{ title: 'Personal Information' }} />
+      <Stack.Screen name="profile/vehicle-info" options={{ title: 'Vehicle Information' }} />
+      <Stack.Screen name="profile/documents" options={{ title: 'Documents & Permits' }} />
       <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
     </Stack>
   );
@@ -80,20 +88,22 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <I18nProvider>
-              <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.backgroundDark }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </I18nProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <I18nProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </I18nProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }

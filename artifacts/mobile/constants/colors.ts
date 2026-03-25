@@ -16,20 +16,6 @@ const Colors = {
     platinum: "#E5E4E2",
     gorilla: "#4ECDC4",
   },
-  light: {
-    text: "#FFFFFF",
-    background: "#0A0E1A",
-    tint: "#E63946",
-    tabIconDefault: "#9CA3AF",
-    tabIconSelected: "#E63946",
-  },
-  dark: {
-    text: "#FFFFFF",
-    background: "#0A0E1A",
-    tint: "#E63946",
-    tabIconDefault: "#9CA3AF",
-    tabIconSelected: "#E63946",
-  },
 };
 
 export default Colors;

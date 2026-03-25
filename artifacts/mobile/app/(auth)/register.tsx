@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from "react-native";
-import { useRouter as useExpoRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
 import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +21,7 @@ export default function RegisterScreen() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    phone: "+250",
+    phone: "",
     email: "",
     nationalId: "",
     password: "",
@@ -30,26 +31,52 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const { login } = useAuth();
   const t = useT();
-  const router = useExpoRouter();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors, isDark, toggleTheme } = useTheme();
+
+  const logoSource = isDark
+    ? require("@/assets/images/logo-light.png")
+    : require("@/assets/images/logo-dark.png");
+
+  const update = (key: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [key]: value }));
+
+  // Smart phone handling: display without +250 when starts with 07
+  const handlePhoneChange = (raw: string) => {
+    update("phone", raw);
+  };
+
+  // Get the phone for submission: if starts with 07, prepend +250
+  const getSubmitPhone = () => {
+    const raw = formData.phone.trim();
+    if (raw.startsWith("+250")) return raw;
+    if (raw.startsWith("07")) return "+250" + raw.slice(1);
+    if (raw.startsWith("7")) return "+2507" + raw.slice(1);
+    return raw;
+  };
 
   const handleRegister = async () => {
     if (!formData.firstName || !formData.lastName || !formData.phone || !formData.password) {
       setError("Please fill all required fields");
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
-      const res = await authApi.register(formData);
-      if (res.data?.token && res.data?.user) {
-        await login(res.data.token, res.data.user);
-        // RootLayoutNav will navigate to tabs
+      const submitData = { ...formData, phone: getSubmitPhone() };
+      const res = await authApi.register(submitData);
+      const { token, user } = res.data || {};
+      if (token && user) {
+        await login(token, user);
+        // After register always go to OTP verification
+        router.replace({
+          pathname: "/(auth)/otp",
+          params: { userId: user.id || user._id, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
+        });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || t("error"));
@@ -58,244 +85,270 @@ export default function RegisterScreen() {
     }
   };
 
-  const updateForm = (key: string, value: string) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-  };
+  const s = styles(colors);
+
+  const InputField = ({
+    label,
+    value,
+    onChangeText,
+    placeholder,
+    keyboardType,
+    secure,
+    required,
+    hint,
+  }: any) => (
+    <View style={s.inputGroup}>
+      <Text style={s.label}>
+        {label}
+        {required ? <Text style={{ color: colors.primary }}> *</Text> : null}
+      </Text>
+      {hint ? <Text style={s.hint}>{hint}</Text> : null}
+      {secure ? (
+        <View style={s.passwordContainer}>
+          <TextInput
+            style={s.passwordInput}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textTertiary}
+            value={value}
+            onChangeText={onChangeText}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity style={s.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+            <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TextInput
+          style={s.input}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType || "default"}
+          autoCapitalize="none"
+        />
+      )}
+    </View>
+  );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color={Colors.textPrimary} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView
+        contentContainerStyle={[s.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity style={s.themeToggle} onPress={toggleTheme}>
+          <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Account</Text>
-        <View style={{ width: 44 }} />
-      </View>
 
-      <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
 
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.label}>First Name *</Text>
+        <View style={s.header}>
+          <Image source={logoSource} style={s.logo} resizeMode="contain" />
+          <Text style={s.title}>Create Account</Text>
+          <Text style={s.subtitle}>Join MOTA as a Driver</Text>
+        </View>
+
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
+
+        <InputField
+          label="First Name"
+          value={formData.firstName}
+          onChangeText={(v: string) => update("firstName", v)}
+          placeholder="Jean"
+          required
+        />
+        <InputField
+          label="Last Name"
+          value={formData.lastName}
+          onChangeText={(v: string) => update("lastName", v)}
+          placeholder="Mutoni"
+          required
+        />
+
+        <View style={s.inputGroup}>
+          <Text style={s.label}>
+            Phone Number <Text style={{ color: colors.primary }}>*</Text>
+          </Text>
+          <Text style={s.hint}>Start with 07... or +250...</Text>
+          <View style={s.phoneRow}>
             <TextInput
-              style={styles.input}
-              placeholder="John"
-              placeholderTextColor={Colors.textSecondary}
-              value={formData.firstName}
-              onChangeText={(v) => updateForm("firstName", v)}
+              style={[s.input, { flex: 1 }]}
+              placeholder="0788 123 456"
+              placeholderTextColor={colors.textTertiary}
+              value={formData.phone}
+              onChangeText={handlePhoneChange}
+              keyboardType="phone-pad"
             />
           </View>
-          <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-            <Text style={styles.label}>Last Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Doe"
-              placeholderTextColor={Colors.textSecondary}
-              value={formData.lastName}
-              onChangeText={(v) => updateForm("lastName", v)}
-            />
-          </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone Number *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="+250..."
-            placeholderTextColor={Colors.textSecondary}
-            value={formData.phone}
-            onChangeText={(v) => updateForm("phone", v)}
-            keyboardType="phone-pad"
-          />
-        </View>
+        <InputField
+          label="Email"
+          value={formData.email}
+          onChangeText={(v: string) => update("email", v)}
+          placeholder="jean@example.com"
+          keyboardType="email-address"
+        />
+        <InputField
+          label="National ID"
+          value={formData.nationalId}
+          onChangeText={(v: string) => update("nationalId", v)}
+          placeholder="1199880012345678"
+          keyboardType="numeric"
+        />
+        <InputField
+          label="Password"
+          value={formData.password}
+          onChangeText={(v: string) => update("password", v)}
+          placeholder="••••••••"
+          secure
+          required
+        />
+        <InputField
+          label="Referral Code (Optional)"
+          value={formData.referralCode}
+          onChangeText={(v: string) => update("referralCode", v)}
+          placeholder="MOTA-XXXX"
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="john@example.com"
-            placeholderTextColor={Colors.textSecondary}
-            value={formData.email}
-            onChangeText={(v) => updateForm("email", v)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>National ID</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="1199..."
-            placeholderTextColor={Colors.textSecondary}
-            value={formData.nationalId}
-            onChangeText={(v) => updateForm("nationalId", v)}
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password *</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="••••••••"
-              placeholderTextColor={Colors.textSecondary}
-              value={formData.password}
-              onChangeText={(v) => updateForm("password", v)}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Referral Code (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Code"
-            placeholderTextColor={Colors.textSecondary}
-            value={formData.referralCode}
-            onChangeText={(v) => updateForm("referralCode", v)}
-            autoCapitalize="characters"
-          />
-        </View>
-
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleRegister}
-          disabled={loading}
-        >
+        <TouchableOpacity style={s.button} onPress={handleRegister} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color={Colors.textPrimary} />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>{t("register")}</Text>
+            <Text style={s.buttonText}>{t("register")}</Text>
           )}
         </TouchableOpacity>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+        <View style={s.footer}>
+          <Text style={s.footerText}>Already have an account? </Text>
           <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-            <Text style={styles.link}>{t("login")}</Text>
+            <Text style={s.link}>{t("login")}</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-    paddingHorizontal: 24,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textPrimary,
-  },
-  form: {
-    flex: 1,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 12,
-    padding: 16,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 16,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: 16,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  footerText: {
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  link: {
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+    },
+    themeToggle: {
+      alignSelf: "flex-end",
+      padding: 8,
+    },
+    backBtn: {
+      marginBottom: 8,
+      padding: 4,
+      alignSelf: "flex-start",
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: 32,
+    },
+    logo: {
+      width: 160,
+      height: 60,
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 26,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    inputGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+      marginBottom: 6,
+    },
+    hint: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textTertiary,
+      marginBottom: 6,
+    },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderRadius: 12,
+      padding: 14,
+      color: colors.textPrimary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 15,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    phoneRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    passwordContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.inputBg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    passwordInput: {
+      flex: 1,
+      padding: 14,
+      color: colors.textPrimary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 15,
+    },
+    eyeIcon: {
+      padding: 14,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      marginBottom: 16,
+      textAlign: "center",
+    },
+    footer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      marginTop: 24,
+    },
+    footerText: {
+      color: colors.textSecondary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 14,
+    },
+    link: {
+      color: colors.primary,
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+  });

@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { useRouter as useExpoRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
 import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,16 +20,23 @@ export default function OtpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
-  
+
   const { user } = useAuth();
   const t = useT();
-  const router = useExpoRouter();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ userId?: string; phone?: string; fromRegister?: string; email?: string; fromLogin?: string }>();
   const inputs = useRef<Array<TextInput | null>>([]);
+  const { colors } = useTheme();
+
+  const phone = params.phone || user?.phone;
+  const userId = params.userId || user?.id;
+  const fromRegister = params.fromRegister === "1";
+  const hasEmail = !!(params.email && params.email.includes("@"));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimer((prevTimer) => (prevTimer > 0 ? prevTimer - 1 : 0));
+      setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -38,27 +45,29 @@ export default function OtpScreen() {
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-
-    if (value && index < 5) {
-      inputs.current[index + 1]?.focus();
-    }
-
-    if (!value && index > 0) {
-      inputs.current[index - 1]?.focus();
-    }
-
-    if (newOtp.every(v => v !== "")) {
-      verifyOtp(newOtp.join(""));
-    }
+    if (value && index < 5) inputs.current[index + 1]?.focus();
+    if (!value && index > 0) inputs.current[index - 1]?.focus();
   };
 
-  const verifyOtp = async (code: string) => {
+  const verifyOtp = async () => {
+    const code = otp.join("");
+    if (code.length < 6) { setError("Please enter all 6 digits"); return; }
     setLoading(true);
     setError("");
-
     try {
-      await authApi.verifyOtp({ phone: user?.phone, otp: code });
-      router.replace("/(tabs)");
+      await authApi.verifyOtp({ userId, otp: code });
+      // After OTP verified:
+      if (fromRegister) {
+        if (hasEmail) {
+          // Show email verification notice
+          router.replace({ pathname: "/(auth)/verify-email", params: { email: params.email } });
+        } else {
+          // Go to upload documents
+          router.replace({ pathname: "/(auth)/upload-documents" });
+        }
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid OTP");
     } finally {
@@ -68,10 +77,9 @@ export default function OtpScreen() {
 
   const handleResend = async () => {
     if (timer > 0) return;
-    
     setLoading(true);
     try {
-      await authApi.resendOtp({ phone: user?.phone });
+      await authApi.resendOtp({ phone });
       setTimer(60);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to resend");
@@ -80,34 +88,42 @@ export default function OtpScreen() {
     }
   };
 
+  const s = styles(colors);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color={Colors.textPrimary} />
+    <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
+          <Feather name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.title}>{t("otp_verify")}</Text>
-        <Text style={styles.subtitle}>
-          We sent a code to {user?.phone || "+250 XXX XXX XXX"}
+      <View style={s.content}>
+        <View style={s.iconWrap}>
+          <Feather name="message-square" size={40} color={colors.primary} />
+        </View>
+        <Text style={s.title}>{t("otp_verify")}</Text>
+        <Text style={s.subtitle}>
+          We sent a 6-digit code to{"\n"}
+          <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>
+            {phone || "+250 XXX XXX XXX"}
+          </Text>
         </Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
 
-        <View style={styles.otpContainer}>
+        <View style={s.otpContainer}>
           {otp.map((digit, index) => (
             <TextInput
               key={index}
-              ref={(ref) => (inputs.current[index] = ref)}
-              style={styles.otpInput}
+              ref={(ref) => { inputs.current[index] = ref; }}
+              style={[s.otpInput, digit ? s.otpInputFilled : null]}
               keyboardType="number-pad"
               maxLength={1}
               value={digit}
               onChangeText={(value) => handleOtpChange(value, index)}
               onKeyPress={({ nativeEvent }) => {
-                if (nativeEvent.key === 'Backspace' && !digit && index > 0) {
+                if (nativeEvent.key === "Backspace" && !digit && index > 0) {
                   inputs.current[index - 1]?.focus();
                 }
               }}
@@ -115,22 +131,22 @@ export default function OtpScreen() {
           ))}
         </View>
 
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={() => verifyOtp(otp.join(""))}
+        <TouchableOpacity
+          style={[s.button, otp.some(v => !v) && s.buttonDisabled]}
+          onPress={verifyOtp}
           disabled={loading || otp.some(v => !v)}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.textPrimary} />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>{t("confirm")}</Text>
+            <Text style={s.buttonText}>Verify OTP</Text>
           )}
         </TouchableOpacity>
 
-        <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive code? </Text>
+        <View style={s.resendContainer}>
+          <Text style={s.resendText}>Didn't receive code? </Text>
           <TouchableOpacity onPress={handleResend} disabled={timer > 0}>
-            <Text style={[styles.resendLink, timer > 0 && styles.resendDisabled]}>
+            <Text style={[s.resendLink, timer > 0 && s.resendDisabled]}>
               Resend {timer > 0 ? `(${timer}s)` : ""}
             </Text>
           </TouchableOpacity>
@@ -140,96 +156,109 @@ export default function OtpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-    paddingHorizontal: 24,
-  },
-  header: {
-    marginBottom: 32,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-  },
-  content: {
-    flex: 1,
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginBottom: 40,
-    textAlign: "center",
-  },
-  otpContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 40,
-  },
-  otpInput: {
-    width: 50,
-    height: 60,
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    color: Colors.textPrimary,
-    fontSize: 24,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-  },
-  button: {
-    width: "100%",
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  resendContainer: {
-    flexDirection: "row",
-    marginTop: 32,
-  },
-  resendText: {
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  resendLink: {
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  resendDisabled: {
-    color: Colors.textSecondary,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: 24,
+    },
+    header: {
+      paddingVertical: 12,
+      marginBottom: 16,
+    },
+    backButton: {
+      width: 44,
+      height: 44,
+      justifyContent: "center",
+    },
+    content: {
+      flex: 1,
+      alignItems: "center",
+    },
+    iconWrap: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: `${colors.primary}20`,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+    },
+    title: {
+      fontSize: 26,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 15,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginBottom: 32,
+      textAlign: "center",
+      lineHeight: 22,
+    },
+    otpContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      width: "100%",
+      marginBottom: 32,
+      gap: 8,
+    },
+    otpInput: {
+      flex: 1,
+      height: 60,
+      backgroundColor: colors.inputBg,
+      borderWidth: 1.5,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      color: colors.textPrimary,
+      fontSize: 24,
+      fontFamily: "Inter_600SemiBold",
+      textAlign: "center",
+    },
+    otpInputFilled: {
+      borderColor: colors.primary,
+    },
+    button: {
+      width: "100%",
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      marginBottom: 24,
+      textAlign: "center",
+    },
+    resendContainer: {
+      flexDirection: "row",
+      marginTop: 24,
+    },
+    resendText: {
+      color: colors.textSecondary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 14,
+    },
+    resendLink: {
+      color: colors.primary,
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+    resendDisabled: {
+      color: colors.textTertiary,
+    },
+  });

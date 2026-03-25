@@ -1,96 +1,87 @@
-# Workspace
+# MOTA Driver App Workspace
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo with TypeScript. Contains the MOTA Driver App (Expo React Native) and an Express API server.
 
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
 - **Node.js version**: 24
 - **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
 
 ## Structure
 
 ```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+artifacts/
+├── mobile/           # Expo React Native app (MOTA Driver App)
+├── api-server/       # Express API server (local proxy/helpers)
+└── mockup-sandbox/   # Vite component preview server
+lib/
+├── api-client-react/ # Generated React Query hooks
+├── api-spec/         # OpenAPI spec + Orval config
+├── api-zod/          # Generated Zod schemas
+└── db/               # Drizzle ORM schema + DB connection
 ```
 
-## TypeScript & Composite Projects
+## MOTA Driver App (`artifacts/mobile`)
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+### Overview
+Production mobile app for moto-taxi drivers in Kigali, Rwanda. Connects to external backend API at `https://mota-be-v1-0-0-1.onrender.com/api`.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+### Key Features
+- Auth screens: login, register, OTP, email verify, document upload, driver profile creation, registration payment
+- Main tabs: dashboard, rides, wallet, profile
+- Modal screens: MOTA card (QR), log ride, loans, leaderboard, notifications
+- Profile sub-screens: personal info, vehicle info, documents & permits
+- Wallet: cash-in via Paypack MoMo, cash-out withdrawal requests
+- Theme: dark/light mode toggle (dark=MOTA branded, light=black&white)
+- Logo: MOTA brand logo used on all auth screens
+- i18n: English/Kinyarwanda/French
+- Cloudinary document upload for insurance, permit, permit ID photos
 
-## Root Scripts
+### Registration Flow
+1. Register → OTP verification
+2. If email provided → email verification notice screen
+3. Upload documents (Cloudinary): insurance, permit, permit ID
+4. Create driver profile (plate number, cooperative, NID)
+5. Pay registration fee (5,000 RWF via MoMo)
+6. Dashboard
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+### Login Flow
+After login checks: `isVerified` → `isEmailVerified` → `kycLevel === "full"` → payment status. Redirects to appropriate completion screen if needed.
 
-## Packages
+### Environment Variables (`.env`)
+```
+EXPO_PUBLIC_API_BASE_URL=https://mota-be-v1-0-0-1.onrender.com/api
+EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=dfxxwj8zx
+EXPO_PUBLIC_CLOUDINARY_API_KEY=784593137791129
+```
 
-### `artifacts/api-server` (`@workspace/api-server`)
+### Key Files
+- `app/_layout.tsx` — root layout with ThemeProvider, auth guard
+- `app/(auth)/` — login, register, otp, verify-email, upload-documents, create-profile, payment-registration
+- `app/(tabs)/` — dashboard, rides, wallet, profile
+- `app/profile/` — personal-info, vehicle-info, documents
+- `context/AuthContext.tsx` — JWT auth, AsyncStorage on web, SecureStore on native
+- `context/ThemeContext.tsx` — dark/light theme with AsyncStorage persistence
+- `context/I18nContext.tsx` — multilingual support
+- `services/api.ts` — Axios client with auth interceptor
+- `services/cloudinary.ts` — Cloudinary direct upload helper
+- `assets/images/` — logo-light.png, logo-dark.png, logo-on-dark.png, logo-on-light.png
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+### Theme Colors
+- **Dark mode**: bg #0A0E1A, cards #111827, text white, primary #E63946 (MOTA red)
+- **Light mode**: bg #F8F9FA, cards white, text #0A0A0A, primary #E63946 (MOTA red)
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+### Tier Colors
+bronze #CD7F32, silver #C0C0C0, gold #FFD700, platinum #E5E4E2, gorilla #4ECDC4
 
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+### Notes
+- Do NOT use uuid — use `Date.now().toString() + Math.random().toString(36)` for IDs
+- expo-secure-store not available on web — use AsyncStorage fallback via Platform.OS check
+- JWT stored in expo-secure-store (native) / AsyncStorage (web) under key `auth_token`
+- User data cached in AsyncStorage under `user_data`
+- Language preference stored in AsyncStorage under `app_language`
+- Theme preference stored in AsyncStorage under `app_theme`
+- Cloudinary unsigned upload preset: `mota_unsigned`

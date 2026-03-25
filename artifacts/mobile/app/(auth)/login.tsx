@@ -7,15 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Image,
+  ScrollView,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
 import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter as useExpoRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 export default function LoginScreen() {
   const [identifier, setIdentifier] = useState("");
@@ -23,26 +25,42 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const { login } = useAuth();
   const t = useT();
-  const router = useExpoRouter();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors, isDark, toggleTheme } = useTheme();
+
+  const logoSource = isDark
+    ? require("@/assets/images/logo-light.png")
+    : require("@/assets/images/logo-dark.png");
 
   const handleLogin = async () => {
     if (!identifier || !password) {
       setError("Please fill all fields");
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
       const res = await authApi.login({ identifier, password });
-      if (res.data?.token && res.data?.user) {
-        await login(res.data.token, res.data.user);
-        // navigation is handled by RootLayoutNav based on auth state
+      const { token, user } = res.data || {};
+      if (token && user) {
+        await login(token, user);
+        // After login, check profile completion
+        const needsProfile =
+          !user.isVerified || !user.isEmailVerified || user.kycLevel !== "full";
+        if (needsProfile) {
+          if (!user.isVerified) {
+            router.replace({ pathname: "/(auth)/otp", params: { userId: user.id, phone: user.phone, fromLogin: "1" } });
+          } else if (!user.isEmailVerified) {
+            router.replace({ pathname: "/(auth)/verify-email", params: { email: user.email } });
+          } else {
+            router.replace({ pathname: "/(auth)/create-profile", params: { userId: user.id } });
+          }
+        }
+        // else navigation handled by RootLayoutNav
       }
     } catch (err: any) {
       setError(err.response?.data?.message || t("error"));
@@ -51,176 +69,184 @@ export default function LoginScreen() {
     }
   };
 
+  const s = styles(colors);
+
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]} 
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.header}>
-        <Text style={styles.logo}>MOTA</Text>
-        <Text style={styles.subtitle}>Driver Portal</Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={[s.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TouchableOpacity style={s.themeToggle} onPress={toggleTheme}>
+          <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
 
-      <View style={styles.form}>
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone or Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. +250..."
-            placeholderTextColor={Colors.textSecondary}
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
+        <View style={s.header}>
+          <Image source={logoSource} style={s.logo} resizeMode="contain" />
+          <Text style={s.subtitle}>Driver Portal</Text>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordContainer}>
+        <View style={s.form}>
+          {error ? <Text style={s.errorText}>{error}</Text> : null}
+
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Phone or Email</Text>
             <TextInput
-              style={styles.passwordInput}
-              placeholder="••••••••"
-              placeholderTextColor={Colors.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
+              style={s.input}
+              placeholder="e.g. +250..."
+              placeholderTextColor={colors.textTertiary}
+              value={identifier}
+              onChangeText={setIdentifier}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={Colors.textSecondary} />
+          </View>
+
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Password</Text>
+            <View style={s.passwordContainer}>
+              <TextInput
+                style={s.passwordInput}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textTertiary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={s.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={s.button}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.buttonText}>{t("login")}</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={s.footer}>
+            <Text style={s.footerText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+              <Text style={s.link}>{t("register")}</Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color={Colors.textPrimary} />
-          ) : (
-            <Text style={styles.buttonText}>{t("login")}</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-            <Text style={styles.link}>{t("register")}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-    padding: 24,
-  },
-  header: {
-    alignItems: "center",
-    marginTop: 60,
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 48,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-    letterSpacing: 2,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.primary,
-    marginTop: 4,
-  },
-  form: {
-    flex: 1,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 12,
-    padding: 16,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 16,
-    color: Colors.textPrimary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: 16,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 32,
-  },
-  footerText: {
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  link: {
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+    },
+    themeToggle: {
+      alignSelf: "flex-end",
+      padding: 8,
+    },
+    header: {
+      alignItems: "center",
+      marginTop: 20,
+      marginBottom: 40,
+    },
+    logo: {
+      width: 200,
+      height: 80,
+    },
+    subtitle: {
+      fontSize: 16,
+      fontFamily: "Inter_500Medium",
+      color: colors.primary,
+      marginTop: 8,
+    },
+    form: {
+      flex: 1,
+    },
+    inputGroup: {
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderRadius: 12,
+      padding: 16,
+      color: colors.textPrimary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    passwordContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.inputBg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    passwordInput: {
+      flex: 1,
+      padding: 16,
+      color: colors.textPrimary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 16,
+    },
+    eyeIcon: {
+      padding: 16,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 10,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      marginBottom: 16,
+      textAlign: "center",
+    },
+    footer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      marginTop: 32,
+    },
+    footerText: {
+      color: colors.textSecondary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 14,
+    },
+    link: {
+      color: colors.primary,
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+  });

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,236 +6,296 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  Image,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 import { useAuth } from "@/context/AuthContext";
 import { useT, useI18n } from "@/context/I18nContext";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
+import { uploadToCloudinary } from "@/services/cloudinary";
+import { usersApi } from "@/services/api";
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, login, token } = useAuth();
   const { language, setLanguage } = useI18n();
   const t = useT();
   const insets = useSafeAreaInsets();
+  const { colors, isDark, toggleTheme } = useTheme();
+  const router = useRouter();
+
+  const [langModal, setLangModal] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Logout", 
-          style: "destructive",
-          onPress: logout 
-        }
-      ]
-    );
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: logout },
+    ]);
   };
 
-  const changeLanguage = () => {
-    const next = language === 'en' ? 'rw' : language === 'rw' ? 'fr' : 'en';
-    setLanguage(next as 'en' | 'rw' | 'fr');
+  const handleAvatarChange = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please allow access to your photo library.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      setAvatarUploading(true);
+      const url = await uploadToCloudinary(asset.uri, "mota-avatars");
+      await usersApi.updateMe({ profileImage: url });
+      // Update user in auth context
+      if (user && token) {
+        await login(token, { ...user, profileImage: url });
+      }
+    } catch {
+      Alert.alert("Upload failed", "Could not upload profile photo. Please try again.");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
+
+  const langOptions = [
+    { code: "en", label: "English", flag: "🇬🇧" },
+    { code: "rw", label: "Kinyarwanda", flag: "🇷🇼" },
+    { code: "fr", label: "Français", flag: "🇫🇷" },
+  ] as const;
+
+  const s = styles(colors);
 
   return (
-    <ScrollView 
-      style={[styles.container]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 100 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>{t("profile")}</Text>
-      </View>
-
-      <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </Text>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top, paddingBottom: 100 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={s.header}>
+          <Text style={s.title}>{t("profile")}</Text>
+          <TouchableOpacity onPress={toggleTheme} style={s.themeBtn}>
+            <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
-        <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
-        <Text style={styles.phone}>{user?.phone}</Text>
-        
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{user?.role?.toUpperCase() || 'DRIVER'}</Text>
+
+        {/* Avatar */}
+        <View style={s.profileCard}>
+          <View style={s.avatarWrap}>
+            {user?.profileImage ? (
+              <Image source={{ uri: user.profileImage }} style={s.avatarImg} />
+            ) : (
+              <View style={s.avatarPlaceholder}>
+                <Text style={s.avatarText}>
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity style={s.cameraBtn} onPress={handleAvatarChange} disabled={avatarUploading}>
+              {avatarUploading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="camera" size={14} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+          <Text style={s.name}>{user?.firstName} {user?.lastName}</Text>
+          <Text style={s.phone}>{user?.phone}</Text>
+          <View style={s.badge}>
+            <Text style={s.badgeText}>{user?.role?.toUpperCase() || "DRIVER"}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowIcon}>
-            <Feather name="user" size={20} color={Colors.textPrimary} />
-          </View>
-          <Text style={styles.rowText}>Personal Information</Text>
-          <Feather name="chevron-right" size={20} color={Colors.textSecondary} />
+        {/* Account */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Account</Text>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/personal-info")}>
+            <View style={s.rowIcon}>
+              <Feather name="user" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Personal Information</Text>
+            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.row} onPress={() => setLangModal(true)}>
+            <View style={s.rowIcon}>
+              <Feather name="globe" size={18} color={colors.primary} />
+            </View>
+            <View style={s.rowBody}>
+              <Text style={s.rowText}>Language</Text>
+              <Text style={s.rowSub}>
+                {langOptions.find((l) => l.code === language)?.flag}{" "}
+                {langOptions.find((l) => l.code === language)?.label}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.row} onPress={toggleTheme}>
+            <View style={s.rowIcon}>
+              <Feather name={isDark ? "moon" : "sun"} size={18} color={colors.primary} />
+            </View>
+            <View style={s.rowBody}>
+              <Text style={s.rowText}>Appearance</Text>
+              <Text style={s.rowSub}>{isDark ? "Dark Mode" : "Light Mode"}</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Driver Details */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Driver Details</Text>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/vehicle-info")}>
+            <View style={s.rowIcon}>
+              <Feather name="truck" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Vehicle Information</Text>
+            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/documents")}>
+            <View style={s.rowIcon}>
+              <Feather name="file-text" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Documents & Permits</Text>
+            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
+          <Feather name="log-out" size={18} color={colors.error} />
+          <Text style={s.logoutText}>{t("logout")}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowIcon}>
-            <Feather name="credit-card" size={20} color={Colors.textPrimary} />
+        <Text style={s.version}>MOTA — Rider's Best Friend v1.0.0</Text>
+      </ScrollView>
+
+      {/* Language Modal */}
+      <Modal visible={langModal} transparent animationType="slide" onRequestClose={() => setLangModal(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.modalTitle}>Choose Language</Text>
+            {langOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.code}
+                style={[s.langRow, language === opt.code && s.langRowActive]}
+                onPress={() => { setLanguage(opt.code); setLangModal(false); }}
+              >
+                <Text style={s.langFlag}>{opt.flag}</Text>
+                <Text style={[s.langLabel, language === opt.code && s.langLabelActive]}>{opt.label}</Text>
+                {language === opt.code && <Feather name="check" size={18} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.rowText}>Payment Methods</Text>
-          <Feather name="chevron-right" size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.row} onPress={changeLanguage}>
-          <View style={styles.rowIcon}>
-            <Feather name="globe" size={20} color={Colors.textPrimary} />
-          </View>
-          <Text style={styles.rowText}>Language ({language.toUpperCase()})</Text>
-          <Feather name="refresh-cw" size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Driver Details</Text>
-        
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowIcon}>
-            <Feather name="truck" size={20} color={Colors.textPrimary} />
-          </View>
-          <Text style={styles.rowText}>Vehicle Information</Text>
-          <Feather name="chevron-right" size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowIcon}>
-            <Feather name="file-text" size={20} color={Colors.textPrimary} />
-          </View>
-          <Text style={styles.rowText}>Documents & Permits</Text>
-          <Feather name="chevron-right" size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Feather name="log-out" size={20} color={Colors.error} />
-        <Text style={styles.logoutText}>{t("logout")}</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.version}>MOTA App v1.0.0</Text>
-    </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-  },
-  profileCard: {
-    alignItems: "center",
-    paddingVertical: 32,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  avatarText: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-  },
-  name: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  phone: {
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginBottom: 12,
-  },
-  badge: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  badgeText: {
-    color: Colors.textPrimary,
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1,
-  },
-  section: {
-    paddingTop: 24,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundCard,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  rowText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textPrimary,
-  },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    marginTop: 32,
-    marginHorizontal: 16,
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderRadius: 12,
-    gap: 8,
-  },
-  logoutText: {
-    color: Colors.error,
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  version: {
-    textAlign: "center",
-    color: Colors.textSecondary,
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    marginTop: 24,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    scroll: { paddingHorizontal: 16 },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 16 },
+    title: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    themeBtn: { padding: 8 },
+    profileCard: { alignItems: "center", paddingVertical: 28, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 },
+    avatarWrap: { position: "relative", marginBottom: 14 },
+    avatarImg: { width: 88, height: 88, borderRadius: 44 },
+    avatarPlaceholder: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff" },
+    cameraBtn: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.secondary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    name: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 4 },
+    phone: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginBottom: 10 },
+    badge: { backgroundColor: colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+    badgeText: { color: colors.textPrimary, fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },
+    section: { paddingTop: 20, marginBottom: 4 },
+    sectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.textTertiary, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.backgroundCard,
+      padding: 14,
+      borderRadius: 12,
+      marginBottom: 8,
+    },
+    rowIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: `${colors.primary}15`,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+    },
+    rowBody: { flex: 1 },
+    rowText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: colors.textPrimary },
+    rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginTop: 2 },
+    logoutBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 14,
+      marginTop: 24,
+      backgroundColor: `${colors.error}12`,
+      borderRadius: 12,
+      gap: 8,
+    },
+    logoutText: { color: colors.error, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    version: { textAlign: "center", color: colors.textTertiary, fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 20 },
+    // Language modal
+    modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+    modalSheet: {
+      backgroundColor: colors.backgroundCard,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 24,
+      paddingBottom: 40,
+    },
+    modalHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
+    modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 20 },
+    langRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    langRowActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}10` },
+    langFlag: { fontSize: 24, marginRight: 14 },
+    langLabel: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", color: colors.textPrimary },
+    langLabelActive: { color: colors.primary, fontFamily: "Inter_600SemiBold" },
+  });

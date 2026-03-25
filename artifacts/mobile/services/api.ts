@@ -58,6 +58,9 @@ export const authApi = {
   login: (data: any) => api.post('/auth/login', data),
   verifyOtp: (data: any) => api.post('/auth/verify-otp', data),
   resendOtp: (data: any) => api.post('/auth/resend-otp', data),
+  payRegistration: (data: any) => api.post('/auth/pay-registration', data),
+  registrationStatus: (data: any) => api.post('/auth/registration-status', data),
+  logout: () => api.post('/auth/logout'),
 };
 
 // Driver
@@ -65,6 +68,7 @@ export const driverApi = {
   getDashboard: () => api.get('/driver/dashboard'),
   getProfile: () => api.get('/driver/profile'),
   updateProfile: (data: any) => api.put('/driver/update-profile', data),
+  createProfile: (data: any) => api.post('/driver/create-profile', data),
   logRide: (data: any) => api.post('/driver/log-ride', data),
   getRides: (page = 1) => api.get(`/driver/rides?page=${page}`),
   getTier: () => api.get('/driver/tier'),
