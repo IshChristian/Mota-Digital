@@ -4,7 +4,10 @@ import {
   Text,
   View,
   TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
+import { useState, useRef } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -19,10 +22,28 @@ export default function VerifyEmailScreen() {
   const { user, updateUser } = useAuth();
 
   const email = params.email || user?.email || "your email";
+  
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const inputs = useRef<Array<TextInput | null>>([]);
+
+  const handleOtpChange = (value: string, index: number) => {
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    if (value && index < 5) inputs.current[index + 1]?.focus();
+    if (!value && index > 0) inputs.current[index - 1]?.focus();
+  };
 
   const handleContinue = async () => {
-    // In a real app we'd verify the email token from a deep link or OTP input
-    await updateUser({ isEmailVerified: true });
+    setLoading(true);
+    try {
+      // In a real app we'd verify the email OTP from backend
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await updateUser({ isEmailVerified: true });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const s = styles(colors);
@@ -41,23 +62,36 @@ export default function VerifyEmailScreen() {
         Please check your inbox and click the link to verify your email address.
       </Text>
 
-      <View style={s.infoBox}>
-        <Feather name="info" size={16} color={colors.primary} />
-        <Text style={s.infoText}>
-          Check your spam folder if you don't see the email within a few minutes.
-        </Text>
+      <View style={s.otpContainer}>
+        {otp.map((digit, index) => (
+          <TextInput
+            key={index}
+            ref={(ref) => { inputs.current[index] = ref; }}
+            style={[s.otpInput, digit ? s.otpInputFilled : null]}
+            keyboardType="number-pad"
+            maxLength={1}
+            value={digit}
+            onChangeText={(value) => handleOtpChange(value, index)}
+            onKeyPress={({ nativeEvent }) => {
+              if (nativeEvent.key === "Backspace" && !digit && index > 0) {
+                inputs.current[index - 1]?.focus();
+              }
+            }}
+          />
+        ))}
       </View>
 
       <TouchableOpacity
-        style={s.button}
+        style={[s.button, otp.some(v => !v) && s.buttonDisabled]}
         onPress={handleContinue}
+        disabled={loading || otp.some(v => !v)}
       >
-        <Text style={s.buttonText}>Continue Setup →</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={s.buttonText}>Verify Email</Text>
+        )}
       </TouchableOpacity>
-
-      <Text style={s.note}>
-        You can continue setup now. Email verification can be completed later.
-      </Text>
     </View>
   );
 }
@@ -95,22 +129,30 @@ const styles = (colors: any) =>
       lineHeight: 24,
       marginBottom: 32,
     },
-    infoBox: {
+    otpContainer: {
       flexDirection: "row",
-      backgroundColor: `${colors.primary}12`,
-      borderRadius: 12,
-      padding: 16,
-      alignItems: "flex-start",
-      gap: 10,
-      marginBottom: 32,
+      justifyContent: "space-between",
       width: "100%",
+      marginBottom: 32,
+      gap: 8,
     },
-    infoText: {
+    otpInput: {
       flex: 1,
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
-      color: colors.textSecondary,
-      lineHeight: 20,
+      height: 60,
+      backgroundColor: colors.inputBg,
+      borderWidth: 1.5,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      color: colors.textPrimary,
+      fontSize: 24,
+      fontFamily: "Inter_600SemiBold",
+      textAlign: "center",
+    },
+    otpInputFilled: {
+      borderColor: colors.primary,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
     },
     button: {
       width: "100%",
@@ -123,12 +165,5 @@ const styles = (colors: any) =>
       color: "#fff",
       fontSize: 16,
       fontFamily: "Inter_600SemiBold",
-    },
-    note: {
-      marginTop: 16,
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      color: colors.textTertiary,
-      textAlign: "center",
     },
   });

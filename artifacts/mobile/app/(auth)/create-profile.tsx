@@ -25,7 +25,7 @@ export default function CreateProfileScreen() {
     permitId?: string;
   }>();
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const [formData, setFormData] = useState({
     plateNumber: "",
@@ -52,13 +52,13 @@ export default function CreateProfileScreen() {
         permitAttachment: params.permitAttachment || "",
         permitId: params.permitId || "",
       });
-      // After profile creation, go to dashboard
-      router.replace("/(tabs)");
+      // After profile creation, update state (which triggers navigation)
+      await updateUser({ kycLevel: 'full' });
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to create profile";
       if (msg.toLowerCase().includes("already exists")) {
-        // Profile already exists — go to dashboard
-        router.replace("/(tabs)");
+        // Profile already exists — update state
+        await updateUser({ kycLevel: 'full' });
       } else {
         setError(msg);
       }
@@ -139,10 +139,6 @@ export default function CreateProfileScreen() {
         ) : (
           <Text style={s.buttonText}>Complete Profile →</Text>
         )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={s.skipBtn} onPress={() => router.replace("/(tabs)")}>
-        <Text style={s.skipText}>Skip for now</Text>
       </TouchableOpacity>
     </ScrollView>
   );
