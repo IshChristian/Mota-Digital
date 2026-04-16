@@ -26,7 +26,7 @@ export default function PaymentRegistrationScreen() {
     email?: string;
   }>();
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const displayName = params.firstName && params.lastName
     ? `${params.firstName} ${params.lastName}`
@@ -52,31 +52,14 @@ export default function PaymentRegistrationScreen() {
     try {
       await authApi.payRegistration({ phone: displayPhone });
       setSuccess(true);
-      
-      const targetUserId = params.userId || user?.id || user?._id;
-      if (targetUserId) {
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const res = await authApi.registrationStatus({ userId: targetUserId });
-            // Assume the response returns { status: 'active' } when payment completes
-            if (res.data?.status === "active") {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              router.replace("/(auth)/upload-documents");
-            }
-          } catch (e) {
-            // Ignore temporary polling errors
-          }
-        }, 3000);
-      } else {
-        // Fallback if userId not found
-        setTimeout(() => {
-          router.replace("/(auth)/upload-documents");
-        }, 5000);
-      }
+      // Poll or just wait a moment then go to dashboard
+      setTimeout(() => {
+        router.replace("/(tabs)");
+      }, 3000);
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
-        router.replace("/(auth)/upload-documents");
+        router.replace("/(tabs)");
       } else {
         setError(msg);
       }
@@ -169,10 +152,6 @@ export default function PaymentRegistrationScreen() {
       <Text style={s.disclaimer}>
         You will receive a MoMo push notification to confirm the payment. Make sure your phone is on.
       </Text>
-
-      <TouchableOpacity style={s.skipBtn} onPress={() => router.replace("/(tabs)")}>
-        <Text style={s.skipText}>Pay later (limited access)</Text>
-      </TouchableOpacity>
     </View>
   );
 }

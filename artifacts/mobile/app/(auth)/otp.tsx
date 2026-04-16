@@ -21,7 +21,7 @@ export default function OtpScreen() {
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
 
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -58,10 +58,13 @@ export default function OtpScreen() {
       await authApi.verifyOtp({ userId, otp: code });
       // After OTP verified:
       if (fromRegister) {
-        router.replace({ 
-          pathname: "/(auth)/payment-registration", 
-          params: { userId, phone, email: params.email } 
-        });
+        if (hasEmail) {
+          // Show email verification notice
+          router.replace({ pathname: "/(auth)/verify-email", params: { email: params.email } });
+        } else {
+          // Go to upload documents
+          router.replace({ pathname: "/(auth)/upload-documents" });
+        }
       } else {
         router.replace("/(tabs)");
       }

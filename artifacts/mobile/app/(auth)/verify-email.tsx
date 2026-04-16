@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,8 +16,14 @@ export default function VerifyEmailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ email?: string }>();
   const { colors } = useTheme();
+  const { user, updateUser } = useAuth();
 
-  const email = params.email || "your email";
+  const email = params.email || user?.email || "your email";
+
+  const handleContinue = async () => {
+    // In a real app we'd verify the email token from a deep link or OTP input
+    await updateUser({ isEmailVerified: true });
+  };
 
   const s = styles(colors);
 
@@ -43,7 +50,7 @@ export default function VerifyEmailScreen() {
 
       <TouchableOpacity
         style={s.button}
-        onPress={() => router.replace("/(auth)/upload-documents")}
+        onPress={handleContinue}
       >
         <Text style={s.buttonText}>Continue Setup →</Text>
       </TouchableOpacity>

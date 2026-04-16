@@ -40,6 +40,12 @@ type User = {
   email: string;
   role: string;
   tier?: string;
+  isVerified?: boolean;
+  isEmailVerified?: boolean;
+  isActive?: boolean;
+  twoFactorEnabled?: boolean;
+  kycLevel?: string;
+  registrationPaid?: boolean;
   [key: string]: any;
 };
 
@@ -51,6 +57,7 @@ type AuthContextType = {
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
   register: (token: string, user: User) => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -117,6 +124,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const updateUser = async (updates: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -125,7 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       login,
       logout,
-      register
+      register,
+      updateUser
     }}>
       {children}
     </AuthContext.Provider>

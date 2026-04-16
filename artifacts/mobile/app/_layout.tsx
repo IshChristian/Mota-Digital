@@ -24,7 +24,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -32,15 +32,21 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "onboarding";
+
+    const needsPhoneVerification = isAuthenticated && user && user.isVerified === false;
+    const needsEmailVerification = isAuthenticated && user && user.isEmailVerified === false && !!user.email;
+    const needsProfile = isAuthenticated && user && user.kycLevel !== 'full';
+    const needsPayment = isAuthenticated && user && user.registrationPaid === false;
+
+    const needsOnboarding = needsPhoneVerification || needsEmailVerification || needsProfile || needsPayment;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup) {
-      if (segments[1] !== "otp" && segments[1] !== "verify-email" && segments[1] !== "upload-documents") {
-        router.replace("/(tabs)");
-      }
+      router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, segments, user]);
 
   if (isLoading) return null;
 
@@ -60,6 +66,7 @@ function ThemedStack() {
       contentStyle: { backgroundColor: colors.background },
     }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', title: 'Notifications' }} />
       <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Card' }} />
