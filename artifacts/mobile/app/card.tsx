@@ -8,6 +8,8 @@ import {
   Alert,
   Platform,
   Share,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -17,7 +19,7 @@ import QRCode from "react-native-qrcode-svg";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { driverApi } from "@/services/api";
+import { walletApi, algorithmApi } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -42,16 +44,38 @@ export default function CardScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
-  const { data: dashData } = useQuery({
-    queryKey: ["dashboard"],
+  // Real wallet balance
+  const { data: balanceData, isLoading: balLoading } = useQuery({
+    queryKey: ["wallet_balance"],
     queryFn: async () => {
-      const res = await driverApi.getDashboard();
+      const res = await walletApi.getBalance();
       return res.data;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30000,
   });
 
-  const tier = (dashData?.tier || user?.tier || "bronze").toLowerCase();
+  // Real algorithm status (tier, streaks, rides, trophies)
+  const { data: algoData, isLoading: algoLoading } = useQuery({
+    queryKey: ["rider_status"],
+    queryFn: async () => {
+      const res = await algorithmApi.getRiderStatus();
+      return res.data?.data || res.data;
+    },
+    staleTime: 60000,
+  });
+
+  // Real earnings data
+  const { data: earningsData } = useQuery({
+    queryKey: ["rider_earnings"],
+    queryFn: async () => {
+      const res = await algorithmApi.getRiderEarnings();
+      return res.data?.data || res.data;
+    },
+    staleTime: 60000,
+  });
+
+  const balance = balanceData?.balance ?? 0;
+  const tier = (algoData?.current_tier || user?.tier || "bronze").toLowerCase();
   const tierColor = TIER_ACCENT[tier] || Colors.tier.bronze;
   const gradientColors = TIER_GRADIENTS[tier] || TIER_GRADIENTS.bronze;
 
@@ -65,38 +89,39 @@ export default function CardScreen() {
     tier,
   });
 
-  const copyId = () => {
-    if (Platform.OS === "web") {
-      if (typeof navigator !== "undefined" && navigator.clipboard) {
-        navigator.clipboard.writeText(user?.id || "");
+  const copyId = async () => {
+    try {
+      if (Platform.OS === "web") {
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+          await navigator.clipboard.writeText(user?.id || "");
+        }
+      } else {
+        const Clipboard = await import("expo-clipboard");
+        await Clipboard.setStringAsync(user?.id || "");
       }
-    } else {
-      const RN = require("react-native");
-      RN.Clipboard?.setString(user?.id || "");
+      Alert.alert("Copied", "Driver ID copied to clipboard");
+    } catch {
+      Alert.alert("Error", "Could not copy ID");
     }
-    Alert.alert("Copied", "Driver ID copied to clipboard");
   };
 
   const shareCard = async () => {
     try {
       await Share.share({
-        message: `MOTA Driver Card\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nID: ${user?.id || ""}`,
+        message: `MOTA Driver Card\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nID: ${user?.id || ""}`,
         title: "My MOTA Card",
       });
     } catch {}
   };
 
+  const isLoading = balLoading || algoLoading;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.closeBtn, { backgroundColor: colors.backgroundCard }]}>
-          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>MOTA Card</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingTop: 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Virtual Card */}
         <LinearGradient
           colors={gradientColors as [string, string]}
@@ -104,7 +129,6 @@ export default function CardScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.card, { borderColor: tierColor + "55" }]}
         >
-          {/* Top glow line */}
           <View style={[styles.cardGlow, { backgroundColor: tierColor }]} />
 
           <View style={styles.cardHeader}>
@@ -124,34 +148,65 @@ export default function CardScreen() {
               <Text style={styles.cardName}>{driverName.toUpperCase()}</Text>
             </View>
             <View style={{ alignItems: "flex-end" }}>
-              <Text style={styles.cardLabel}>TIER STATUS</Text>
-              <Text style={[styles.cardName, { color: tierColor }]}>{tier.toUpperCase()}</Text>
+              <Text style={styles.cardLabel}>BALANCE</Text>
+              <Text style={[styles.cardName, { color: "#10B981" }]}>
+                {isLoading ? "..." : `${balance.toLocaleString()} RWF`}
+              </Text>
             </View>
           </View>
         </LinearGradient>
 
-        {/* Actions */}
+        {/* Action Buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
-            onPress={copyId}
+            style={[s(colors, isDark).primaryActionBtn]}
+            onPress={() => router.push("/send-money")}
           >
-            <Feather name="copy" size={20} color={colors.textPrimary} />
-            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Copy ID</Text>
+            <View style={s(colors, isDark).primaryActionIcon}>
+              <Feather name="send" size={20} color="#fff" />
+            </View>
+            <Text style={s(colors, isDark).primaryActionText}>Send Money</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+            style={[s(colors, isDark).secondaryActionBtn]}
             onPress={shareCard}
           >
-            <Feather name="share-2" size={20} color={colors.textPrimary} />
-            <Text style={[styles.actionText, { color: colors.textPrimary }]}>Share</Text>
+            <View style={[s(colors, isDark).secondaryActionIcon]}>
+              <Feather name="share-2" size={20} color={colors.primary} />
+            </View>
+            <Text style={s(colors, isDark).secondaryActionText}>Share Card</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Actions Row */}
+        <View style={s(colors, isDark).quickRow}>
+          <TouchableOpacity style={s(colors, isDark).quickAction} onPress={copyId}>
+            <Feather name="copy" size={18} color={colors.textSecondary} />
+            <Text style={s(colors, isDark).quickActionText}>Copy ID</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s(colors, isDark).quickAction}
+            onPress={() => router.push("/(tabs)/wallet")}
+          >
+            <Feather name="credit-card" size={18} color={colors.textSecondary} />
+            <Text style={s(colors, isDark).quickActionText}>Wallet</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s(colors, isDark).quickAction}
+            onPress={() => router.push("/loans")}
+          >
+            <Feather name="briefcase" size={18} color={colors.textSecondary} />
+            <Text style={s(colors, isDark).quickActionText}>Loans</Text>
           </TouchableOpacity>
         </View>
 
         {/* QR Code */}
         <View style={styles.qrContainer}>
-          <Text style={[styles.qrLabel, { color: colors.textSecondary }]}>Scan to verify driver</Text>
-          <View style={[styles.qrWrapper, { backgroundColor: isDark ? "#fff" : "#fff", borderColor: tierColor }]}>
+          <Text style={[styles.qrLabel, { color: colors.textSecondary }]}>Scan to verify or receive money</Text>
+          <View style={[styles.qrWrapper, { borderColor: tierColor }]}>
             <QRCode
               value={qrData}
               size={180}
@@ -161,10 +216,187 @@ export default function CardScreen() {
           </View>
           <Text style={[styles.driverId, { color: colors.textSecondary }]}>ID: {user?.id?.slice(0, 12)}...</Text>
         </View>
-      </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   );
 }
+
+const s = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    infoGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginTop: 24,
+    },
+    infoCard: {
+      width: "48%",
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 6,
+    },
+    infoLabel: {
+      fontSize: 11,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
+    },
+    infoValue: {
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+    },
+    statsSection: {
+      marginTop: 24,
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 16,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    statsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    statItem: {
+      flex: 1,
+      alignItems: "center",
+    },
+    statNumber: {
+      fontSize: 22,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
+    statLabel: {
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    statDivider: {
+      width: 1,
+      height: 36,
+      backgroundColor: colors.border,
+    },
+    trophiesSection: {
+      marginTop: 20,
+    },
+    trophiesRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    trophyChip: {
+      backgroundColor: isDark ? "rgba(255,215,0,0.12)" : "rgba(255,215,0,0.15)",
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,215,0,0.2)" : "rgba(255,215,0,0.3)",
+    },
+    trophyText: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: "#FFD700",
+    },
+    featuresSection: {
+      marginTop: 20,
+    },
+    featureRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 8,
+    },
+    featureText: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: colors.textPrimary,
+    },
+    primaryActionBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      padding: 16,
+      gap: 10,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    primaryActionIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    primaryActionText: {
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+      color: "#fff",
+    },
+    secondaryActionBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 14,
+      padding: 16,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryActionIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: `${colors.primary}15`,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    secondaryActionText: {
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+    },
+    quickRow: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      marginTop: 20,
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    quickAction: {
+      alignItems: "center",
+      gap: 6,
+    },
+    quickActionText: {
+      fontSize: 12,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+    },
+  });
 
 const styles = StyleSheet.create({
   container: {
@@ -189,10 +421,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 24,
-    alignItems: "center",
+    paddingBottom: 40,
   },
   card: {
     width: width - 48,
@@ -267,26 +498,12 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    gap: 16,
-    marginTop: 28,
+    gap: 12,
+    marginTop: 24,
     width: "100%",
   },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
-    borderRadius: 14,
-    gap: 8,
-    borderWidth: 1,
-  },
-  actionText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 15,
-  },
   qrContainer: {
-    marginTop: 36,
+    marginTop: 28,
     alignItems: "center",
   },
   qrLabel: {
@@ -298,6 +515,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 20,
     borderWidth: 2,
+    backgroundColor: "#fff",
   },
   driverId: {
     marginTop: 12,

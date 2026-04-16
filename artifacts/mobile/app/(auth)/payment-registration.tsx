@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -19,6 +19,7 @@ export default function PaymentRegistrationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
+    userId?: string;
     phone?: string;
     firstName?: string;
     lastName?: string;
@@ -37,20 +38,45 @@ export default function PaymentRegistrationScreen() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
   const handlePay = async () => {
     setLoading(true);
     setError("");
     try {
       await authApi.payRegistration({ phone: displayPhone });
       setSuccess(true);
-      // Poll or just wait a moment then go to dashboard
-      setTimeout(() => {
-        router.replace("/(tabs)");
-      }, 3000);
+      
+      const targetUserId = params.userId || user?.id || user?._id;
+      if (targetUserId) {
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const res = await authApi.registrationStatus({ userId: targetUserId });
+            // Assume the response returns { status: 'active' } when payment completes
+            if (res.data?.status === "active") {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              router.replace("/(auth)/upload-documents");
+            }
+          } catch (e) {
+            // Ignore temporary polling errors
+          }
+        }, 3000);
+      } else {
+        // Fallback if userId not found
+        setTimeout(() => {
+          router.replace("/(auth)/upload-documents");
+        }, 5000);
+      }
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
-        router.replace("/(tabs)");
+        router.replace("/(auth)/upload-documents");
       } else {
         setError(msg);
       }
@@ -70,8 +96,8 @@ export default function PaymentRegistrationScreen() {
         <Text style={s.successTitle}>Payment Initiated!</Text>
         <Text style={s.successDesc}>
           You'll receive a MoMo push notification to approve the payment of{" "}
-          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>5,000 RWF</Text>.
-          {"\n\n"}Redirecting to your dashboard...
+          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>10,000 RWF</Text>.
+          {"\n\n"}Waiting for payment confirmation...
         </Text>
         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
       </View>
@@ -115,7 +141,7 @@ export default function PaymentRegistrationScreen() {
       {/* Payment amount */}
       <View style={s.payCard}>
         <Text style={s.payLabel}>Amount to Pay</Text>
-        <Text style={s.payAmount}>5,000 RWF</Text>
+        <Text style={s.payAmount}>10,000 RWF</Text>
         <View style={s.payRow}>
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
           <Text style={s.payNote}>via MTN MoMo to {displayPhone}</Text>
@@ -135,7 +161,7 @@ export default function PaymentRegistrationScreen() {
         ) : (
           <>
             <Feather name="credit-card" size={20} color="#fff" />
-            <Text style={s.payBtnText}>Pay 5,000 RWF</Text>
+            <Text style={s.payBtnText}>Pay 10,000 RWF</Text>
           </>
         )}
       </TouchableOpacity>

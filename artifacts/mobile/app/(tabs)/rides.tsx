@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { driverApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
-import Colors from "@/constants/colors";
 
 export default function RidesScreen() {
   const t = useT();
@@ -23,6 +22,8 @@ export default function RidesScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<"today" | "history">("today");
+
+  const s = styles(colors, isDark);
 
   const { data, refetch, isLoading, isFetching } = useQuery({
     queryKey: ["rides", tab],
@@ -33,88 +34,88 @@ export default function RidesScreen() {
   });
 
   const renderRide = ({ item }: { item: any }) => (
-    <View style={[styles.rideCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
-      <View style={styles.rideHeader}>
-        <View style={[styles.badge, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)" }]}>
-          <Text style={[styles.badgeText, { color: colors.textPrimary }]}>{item.paymentMethod || "CASH"}</Text>
+    <View style={s.rideCard}>
+      <View style={s.rideHeader}>
+        <View style={s.badge}>
+          <Text style={s.badgeText}>{item.paymentMethod || "CASH"}</Text>
         </View>
-        <Text style={[styles.rideDate, { color: colors.textSecondary }]}>
+        <Text style={s.rideDate}>
           {new Date(item.createdAt || Date.now()).toLocaleDateString()}
         </Text>
       </View>
 
-      <View style={styles.locations}>
-        <View style={styles.locationItem}>
-          <Feather name="map-pin" size={16} color={Colors.primary} />
-          <Text style={[styles.locationText, { color: colors.textPrimary }]} numberOfLines={1}>
+      <View style={s.locations}>
+        <View style={s.locationItem}>
+          <Feather name="map-pin" size={16} color={colors.primary} />
+          <Text style={s.locationText} numberOfLines={1}>
             {item.pickupLocation}
           </Text>
         </View>
-        <View style={[styles.connector, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]} />
-        <View style={styles.locationItem}>
-          <Feather name="navigation" size={16} color={Colors.success} />
-          <Text style={[styles.locationText, { color: colors.textPrimary }]} numberOfLines={1}>
+        <View style={s.connector} />
+        <View style={s.locationItem}>
+          <Feather name="navigation" size={16} color={colors.success} />
+          <Text style={s.locationText} numberOfLines={1}>
             {item.dropoffLocation}
           </Text>
         </View>
       </View>
 
-      <View style={[styles.rideFooter, { borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)" }]}>
-        <Text style={[styles.distance, { color: colors.textSecondary }]}>{item.distance || 0} km</Text>
-        <Text style={styles.fare}>{(item.fare || 0).toLocaleString()} RWF</Text>
+      <View style={s.rideFooter}>
+        <Text style={s.distance}>{item.distance || 0} km</Text>
+        <Text style={s.fare}>{(item.fare || 0).toLocaleString()} RWF</Text>
       </View>
     </View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{t("rides")}</Text>
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <View style={s.header}>
+        <Text style={s.title}>{t("rides")}</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={s.addButton}
           onPress={() => router.push("/log-ride")}
         >
           <Feather name="plus" size={20} color="#fff" />
-          <Text style={styles.addButtonText}>{t("log_ride")}</Text>
+          <Text style={s.addButtonText}>{t("log_ride")}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.tabs, { borderBottomColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }]}>
+      <View style={s.tabs}>
         <TouchableOpacity
-          style={[styles.tab, tab === "today" && styles.activeTab]}
+          style={[s.tab, tab === "today" && s.activeTab]}
           onPress={() => setTab("today")}
         >
-          <Text style={[styles.tabText, { color: tab === "today" ? colors.textPrimary : colors.textSecondary }]}>
+          <Text style={[s.tabText, { color: tab === "today" ? colors.textPrimary : colors.textSecondary }]}>
             {t("today")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, tab === "history" && styles.activeTab]}
+          style={[s.tab, tab === "history" && s.activeTab]}
           onPress={() => setTab("history")}
         >
-          <Text style={[styles.tabText, { color: tab === "history" ? colors.textPrimary : colors.textSecondary }]}>
+          <Text style={[s.tabText, { color: tab === "history" ? colors.textPrimary : colors.textSecondary }]}>
             {t("history")}
           </Text>
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+        <View style={s.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
           data={data}
           keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
           renderItem={renderRide}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={s.listContent}
           refreshing={isFetching}
           onRefresh={refetch}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
+            <View style={s.emptyState}>
               <Feather name="map" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
-              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No rides found</Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              <Text style={s.emptyTitle}>No rides found</Text>
+              <Text style={s.emptyText}>
                 You haven't logged any rides {tab === "today" ? "today" : "yet"}.
               </Text>
             </View>
@@ -125,137 +126,152 @@ export default function RidesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 8,
-  },
-  addButtonText: {
-    color: "#fff",
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  tabs: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-  },
-  tab: {
-    paddingVertical: 12,
-    marginRight: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  activeTab: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  rideCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  rideHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1,
-  },
-  rideDate: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
-  locations: {
-    marginBottom: 16,
-    paddingLeft: 4,
-  },
-  locationItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  locationText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    flex: 1,
-  },
-  connector: {
-    width: 2,
-    height: 16,
-    marginLeft: 7,
-    marginVertical: 4,
-  },
-  rideFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 16,
-    borderTopWidth: 1,
-  },
-  distance: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  fare: {
-    color: Colors.primary,
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-});
+const styles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+    },
+    title: {
+      fontSize: 28,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
+    addButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      gap: 8,
+    },
+    addButtonText: {
+      color: "#fff",
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+    tabs: {
+      flexDirection: "row",
+      paddingHorizontal: 16,
+      marginBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    tab: {
+      paddingVertical: 12,
+      marginRight: 24,
+      borderBottomWidth: 2,
+      borderBottomColor: "transparent",
+    },
+    activeTab: {
+      borderBottomColor: colors.primary,
+    },
+    tabText: {
+      fontSize: 16,
+      fontFamily: "Inter_500Medium",
+    },
+    listContent: {
+      padding: 16,
+      paddingBottom: 100,
+    },
+    rideCard: {
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      backgroundColor: colors.backgroundCard,
+      borderColor: colors.border,
+    },
+    rideHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    badge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)",
+    },
+    badgeText: {
+      fontSize: 10,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 1,
+      color: colors.textPrimary,
+    },
+    rideDate: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+    },
+    locations: {
+      marginBottom: 16,
+      paddingLeft: 4,
+    },
+    locationItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    locationText: {
+      fontSize: 16,
+      fontFamily: "Inter_500Medium",
+      flex: 1,
+      color: colors.textPrimary,
+    },
+    connector: {
+      width: 2,
+      height: 16,
+      marginLeft: 7,
+      marginVertical: 4,
+      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+    },
+    rideFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)",
+    },
+    distance: {
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+    },
+    fare: {
+      color: colors.primary,
+      fontSize: 18,
+      fontFamily: "Inter_700Bold",
+    },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyState: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 60,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontFamily: "Inter_600SemiBold",
+      marginBottom: 8,
+      color: colors.textPrimary,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+    },
+  });

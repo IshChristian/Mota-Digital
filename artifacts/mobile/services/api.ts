@@ -73,28 +73,74 @@ export const driverApi = {
   getRides: (page = 1) => api.get(`/driver/rides?page=${page}`),
   getTier: () => api.get('/driver/tier'),
   getLeaderboard: (limit = 10) => api.get(`/driver/leaderboard?limit=${limit}`),
+  payFine: (data: { fineId: string; paymentAmount: number }) => api.post('/driver/pay-fine', data),
   requestFine: (data: any) => api.post('/driver/request-fine', data),
+};
+
+// ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
+export const algorithmApi = {
+  /** Process a completed ride through the Algorithm Engine */
+  completeRide: () => api.post('/ride/complete'),
+
+  /** Get rider algorithm status (tier, streak, rides, features, trophies) */
+  getRiderStatus: () => api.get('/rider/status'),
+
+  /** Get rider algorithm status by ID (admin) */
+  getRiderStatusById: (id: string) => api.get(`/rider/status/${id}`),
+
+  /** Get rider earnings (base pay, tier multiplier, daily/monthly estimated) */
+  getRiderEarnings: () => api.get('/rider/earnings'),
+
+  /** Get rider earnings by ID (admin) */
+  getRiderEarningsById: (id: string) => api.get(`/rider/earnings/${id}`),
+};
+
+// ─── Fine Requests ───────────────────────────────────────────────────────────
+export const fineRequestsApi = {
+  /** Submit a fine request for admin approval */
+  submit: (data: {
+    fineId: string;
+    amount: number;
+    reason: string;
+    attachments?: { url: string; description: string }[];
+  }) => api.post('/fine-requests', data),
+
+  /** Get my fine requests (driver) */
+  getMine: (page = 1, limit = 20) =>
+    api.get(`/fine-requests/my?page=${page}&limit=${limit}`),
+
+  /** Get all fine requests (admin) */
+  getAll: (params?: {
+    status?: 'pending' | 'under_review' | 'approved' | 'rejected';
+    driverId?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get('/fine-requests/all', { params }),
+
+  /** Get a specific fine request by ID */
+  getById: (id: string) => api.get(`/fine-requests/${id}`),
 };
 
 // Wallet
 export const walletApi = {
   getBalance: () => api.get('/wallet/balance'),
   getTransactions: (page = 1) => api.get(`/wallet/transactions?page=${page}`),
-  cashIn: (data: any) => api.post('/wallet/cash-in', data),
-  cashOut: (data: any) => api.post('/wallet/cash-out', data),
+  cashIn: (data: { amount: number; phone: string }) => api.post('/wallet/cash-in', data),
+  cashOut: (data: { amount: number }) => api.post('/wallet/cash-out', data),
 };
 
 // Loans
 export const loansApi = {
-  requestLoan: (data: any) => api.post('/loans/request', data),
+  // API requires { fineId } — loans are only issued against an active fine
+  requestLoan: (data: { fineId: string }) => api.post('/loans/request', data),
   getMyLoans: () => api.get('/loans/my-loans'),
-  repayLoan: (data: any) => api.post('/loans/repay', data),
+  repayLoan: (data: { loanId: string; amount: number }) => api.post('/loans/repay', data),
 };
 
 // Notifications
 export const notificationsApi = {
   getNotifications: (page = 1) => api.get(`/notifications?page=${page}`),
-  getUnread: () => api.get('/notifications/unread'),
+  getUnread: (page = 1) => api.get(`/notifications/unread?page=${page}`),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   deleteNotification: (id: string) => api.delete(`/notifications/${id}`),
 };
@@ -102,10 +148,54 @@ export const notificationsApi = {
 // Users
 export const usersApi = {
   getMe: () => api.get('/users/me'),
-  updateMe: (data: any) => api.put('/users/me', data),
+  updateMe: (data: { firstName?: string; lastName?: string; email?: string }) =>
+    api.put('/users/me', data),
+  /**
+   * Upload avatar via backend multipart endpoint.
+   * The backend handles storage and returns the updated user with profileImage URL.
+   */
+  uploadAvatar: async (uri: string): Promise<{ profileImage: string }> => {
+    const filename = uri.split('/').pop() || 'avatar.jpg';
+    const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+    const formData = new FormData();
+    formData.append('avatar', { uri, name: filename, type: mimeType } as any);
+
+    const token = await getStoredToken();
+    const response = await fetch(`${API_BASE_URL}/users/avatar`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        Accept: 'application/json',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || 'Avatar upload failed');
+    }
+    const data = await response.json();
+    // Backend may return { user: { profileImage } } or { profileImage }
+    return data?.user || data;
+  },
 };
 
-// Payments
+// ─── Payments (Paypack) ──────────────────────────────────────────────────────
 export const paymentApi = {
-  requestPayment: (data: any) => api.post('/payment/request', data),
+  /** Request ride payment from passenger via Paypack */
+  requestPayment: (data: { passengerPhone: string; amount: number; rideId: string }) =>
+    api.post('/payment/request', data),
+};
+
+// ─── Transfers (P2P) ────────────────────────────────────────────────────────
+export const transferApi = {
+  /** Send money to another user (direct transfer) */
+  send: (data: { phone: string; amount: number; description?: string }) =>
+    api.post('/transfer/send', data),
+
+  /** Send money via QR code scan */
+  sendViaQR: (data: { phone: string; amount: number; description?: string }) =>
+    api.post('/transfer/send-qr', data),
 };

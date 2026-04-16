@@ -52,24 +52,13 @@ export default function CreateProfileScreen() {
         permitAttachment: params.permitAttachment || "",
         permitId: params.permitId || "",
       });
-      // After profile creation, go to payment
-      router.replace({
-        pathname: "/(auth)/payment-registration",
-        params: {
-          phone: user?.phone || "",
-          firstName: user?.firstName || "",
-          lastName: user?.lastName || "",
-          email: user?.email || "",
-        },
-      });
+      // After profile creation, go to dashboard
+      router.replace("/(tabs)");
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to create profile";
       if (msg.toLowerCase().includes("already exists")) {
-        // Profile already exists — go to payment
-        router.replace({
-          pathname: "/(auth)/payment-registration",
-          params: { phone: user?.phone || "" },
-        });
+        // Profile already exists — go to dashboard
+        router.replace("/(tabs)");
       } else {
         setError(msg);
       }
@@ -152,7 +141,7 @@ export default function CreateProfileScreen() {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={s.skipBtn} onPress={() => router.replace("/(auth)/payment-registration")}>
+      <TouchableOpacity style={s.skipBtn} onPress={() => router.replace("/(tabs)")}>
         <Text style={s.skipText}>Skip for now</Text>
       </TouchableOpacity>
     </ScrollView>

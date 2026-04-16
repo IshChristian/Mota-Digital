@@ -36,7 +36,9 @@ function RootLayoutNav() {
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/(tabs)");
+      if (segments[1] !== "otp" && segments[1] !== "verify-email" && segments[1] !== "upload-documents") {
+        router.replace("/(tabs)");
+      }
     }
   }, [isAuthenticated, isLoading, segments]);
 
@@ -61,6 +63,7 @@ function ThemedStack() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', title: 'Notifications' }} />
       <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Card' }} />
+      <Stack.Screen name="send-money" options={{ presentation: 'modal', title: 'Send Money' }} />
       <Stack.Screen name="log-ride" options={{ presentation: 'modal', title: 'Log Ride' }} />
       <Stack.Screen name="loans" options={{ presentation: 'modal', title: 'Loans' }} />
       <Stack.Screen name="leaderboard" options={{ presentation: 'modal', title: 'Leaderboard' }} />

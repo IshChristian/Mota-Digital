@@ -70,11 +70,10 @@ export default function RegisterScreen() {
       const submitData = { ...formData, phone: getSubmitPhone() };
       const res = await authApi.register(submitData);
       const { token, user } = res.data || {};
-      if (token && user) {
-        await login(token, user);
-        // After register always go to OTP verification
-        router.replace({
-          pathname: "/(auth)/otp",
+      if (user) {
+        // Go to confirm phone before sending OTP
+        router.push({
+          pathname: "/(auth)/confirm-phone",
           params: { userId: user.id || user._id, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
         });
       }
@@ -86,50 +85,6 @@ export default function RegisterScreen() {
   };
 
   const s = styles(colors);
-
-  const InputField = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType,
-    secure,
-    required,
-    hint,
-  }: any) => (
-    <View style={s.inputGroup}>
-      <Text style={s.label}>
-        {label}
-        {required ? <Text style={{ color: colors.primary }}> *</Text> : null}
-      </Text>
-      {hint ? <Text style={s.hint}>{hint}</Text> : null}
-      {secure ? (
-        <View style={s.passwordContainer}>
-          <TextInput
-            style={s.passwordInput}
-            placeholder={placeholder}
-            placeholderTextColor={colors.textTertiary}
-            value={value}
-            onChangeText={onChangeText}
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity style={s.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
-            <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TextInput
-          style={s.input}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textTertiary}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType || "default"}
-          autoCapitalize="none"
-        />
-      )}
-    </View>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -147,7 +102,7 @@ export default function RegisterScreen() {
         </TouchableOpacity>
 
         <View style={s.header}>
-          <Image source={logoSource} style={s.logo} resizeMode="contain" />
+          <Image source={logoSource} style={s.logo} width={10} resizeMode="contain" />
           <Text style={s.title}>Create Account</Text>
           <Text style={s.subtitle}>Join MOTA as a Driver</Text>
         </View>
@@ -160,6 +115,7 @@ export default function RegisterScreen() {
           onChangeText={(v: string) => update("firstName", v)}
           placeholder="Jean"
           required
+          s={s} colors={colors}
         />
         <InputField
           label="Last Name"
@@ -167,6 +123,7 @@ export default function RegisterScreen() {
           onChangeText={(v: string) => update("lastName", v)}
           placeholder="Mutoni"
           required
+          s={s} colors={colors}
         />
 
         <View style={s.inputGroup}>
@@ -192,6 +149,7 @@ export default function RegisterScreen() {
           onChangeText={(v: string) => update("email", v)}
           placeholder="jean@example.com"
           keyboardType="email-address"
+          s={s} colors={colors}
         />
         <InputField
           label="National ID"
@@ -199,6 +157,7 @@ export default function RegisterScreen() {
           onChangeText={(v: string) => update("nationalId", v)}
           placeholder="1199880012345678"
           keyboardType="numeric"
+          s={s} colors={colors}
         />
         <InputField
           label="Password"
@@ -207,12 +166,16 @@ export default function RegisterScreen() {
           placeholder="••••••••"
           secure
           required
+          showPassword={showPassword}
+          setShowPassword={setShowPassword}
+          s={s} colors={colors}
         />
         <InputField
           label="Referral Code (Optional)"
           value={formData.referralCode}
           onChangeText={(v: string) => update("referralCode", v)}
           placeholder="MOTA-XXXX"
+          s={s} colors={colors}
         />
 
         <TouchableOpacity style={s.button} onPress={handleRegister} disabled={loading}>
@@ -233,6 +196,54 @@ export default function RegisterScreen() {
     </View>
   );
 }
+
+const InputField = React.memo(({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  secure,
+  required,
+  hint,
+  showPassword,
+  setShowPassword,
+  s,
+  colors,
+}: any) => (
+  <View style={s.inputGroup}>
+    <Text style={s.label}>
+      {label}
+      {required ? <Text style={{ color: colors.primary }}> *</Text> : null}
+    </Text>
+    {hint ? <Text style={s.hint}>{hint}</Text> : null}
+    {secure ? (
+      <View style={s.passwordContainer}>
+        <TextInput
+          style={s.passwordInput}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity style={s.eyeIcon} onPress={() => setShowPassword?.(!showPassword)}>
+          <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <TextInput
+        style={s.input}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textTertiary}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType || "default"}
+        autoCapitalize="none"
+      />
+    )}
+  </View>
+));
 
 const styles = (colors: any) =>
   StyleSheet.create({

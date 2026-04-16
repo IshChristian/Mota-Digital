@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -14,16 +13,26 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { loansApi } from "@/services/api";
-import Colors from "@/constants/colors";
 import { useT } from "@/context/I18nContext";
+import { useTheme } from "@/context/ThemeContext";
+import { AppAlert } from "@/components/AppAlert";
+import Colors from "@/constants/colors";
 
 export default function LoansScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const t = useT();
-  const [tab, setTab] = useState<"my_loans" | "request">("my_loans");
-  const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { colors } = useTheme();
+  const [tab, setTab] = useState<"my_loans" | "info">("my_loans");
+  const [repaying, setRepaying] = useState<string | null>(null);
+
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    type: "success" | "error" | "confirm" | "info";
+    title: string;
+    message?: string;
+    onConfirm?: () => void;
+  }>({ visible: false, type: "info", title: "" });
 
   const { data, refetch, isFetching } = useQuery({
     queryKey: ["loans"],
@@ -33,56 +42,80 @@ export default function LoansScreen() {
     },
   });
 
-  const requestLoan = async () => {
-    if (!amount) return;
-    setLoading(true);
-    try {
-      await loansApi.requestLoan({ amount: Number(amount), type: "cash advance" });
-      setAmount("");
-      setTab("my_loans");
-      refetch();
-    } catch (e: any) {
-      alert(e.response?.data?.message || "Failed to request loan");
-    } finally {
-      setLoading(false);
-    }
+  const repayLoan = (loanId: string, remainingAmount: number) => {
+    setAlert({
+      visible: true,
+      type: "confirm",
+      title: "Repay Loan",
+      message: `This will deduct ${remainingAmount.toLocaleString()} RWF from your wallet to repay this loan.`,
+      onConfirm: async () => {
+        setAlert((a) => ({ ...a, visible: false }));
+        setRepaying(loanId);
+        try {
+          await loansApi.repayLoan({ loanId, amount: remainingAmount });
+          refetch();
+          setAlert({ visible: true, type: "success", title: "Loan Repaid!", message: "Your repayment was successful.", onConfirm: undefined });
+        } catch (e: any) {
+          setAlert({ visible: true, type: "error", title: "Repayment Failed", message: e.response?.data?.message || "Could not process repayment.", onConfirm: undefined });
+        } finally {
+          setRepaying(null);
+        }
+      },
+    });
   };
 
-  const repayLoan = async (loanId: string, amt: number) => {
-    try {
-      await loansApi.repayLoan({ loanId, amount: amt });
-      refetch();
-    } catch (e) {
-      alert("Failed to repay loan");
-    }
-  };
+  const s = styles(colors);
 
   const renderLoan = ({ item }: { item: any }) => {
-    const statusColor = item.status === "completed" ? Colors.success : 
-                        item.status === "pending" ? Colors.accent : Colors.primary;
-                        
+    const statusColor =
+      item.status === "completed"
+        ? colors.success
+        : item.status === "pending"
+          ? Colors.accent
+          : colors.primary;
+    const remaining = item.amount - (item.repaid || 0);
+
     return (
-      <View style={styles.loanCard}>
-        <View style={styles.loanHeader}>
-          <Text style={styles.loanAmount}>{item.amount?.toLocaleString()} RWF</Text>
-          <View style={[styles.badge, { backgroundColor: `${statusColor}20` }]}>
-            <Text style={[styles.badgeText, { color: statusColor }]}>
+      <View style={s.loanCard}>
+        <View style={s.loanHeader}>
+          <Text style={s.loanAmount}>{item.amount?.toLocaleString()} RWF</Text>
+          <View style={[s.badge, { backgroundColor: `${statusColor}20` }]}>
+            <Text style={[s.badgeText, { color: statusColor }]}>
               {item.status?.toUpperCase() || "PENDING"}
             </Text>
           </View>
         </View>
 
-        <View style={styles.loanDetails}>
-          <Text style={styles.detailText}>Remaining: {(item.amount - (item.repaid || 0)).toLocaleString()} RWF</Text>
-          <Text style={styles.detailText}>Due: {new Date(item.dueDate || Date.now() + 86400000 * 30).toLocaleDateString()}</Text>
+        <View style={s.loanDetails}>
+          <View style={s.detailRow}>
+            <Feather name="credit-card" size={14} color={colors.textSecondary} />
+            <Text style={s.detailText}>Remaining: {remaining.toLocaleString()} RWF</Text>
+          </View>
+          <View style={s.detailRow}>
+            <Feather name="calendar" size={14} color={colors.textSecondary} />
+            <Text style={s.detailText}>
+              Due: {new Date(item.dueDate || Date.now() + 86400000 * 30).toLocaleDateString()}
+            </Text>
+          </View>
+          {item.fineId && (
+            <View style={s.detailRow}>
+              <Feather name="alert-triangle" size={14} color={colors.textSecondary} />
+              <Text style={s.detailText}>Fine ID: {item.fineId?.slice(0, 10)}…</Text>
+            </View>
+          )}
         </View>
 
         {item.status === "active" && (
-          <TouchableOpacity 
-            style={styles.repayBtn} 
-            onPress={() => repayLoan(item.id, item.amount - (item.repaid || 0))}
+          <TouchableOpacity
+            style={s.repayBtn}
+            disabled={!!repaying}
+            onPress={() => repayLoan(item.id, remaining)}
           >
-            <Text style={styles.repayText}>{t("repay_loan")}</Text>
+            {repaying === item.id ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={s.repayText}>{t("repay_loan")}</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -90,31 +123,27 @@ export default function LoansScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Feather name="x" size={24} color={Colors.textPrimary} />
+    <View style={s.container}>
+      <View style={[s.header, { paddingTop: insets.top || 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+          <Feather name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t("loans")}</Text>
+        <Text style={s.headerTitle}>{t("loans")}</Text>
         <View style={{ width: 44 }} />
       </View>
 
-      <View style={styles.tabs}>
-        <TouchableOpacity 
-          style={[styles.tab, tab === "my_loans" && styles.activeTab]}
+      <View style={s.tabs}>
+        <TouchableOpacity
+          style={[s.tab, tab === "my_loans" && s.activeTab]}
           onPress={() => setTab("my_loans")}
         >
-          <Text style={[styles.tabText, tab === "my_loans" && styles.activeTabText]}>
-            {t("my_loans")}
-          </Text>
+          <Text style={[s.tabText, tab === "my_loans" && s.activeTabText]}>{t("my_loans")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, tab === "request" && styles.activeTab]}
-          onPress={() => setTab("request")}
+        <TouchableOpacity
+          style={[s.tab, tab === "info" && s.activeTab]}
+          onPress={() => setTab("info")}
         >
-          <Text style={[styles.tabText, tab === "request" && styles.activeTabText]}>
-            {t("request_loan")}
-          </Text>
+          <Text style={[s.tabText, tab === "info" && s.activeTabText]}>How It Works</Text>
         </TouchableOpacity>
       </View>
 
@@ -123,203 +152,92 @@ export default function LoansScreen() {
           data={data}
           keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
           renderItem={renderLoan}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={s.listContent}
           refreshing={isFetching}
           onRefresh={refetch}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Feather name="briefcase" size={48} color={Colors.textSecondary} style={{ marginBottom: 16 }} />
-              <Text style={styles.emptyTitle}>No active loans</Text>
+            <View style={s.emptyState}>
+              <Feather name="briefcase" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+              <Text style={s.emptyTitle}>No active loans</Text>
+              <Text style={s.emptyText}>Loans are issued when you have a pending fine. Contact your cooperative or admin if you need financial assistance.</Text>
             </View>
           }
         />
       ) : (
-        <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>Need an advance?</Text>
-          <Text style={styles.formSubtitle}>Request a cash advance to cover immediate expenses. Will be deducted from future earnings.</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Amount (RWF)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 50000"
-              placeholderTextColor={Colors.textSecondary}
-              keyboardType="number-pad"
-              value={amount}
-              onChangeText={setAmount}
-            />
+        <View style={s.infoContainer}>
+          <View style={s.infoCard}>
+            <Feather name="info" size={28} color={colors.primary} style={{ marginBottom: 16 }} />
+            <Text style={s.infoTitle}>About Fine Loans</Text>
+            <Text style={s.infoText}>
+              MOTA offers fine loans to help drivers pay traffic fines or other penalties. Loans are always linked to a specific fine issued by traffic authorities or the cooperative.
+            </Text>
           </View>
 
-          <TouchableOpacity 
-            style={styles.submitBtn} 
-            onPress={requestLoan}
-            disabled={loading || !amount}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.textPrimary} />
-            ) : (
-              <Text style={styles.submitText}>Submit Request</Text>
-            )}
-          </TouchableOpacity>
+          {[
+            { icon: "alert-triangle", step: "1", text: "You receive a fine from traffic authority or cooperative." },
+            { icon: "file-text", step: "2", text: "MOTA or your admin issues a loan against that fine, linked to its ID." },
+            { icon: "check-circle", step: "3", text: "Loan amount is used to cover the fine immediately." },
+            { icon: "credit-card", step: "4", text: "Repayment is deducted from your wallet automatically or manually." },
+          ].map((item) => (
+            <View key={item.step} style={s.stepRow}>
+              <View style={s.stepNum}>
+                <Text style={s.stepNumText}>{item.step}</Text>
+              </View>
+              <View style={s.stepBody}>
+                <Feather name={item.icon as any} size={16} color={colors.primary} style={{ marginBottom: 4 }} />
+                <Text style={s.stepText}>{item.text}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       )}
+
+      <AppAlert
+        visible={alert.visible}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.type === "confirm" ? "Repay" : "OK"}
+        cancelText="Cancel"
+        onConfirm={alert.onConfirm || (() => setAlert((a) => ({ ...a, visible: false })))}
+        onCancel={() => setAlert((a) => ({ ...a, visible: false }))}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textPrimary,
-  },
-  tabs: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
-  },
-  tab: {
-    paddingVertical: 12,
-    marginRight: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  activeTab: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-  },
-  activeTabText: {
-    color: Colors.textPrimary,
-  },
-  listContent: {
-    padding: 16,
-  },
-  loanCard: {
-    backgroundColor: Colors.backgroundCard,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  loanHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  loanAmount: {
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1,
-  },
-  loanDetails: {
-    gap: 8,
-    marginBottom: 16,
-  },
-  detailText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-  },
-  repayBtn: {
-    backgroundColor: "rgba(230, 57, 70, 0.1)",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  repayText: {
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-  },
-  formContainer: {
-    padding: 24,
-  },
-  formTitle: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginBottom: 32,
-    lineHeight: 20,
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textPrimary,
-  },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textPrimary,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 16 },
+    closeBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+    headerTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.textPrimary },
+    tabs: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+    tab: { paddingVertical: 12, marginRight: 24, borderBottomWidth: 2, borderBottomColor: "transparent" },
+    activeTab: { borderBottomColor: colors.primary },
+    tabText: { fontSize: 16, fontFamily: "Inter_500Medium", color: colors.textSecondary },
+    activeTabText: { color: colors.textPrimary },
+    listContent: { padding: 16 },
+    loanCard: { backgroundColor: colors.backgroundCard, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+    loanHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+    loanAmount: { fontSize: 20, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },
+    loanDetails: { gap: 8, marginBottom: 16 },
+    detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    detailText: { fontSize: 13, fontFamily: "Inter_400Regular", color: colors.textSecondary },
+    repayBtn: { backgroundColor: `${colors.primary}15`, padding: 12, borderRadius: 10, alignItems: "center" },
+    repayText: { color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 14 },
+    emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 },
+    emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.textPrimary, marginBottom: 8 },
+    emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 20 },
+    infoContainer: { padding: 20 },
+    infoCard: { backgroundColor: colors.backgroundCard, borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+    infoTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 10 },
+    infoText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 21 },
+    stepRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 16 },
+    stepNum: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 14 },
+    stepNumText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
+    stepBody: { flex: 1 },
+    stepText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.textSecondary, lineHeight: 20 },
+  });

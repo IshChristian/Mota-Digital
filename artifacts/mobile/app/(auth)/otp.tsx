@@ -58,13 +58,10 @@ export default function OtpScreen() {
       await authApi.verifyOtp({ userId, otp: code });
       // After OTP verified:
       if (fromRegister) {
-        if (hasEmail) {
-          // Show email verification notice
-          router.replace({ pathname: "/(auth)/verify-email", params: { email: params.email } });
-        } else {
-          // Go to upload documents
-          router.replace({ pathname: "/(auth)/upload-documents" });
-        }
+        router.replace({ 
+          pathname: "/(auth)/payment-registration", 
+          params: { userId, phone, email: params.email } 
+        });
       } else {
         router.replace("/(tabs)");
       }

@@ -5,7 +5,6 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Modal,
   Image,
   ActivityIndicator,
@@ -19,8 +18,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/context/AuthContext";
 import { useT, useI18n } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
-import { uploadToCloudinary } from "@/services/cloudinary";
 import { usersApi } from "@/services/api";
+import { AppAlert } from "@/components/AppAlert";
 
 export default function ProfileScreen() {
   const { user, logout, login, token } = useAuth();
@@ -33,18 +32,62 @@ export default function ProfileScreen() {
   const [langModal, setLangModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
+  // AppAlert state
+  const [alert, setAlert] = useState<{
+    visible: boolean;
+    type: "success" | "error" | "warning" | "info" | "confirm";
+    title: string;
+    message?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({ visible: false, type: "info", title: "" });
+
+  const showAlert = (
+    type: typeof alert.type,
+    title: string,
+    message?: string,
+    onConfirm?: () => void,
+    onCancel?: () => void,
+    confirmText?: string,
+    cancelText?: string
+  ) => {
+    setAlert({
+      visible: true,
+      type,
+      title,
+      message,
+      onConfirm: () => {
+        setAlert((a) => ({ ...a, visible: false }));
+        onConfirm?.();
+      },
+      onCancel: () => {
+        setAlert((a) => ({ ...a, visible: false }));
+        onCancel?.();
+      },
+      confirmText,
+      cancelText,
+    });
+  };
+
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: logout },
-    ]);
+    showAlert(
+      "confirm",
+      "Logout",
+      "Are you sure you want to logout?",
+      logout,
+      undefined,
+      "Logout",
+      "Cancel"
+    );
   };
 
   const handleAvatarChange = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission needed", "Please allow access to your photo library.");
+        showAlert("warning", "Permission needed", "Please allow access to your photo library.");
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -56,14 +99,18 @@ export default function ProfileScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       setAvatarUploading(true);
-      const url = await uploadToCloudinary(asset.uri, "mota-avatars");
-      await usersApi.updateMe({ profileImage: url });
-      // Update user in auth context
+
+      // Use backend's multipart avatar endpoint
+      const updated = await usersApi.uploadAvatar(asset.uri);
       if (user && token) {
-        await login(token, { ...user, profileImage: url });
+        await login(token, {
+          ...user,
+          profileImage: updated.profileImage || (updated as any).user?.profileImage || asset.uri,
+        });
       }
-    } catch {
-      Alert.alert("Upload failed", "Could not upload profile photo. Please try again.");
+      showAlert("success", "Photo Updated", "Your profile photo has been updated.");
+    } catch (err: any) {
+      showAlert("error", "Upload Failed", err.message || "Could not upload profile photo. Please try again.");
     } finally {
       setAvatarUploading(false);
     }
@@ -102,7 +149,12 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
-            <TouchableOpacity style={s.cameraBtn} onPress={handleAvatarChange} disabled={avatarUploading}>
+            <TouchableOpacity
+              style={s.cameraBtn}
+              onPress={handleAvatarChange}
+              disabled={avatarUploading}
+              accessibilityLabel="Change profile photo"
+            >
               {avatarUploading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
@@ -201,6 +253,18 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* AppAlert */}
+      <AppAlert
+        visible={alert.visible}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+      />
     </View>
   );
 }
@@ -227,9 +291,9 @@ const styles = (colors: any) =>
       position: "absolute",
       bottom: 0,
       right: 0,
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
       backgroundColor: colors.secondary,
       alignItems: "center",
       justifyContent: "center",

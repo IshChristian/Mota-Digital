@@ -63,7 +63,14 @@ export default function LoginScreen() {
         // else navigation handled by RootLayoutNav
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || t("error"));
+      if (err.response?.status === 403) {
+        router.push({
+          pathname: "/(auth)/confirm-phone",
+          params: { phone: err.response?.data?.phone || identifier, userId: err.response?.data?.userId },
+        });
+      } else {
+        setError(err.response?.data?.message || t("error"));
+      }
     } finally {
       setLoading(false);
     }

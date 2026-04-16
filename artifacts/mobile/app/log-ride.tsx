@@ -14,14 +14,15 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { driverApi } from "@/services/api";
-import Colors from "@/constants/colors";
+import { driverApi, algorithmApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function LogRideScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const t = useT();
+  const { colors } = useTheme();
 
   const [fare, setFare] = useState("");
   const [distance, setDistance] = useState("");
@@ -43,8 +44,16 @@ export default function LogRideScreen() {
         distance: Number(distance),
         pickupLocation: pickup,
         dropoffLocation: dropoff,
-        paymentMethod
+        paymentMethod,
       });
+
+      // Process through Algorithm Engine
+      try {
+        await algorithmApi.completeRide();
+      } catch (e) {
+        console.log("Algorithm engine process failed, but ride logged", e);
+      }
+
       router.back();
     } catch (e: any) {
       alert(e.response?.data?.message || "Failed to log ride");
@@ -53,197 +62,200 @@ export default function LogRideScreen() {
     }
   };
 
+  const s = styles(colors);
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
+    <KeyboardAvoidingView
+      style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Feather name="x" size={24} color={Colors.textPrimary} />
+      <View style={[s.header, { paddingTop: insets.top || 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+          <Feather name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t("log_ride")}</Text>
+        <Text style={s.title}>{t("log_ride")}</Text>
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t("fare")} (RWF)</Text>
+      <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+        <View style={s.inputGroup}>
+          <Text style={s.label}>{t("fare")} (RWF)</Text>
           <TextInput
-            style={styles.input}
+            style={s.input}
             placeholder="e.g. 1500"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             keyboardType="number-pad"
             value={fare}
             onChangeText={setFare}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t("distance")}</Text>
+        <View style={s.inputGroup}>
+          <Text style={s.label}>{t("distance")}</Text>
           <TextInput
-            style={styles.input}
+            style={s.input}
             placeholder="e.g. 5.2"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
             value={distance}
             onChangeText={setDistance}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t("pickup")}</Text>
+        <View style={s.inputGroup}>
+          <Text style={s.label}>{t("pickup")}</Text>
           <TextInput
-            style={styles.input}
+            style={s.input}
             placeholder="Kigali Heights"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             value={pickup}
             onChangeText={setPickup}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t("dropoff")}</Text>
+        <View style={s.inputGroup}>
+          <Text style={s.label}>{t("dropoff")}</Text>
           <TextInput
-            style={styles.input}
+            style={s.input}
             placeholder="Remera"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textTertiary}
             value={dropoff}
             onChangeText={setDropoff}
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>{t("payment_method")}</Text>
-          <View style={styles.paymentMethods}>
-            <TouchableOpacity 
-              style={[styles.methodBtn, paymentMethod === "cash" && styles.methodBtnActive]}
+        <View style={s.inputGroup}>
+          <Text style={s.label}>{t("payment_method")}</Text>
+          <View style={s.paymentMethods}>
+            <TouchableOpacity
+              style={[s.methodBtn, paymentMethod === "cash" && s.methodBtnActive]}
               onPress={() => setPaymentMethod("cash")}
             >
-              <Feather name="dollar-sign" size={20} color={paymentMethod === "cash" ? Colors.primary : Colors.textSecondary} />
-              <Text style={[styles.methodText, paymentMethod === "cash" && styles.methodTextActive]}>Cash</Text>
+              <Feather name="dollar-sign" size={20} color={paymentMethod === "cash" ? colors.primary : colors.textSecondary} />
+              <Text style={[s.methodText, paymentMethod === "cash" && s.methodTextActive]}>Cash</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.methodBtn, paymentMethod === "momo" && styles.methodBtnActive]}
+
+            <TouchableOpacity
+              style={[s.methodBtn, paymentMethod === "momo" && s.methodBtnActive]}
               onPress={() => setPaymentMethod("momo")}
             >
-              <Feather name="smartphone" size={20} color={paymentMethod === "momo" ? Colors.primary : Colors.textSecondary} />
-              <Text style={[styles.methodText, paymentMethod === "momo" && styles.methodTextActive]}>MoMo</Text>
+              <Feather name="smartphone" size={20} color={paymentMethod === "momo" ? colors.primary : colors.textSecondary} />
+              <Text style={[s.methodText, paymentMethod === "momo" && s.methodTextActive]}>MoMo</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.submitBtn} 
+        <TouchableOpacity
+          style={s.submitBtn}
           onPress={handleSubmit}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.textPrimary} />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>Save Ride</Text>
+            <Text style={s.submitText}>Save Ride</Text>
           )}
         </TouchableOpacity>
-        
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-  },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textPrimary,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textPrimary,
-  },
-  paymentMethods: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  methodBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  methodBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: 'rgba(230, 57, 70, 0.1)',
-  },
-  methodText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-  },
-  methodTextActive: {
-    color: Colors.primary,
-  },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  submitText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textPrimary,
-  },
-});
+const styles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    closeBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    title: {
+      fontSize: 18,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+    },
+    content: {
+      flex: 1,
+      padding: 24,
+    },
+    inputGroup: {
+      marginBottom: 24,
+    },
+    label: {
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
+      padding: 16,
+      fontSize: 16,
+      fontFamily: "Inter_400Regular",
+      color: colors.textPrimary,
+    },
+    paymentMethods: {
+      flexDirection: "row",
+      gap: 16,
+    },
+    methodBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.backgroundCard,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      padding: 16,
+      borderRadius: 12,
+      gap: 8,
+    },
+    methodBtnActive: {
+      borderColor: colors.primary,
+      backgroundColor: `${colors.primary}12`,
+    },
+    methodText: {
+      fontSize: 16,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+    },
+    methodTextActive: {
+      color: colors.primary,
+    },
+    submitBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    submitText: {
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+      color: "#fff",
+    },
+  });
