@@ -26,7 +26,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { login } = useAuth();
+  const { login, fetchRiderStatus } = useAuth();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -48,19 +48,11 @@ export default function LoginScreen() {
       const { token, user } = res.data || {};
       if (token && user) {
         await login(token, user);
-        // After login, check profile completion
-        const needsProfile =
-          !user.isVerified || !user.isEmailVerified || user.kycLevel !== "full";
-        if (needsProfile) {
-          if (!user.isVerified) {
-            router.replace({ pathname: "/(auth)/otp", params: { userId: user.id, phone: user.phone, fromLogin: "1" } });
-          } else if (!user.isEmailVerified) {
-            router.replace({ pathname: "/(auth)/verify-email", params: { email: user.email } });
-          } else {
-            router.replace({ pathname: "/(auth)/create-profile", params: { userId: user.id } });
-          }
-        }
-        // else navigation handled by RootLayoutNav
+        // Fetch rider status in background
+        // Fetch rider status in background
+        fetchRiderStatus();
+        // Navigation is exclusively handled by RootLayoutNav in app/_layout.tsx based on user state
+        // avoiding duplicate routing logic.
       }
     } catch (err: any) {
       if (err.response?.status === 403) {

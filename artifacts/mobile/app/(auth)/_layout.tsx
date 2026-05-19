@@ -17,6 +17,7 @@ export default function AuthLayout() {
       <Stack.Screen name="upload-documents" />
       <Stack.Screen name="create-profile" />
       <Stack.Screen name="payment-registration" />
+      <Stack.Screen name="pending-approval" />
     </Stack>
   );
 }

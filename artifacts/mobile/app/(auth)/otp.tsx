@@ -56,17 +56,10 @@ export default function OtpScreen() {
     setError("");
     try {
       await authApi.verifyOtp({ userId, otp: code });
-      // After OTP verified:
-      if (fromRegister) {
-        if (hasEmail) {
-          // Show email verification notice
-          router.replace({ pathname: "/(auth)/verify-email", params: { email: params.email } });
-        } else {
-          // Go to upload documents
-          router.replace({ pathname: "/(auth)/upload-documents" });
-        }
+      if (user) {
+        await updateUser({ isVerified: true });
       } else {
-        router.replace("/(tabs)");
+        router.replace("/(auth)/login");
       }
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid OTP");

@@ -24,29 +24,44 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const segments = useSegments();
+  const { isAuthenticated, isLoading, user, hasDriverProfile } = useAuth();
+  const segments = useSegments() as string[];
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const inOnboarding = segments[0] === "onboarding";
 
-    const needsPhoneVerification = isAuthenticated && user && user.isVerified === false;
-    const needsEmailVerification = isAuthenticated && user && user.isEmailVerified === false && !!user.email;
-    const needsProfile = isAuthenticated && user && user.kycLevel !== 'full';
-    const needsPayment = isAuthenticated && user && user.registrationPaid === false;
+    const isFullyActive = isAuthenticated && user && user.isActive;
 
-    const needsOnboarding = needsPhoneVerification || needsEmailVerification || needsProfile || needsPayment;
+    const needsPhoneVerification = !isFullyActive && isAuthenticated && user && user.isVerified === false;
+    const needsEmailVerification = !isFullyActive && isAuthenticated && user && user.isEmailVerified === false && !!user.email;
+    // Skip profile gate if the backend confirms a driver profile already exists
+    const needsProfile = !isFullyActive && isAuthenticated && user && user.kycLevel !== 'full' && !hasDriverProfile;
+    const needsPayment = !isFullyActive && isAuthenticated && user && user.registrationPaid === false;
+    const needsApproval = !isFullyActive && isAuthenticated && user && user.registrationStatus && user.registrationStatus !== 'approved';
+
+    const needsOnboarding = needsPhoneVerification || needsEmailVerification || needsProfile || needsPayment || needsApproval;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/login");
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace("/(tabs)");
+    } else if (isAuthenticated) {
+      if (needsPhoneVerification) {
+        if (segments[1] !== 'otp') router.replace("/(auth)/otp");
+      } else if (needsEmailVerification) {
+        if (segments[1] !== 'verify-email') router.replace("/(auth)/verify-email");
+      } else if (needsPayment) {
+        if (segments[1] !== 'payment-registration') router.replace("/(auth)/payment-registration");
+      } else if (needsProfile) {
+        if (segments[1] !== 'create-profile' && segments[1] !== 'upload-documents') router.replace("/(auth)/create-profile");
+      } else if (needsApproval) {
+        if (segments[1] !== 'pending-approval') router.replace("/(auth)/pending-approval" as any);
+      } else {
+        if (inAuthGroup) router.replace("/(tabs)");
+      }
     }
-  }, [isAuthenticated, isLoading, segments, user]);
+  }, [isAuthenticated, isLoading, segments, user, hasDriverProfile]);
 
   if (isLoading) return null;
 
@@ -59,6 +74,7 @@ function ThemedStack() {
   const { colors } = useTheme();
   return (
     <Stack screenOptions={{
+      headerShown: false,
       headerBackTitle: "Back",
       headerStyle: { backgroundColor: colors.background },
       headerTintColor: colors.textPrimary,
@@ -66,7 +82,6 @@ function ThemedStack() {
       contentStyle: { backgroundColor: colors.background },
     }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', title: 'Notifications' }} />
       <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Card' }} />

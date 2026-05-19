@@ -11,9 +11,10 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { authApi } from "@/services/api";
+import { authApi, API_BASE_URL, getStoredToken } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import EventSource from "react-native-sse";
 
 export default function PaymentRegistrationScreen() {
   const router = useRouter();
@@ -50,12 +51,53 @@ export default function PaymentRegistrationScreen() {
     setLoading(true);
     setError("");
     try {
-      await authApi.payRegistration({ phone: displayPhone });
+      const res = await authApi.payRegistration({ phone: displayPhone });
+      const ref = res.data?.ref || res.data?.data?.ref; // Extract Paypack ref from response
       setSuccess(true);
-      // Poll or just wait a moment then go to dashboard
-      setTimeout(() => {
-        router.replace("/(tabs)");
-      }, 3000);
+      
+      if (ref) {
+        // Start SSE listener
+        const token = await getStoredToken();
+        const es = new EventSource(`${API_BASE_URL}/payment/status-stream/${ref}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        es.addEventListener('message', async (event) => {
+            if (!event.data) return;
+            try {
+              const data = JSON.parse(event.data);
+              if (data.status === 'completed' || data.status === 'successful') {
+                  es.close();
+                  if (user) {
+                    await updateUser({ registrationPaid: true });
+                  }
+              } else if (data.status === 'failed') {
+                  es.close();
+                  setSuccess(false);
+                  setError("Payment failed. Please try again.");
+              }
+            } catch (e) {
+              console.error("Error parsing SSE data", e);
+            }
+        });
+
+        es.addEventListener('error', (err) => {
+            console.error("Stream disconnected", err);
+            // Fallback: we could show a refresh button, or just wait.
+        });
+        
+        // Clean up on unmount
+        return () => {
+          es.close();
+        };
+      } else {
+        // Fallback if no ref returned
+        setTimeout(async () => {
+          if (user) {
+            await updateUser({ registrationPaid: true });
+          }
+        }, 3000);
+      }
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
@@ -63,6 +105,7 @@ export default function PaymentRegistrationScreen() {
       } else {
         setError(msg);
       }
+      setSuccess(false);
     } finally {
       setLoading(false);
     }
@@ -124,7 +167,7 @@ export default function PaymentRegistrationScreen() {
       {/* Payment amount */}
       <View style={s.payCard}>
         <Text style={s.payLabel}>Amount to Pay</Text>
-        <Text style={s.payAmount}>10,000 RWF</Text>
+        <Text style={s.payAmount}>5000 RWF</Text>
         <View style={s.payRow}>
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
           <Text style={s.payNote}>via MTN MoMo to {displayPhone}</Text>

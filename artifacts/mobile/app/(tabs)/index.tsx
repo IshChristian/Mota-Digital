@@ -19,7 +19,7 @@ import { useTheme } from "@/context/ThemeContext";
 import Colors from "@/constants/colors";
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
+  const { user, riderStatus: cachedRiderStatus } = useAuth();
   const t = useT();
   const router = useExpoRouter();
   const insets = useSafeAreaInsets();
@@ -219,6 +219,21 @@ export default function DashboardScreen() {
           </View>
           <Text style={s.actionText}>{t("loans")}</Text>
         </TouchableOpacity>
+
+        {/* Fuel Vouchers — Tier 3+ only */}
+        {["gold", "platinum", "gorilla"].includes(currentTier) && (
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/fuel-vouchers" as any)}>
+            <View
+              style={[
+                s.actionIcon,
+                { backgroundColor: isDark ? "rgba(255,215,0,0.18)" : "rgba(255,215,0,0.12)" },
+              ]}
+            >
+              <Feather name="zap" size={24} color="#FFD700" />
+            </View>
+            <Text style={s.actionText}>Fuel</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Stats Grid */}

@@ -7,10 +7,11 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,10 +23,21 @@ export default function VerifyEmailScreen() {
   const { user, updateUser } = useAuth();
 
   const email = params.email || user?.email || "your email";
-  
+
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState("");
+  const [resendMsg, setResendMsg] = useState("");
+  const [timer, setTimer] = useState(60);
   const inputs = useRef<Array<TextInput | null>>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleOtpChange = (value: string, index: number) => {
     const newOtp = [...otp];
@@ -36,13 +48,39 @@ export default function VerifyEmailScreen() {
   };
 
   const handleContinue = async () => {
+    const code = otp.join("");
+    if (code.length < 6) {
+      setError("Please enter all 6 digits");
+      return;
+    }
     setLoading(true);
+    setError("");
     try {
-      // In a real app we'd verify the email OTP from backend
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await authApi.verifyEmailOtp({ email, otp: code });
       await updateUser({ isEmailVerified: true });
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Invalid verification code");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (timer > 0) return;
+    setResending(true);
+    setError("");
+    setResendMsg("");
+    try {
+      await authApi.resendEmailOtp({ email });
+      setTimer(60);
+      setResendMsg("A new code has been sent to your email");
+      // Clear the OTP inputs
+      setOtp(["", "", "", "", "", ""]);
+      setTimeout(() => setResendMsg(""), 5000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to resend code");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -56,11 +94,19 @@ export default function VerifyEmailScreen() {
 
       <Text style={s.title}>Verify Your Email</Text>
       <Text style={s.subtitle}>
-        We sent a verification link to{"\n"}
+        We sent a 6-digit verification code to{"\n"}
         <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>{email}</Text>
         {"\n\n"}
-        Please check your inbox and click the link to verify your email address.
+        Please check your inbox and enter the code below.
       </Text>
+
+      {error ? <Text style={s.errorText}>{error}</Text> : null}
+      {resendMsg ? (
+        <View style={s.successBanner}>
+          <Feather name="check-circle" size={14} color={colors.success} />
+          <Text style={s.successText}>{resendMsg}</Text>
+        </View>
+      ) : null}
 
       <View style={s.otpContainer}>
         {otp.map((digit, index) => (
@@ -92,6 +138,19 @@ export default function VerifyEmailScreen() {
           <Text style={s.buttonText}>Verify Email</Text>
         )}
       </TouchableOpacity>
+
+      <View style={s.resendContainer}>
+        <Text style={s.resendText}>Didn't receive code? </Text>
+        <TouchableOpacity onPress={handleResendOtp} disabled={timer > 0 || resending}>
+          {resending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={[s.resendLink, timer > 0 && s.resendDisabled]}>
+              Resend {timer > 0 ? `(${timer}s)` : ""}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -165,5 +224,45 @@ const styles = (colors: any) =>
       color: "#fff",
       fontSize: 16,
       fontFamily: "Inter_600SemiBold",
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      marginBottom: 16,
+      textAlign: "center",
+    },
+    successBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: `${colors.success}18`,
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 16,
+      width: "100%",
+    },
+    successText: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: colors.success,
+    },
+    resendContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 24,
+    },
+    resendText: {
+      color: colors.textSecondary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 14,
+    },
+    resendLink: {
+      color: colors.primary,
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+    resendDisabled: {
+      color: colors.textTertiary,
     },
   });

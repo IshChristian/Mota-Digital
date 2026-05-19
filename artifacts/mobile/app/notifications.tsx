@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { notificationsApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
@@ -25,8 +26,21 @@ export default function NotificationsScreen() {
   const { data, refetch, isFetching } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
-      const res = await notificationsApi.getNotifications(1);
-      return res.data?.notifications || [];
+      let apiNotifs: any[] = [];
+      try {
+        const res = await notificationsApi.getNotifications(1);
+        apiNotifs = res.data?.notifications || [];
+      } catch (e) {}
+
+      let localNotifs: any[] = [];
+      try {
+        const localStr = await AsyncStorage.getItem("local_notifs");
+        if (localStr) localNotifs = JSON.parse(localStr);
+      } catch (e) {}
+
+      const all = [...localNotifs, ...apiNotifs];
+      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return all;
     },
   });
 
@@ -35,9 +49,20 @@ export default function NotificationsScreen() {
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[s.notificationItem, !item.read && s.unreadItem]}
-      onPress={() => {
+      onPress={async () => {
         if (!item.read) {
-          notificationsApi.markRead(item.id);
+          if (item.id?.startsWith("local-")) {
+            try {
+              const localStr = await AsyncStorage.getItem("local_notifs");
+              if (localStr) {
+                const localNotifs = JSON.parse(localStr);
+                const updated = localNotifs.map((n: any) => n.id === item.id ? { ...n, read: true } : n);
+                await AsyncStorage.setItem("local_notifs", JSON.stringify(updated));
+              }
+            } catch (e) {}
+          } else {
+            notificationsApi.markRead(item.id);
+          }
           refetch();
         }
       }}

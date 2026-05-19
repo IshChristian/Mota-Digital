@@ -12,9 +12,18 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { driverApi } from "@/services/api";
+import { driverApi, authApi } from "@/services/api";
+import { uploadToCloudinary } from "@/services/cloudinary";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
+
+type DocState = {
+  uri?: string;
+  url?: string;
+  uploading: boolean;
+  error?: string;
+};
 
 export default function CreateProfileScreen() {
   const router = useRouter();
@@ -31,16 +40,75 @@ export default function CreateProfileScreen() {
     plateNumber: "",
     cooperativeName: "",
     nid: "",
+    permitId: "",
   });
+
+  const [docs, setDocs] = useState<{
+    insuranceAttachment: DocState;
+    permitAttachment: DocState;
+  }>({
+    insuranceAttachment: {
+      uploading: false,
+      url: params.insuranceAttachment || "",
+    },
+    permitAttachment: {
+      uploading: false,
+      url: params.permitAttachment || "",
+    },
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const update = (key: string, value: string) =>
     setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const setDoc = (
+    key: "insuranceAttachment" | "permitAttachment",
+    partial: Partial<DocState>
+  ) => {
+    setDocs((prev) => ({ ...prev, [key]: { ...prev[key], ...partial } }));
+  };
+
+  const pickAndUpload = async (
+    key: "insuranceAttachment" | "permitAttachment"
+  ) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Please grant camera roll access to upload documents."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+        allowsEditing: false,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets[0];
+
+      setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
+
+      const url = await uploadToCloudinary(asset.uri, "mota-docs");
+      setDoc(key, { url, uploading: false });
+    } catch (err: any) {
+      setDoc(key, { uploading: false, error: "Upload failed. Tap to retry." });
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.plateNumber || !formData.nid) {
-      setError("Please fill required fields");
+      setError("Please fill required fields (Plate Number and National ID)");
+      return;
+    }
+    if (!formData.permitId) {
+      setError("Please enter your Permit ID");
       return;
     }
     setLoading(true);
@@ -48,17 +116,23 @@ export default function CreateProfileScreen() {
     try {
       await driverApi.createProfile({
         ...formData,
-        insuranceAttachment: params.insuranceAttachment || "",
-        permitAttachment: params.permitAttachment || "",
-        permitId: params.permitId || "",
+        insuranceAttachment: docs.insuranceAttachment.url || "",
+        permitAttachment: docs.permitAttachment.url || "",
+        permitId: formData.permitId,
       });
-      // After profile creation, update state (which triggers navigation)
-      await updateUser({ kycLevel: 'full' });
+
+      // Submit registration request for admin review
+      try {
+        await authApi.submitRegistrationRequest();
+      } catch {}
+
+      // After profile creation, update state with pending admin review
+      await updateUser({ kycLevel: "full", registrationStatus: "pending" });
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to create profile";
       if (msg.toLowerCase().includes("already exists")) {
         // Profile already exists — update state
-        await updateUser({ kycLevel: 'full' });
+        await updateUser({ kycLevel: "full" });
       } else {
         setError(msg);
       }
@@ -69,14 +143,65 @@ export default function CreateProfileScreen() {
 
   const s = styles(colors);
 
+  const DocUploadCard = ({
+    docKey,
+    icon,
+    title,
+    description,
+  }: {
+    docKey: "insuranceAttachment" | "permitAttachment";
+    icon: any;
+    title: string;
+    description: string;
+  }) => {
+    const doc = docs[docKey];
+    const done = !!doc.url;
+
+    return (
+      <TouchableOpacity
+        style={[s.docCard, done && s.docCardDone]}
+        onPress={() => pickAndUpload(docKey)}
+        disabled={doc.uploading}
+      >
+        <View style={[s.docIconWrap, done && s.docIconWrapDone]}>
+          {doc.uploading ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : done ? (
+            <Feather name="check-circle" size={22} color={colors.success} />
+          ) : (
+            <Feather name={icon} size={22} color={colors.primary} />
+          )}
+        </View>
+        <View style={s.docInfo}>
+          <Text style={s.docTitle}>{title}</Text>
+          <Text style={s.docDesc}>
+            {doc.error
+              ? doc.error
+              : done
+              ? "Uploaded successfully ✓"
+              : description}
+          </Text>
+        </View>
+        {!done && !doc.uploading && (
+          <View style={s.uploadBtnSmall}>
+            <Feather name="upload" size={14} color={colors.primary} />
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={[
+        s.container,
+        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 },
+      ]}
       keyboardShouldPersistTaps="handled"
     >
       <View style={s.headerRow}>
-        <Text style={s.step}>Step 2 of 2</Text>
+        <Text style={s.step}>Complete Your Profile</Text>
         <View style={s.progressBar}>
           <View style={[s.progressFill, { width: "100%" }]} />
         </View>
@@ -86,19 +211,17 @@ export default function CreateProfileScreen() {
         <Feather name="user-check" size={40} color={colors.primary} />
       </View>
       <Text style={s.title}>Driver Profile</Text>
-      <Text style={s.subtitle}>Complete your driver profile to start earning.</Text>
-
-      {params.insuranceAttachment || params.permitAttachment ? (
-        <View style={s.uploadedBadge}>
-          <Feather name="check-circle" size={14} color={colors.success} />
-          <Text style={s.uploadedText}>Documents uploaded ✓</Text>
-        </View>
-      ) : null}
+      <Text style={s.subtitle}>
+        Complete your driver profile to start earning.
+      </Text>
 
       {error ? <Text style={s.errorText}>{error}</Text> : null}
 
+      {/* Profile Fields */}
       <View style={s.inputGroup}>
-        <Text style={s.label}>Plate Number <Text style={{ color: colors.primary }}>*</Text></Text>
+        <Text style={s.label}>
+          Plate Number <Text style={{ color: colors.primary }}>*</Text>
+        </Text>
         <TextInput
           style={s.input}
           placeholder="RAC 123 A"
@@ -121,7 +244,9 @@ export default function CreateProfileScreen() {
       </View>
 
       <View style={s.inputGroup}>
-        <Text style={s.label}>National ID <Text style={{ color: colors.primary }}>*</Text></Text>
+        <Text style={s.label}>
+          National ID <Text style={{ color: colors.primary }}>*</Text>
+        </Text>
         <TextInput
           style={s.input}
           placeholder="1199880012345678"
@@ -133,13 +258,52 @@ export default function CreateProfileScreen() {
         />
       </View>
 
+      <View style={s.inputGroup}>
+        <Text style={s.label}>
+          Permit ID <Text style={{ color: colors.primary }}>*</Text>
+        </Text>
+        <TextInput
+          style={s.input}
+          placeholder="DL-2024-001234"
+          placeholderTextColor={colors.textTertiary}
+          value={formData.permitId}
+          onChangeText={(v) => update("permitId", v)}
+          autoCapitalize="characters"
+        />
+      </View>
+
+      {/* Document Upload Section */}
+      <View style={s.sectionDivider}>
+        <View style={s.dividerLine} />
+        <Text style={s.sectionLabel}>Upload Documents</Text>
+        <View style={s.dividerLine} />
+      </View>
+
+      <DocUploadCard
+        docKey="insuranceAttachment"
+        icon="shield"
+        title="Insurance Document"
+        description="Upload your bike insurance (JPG, PNG)"
+      />
+      <DocUploadCard
+        docKey="permitAttachment"
+        icon="file-text"
+        title="Permit Document"
+        description="Upload your driving permit (JPG, PNG)"
+      />
+
       <TouchableOpacity style={s.button} onPress={handleSubmit} disabled={loading}>
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={s.buttonText}>Complete Profile →</Text>
+          <Text style={s.buttonText}>Submit for Approval →</Text>
         )}
       </TouchableOpacity>
+
+      <Text style={s.disclaimer}>
+        Your profile will be reviewed by an admin. You'll be notified once
+        approved.
+      </Text>
     </ScrollView>
   );
 }
@@ -192,20 +356,6 @@ const styles = (colors: any) =>
       textAlign: "center",
       marginBottom: 24,
     },
-    uploadedBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: `${colors.success}18`,
-      borderRadius: 8,
-      padding: 10,
-      marginBottom: 20,
-    },
-    uploadedText: {
-      fontSize: 13,
-      fontFamily: "Inter_500Medium",
-      color: colors.success,
-    },
     inputGroup: {
       marginBottom: 16,
     },
@@ -225,12 +375,78 @@ const styles = (colors: any) =>
       borderWidth: 1,
       borderColor: colors.inputBorder,
     },
+    sectionDivider: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+      marginBottom: 16,
+      gap: 12,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    sectionLabel: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    docCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.backgroundCard,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 12,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+    },
+    docCardDone: {
+      borderColor: colors.success,
+    },
+    docIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: `${colors.primary}18`,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    docIconWrapDone: {
+      backgroundColor: `${colors.success}18`,
+    },
+    docInfo: {
+      flex: 1,
+    },
+    docTitle: {
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    docDesc: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+    },
+    uploadBtnSmall: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: `${colors.primary}18`,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     button: {
       backgroundColor: colors.primary,
       borderRadius: 12,
       padding: 16,
       alignItems: "center",
-      marginTop: 8,
+      marginTop: 20,
     },
     buttonText: {
       color: "#fff",
@@ -244,14 +460,13 @@ const styles = (colors: any) =>
       marginBottom: 16,
       textAlign: "center",
     },
-    skipBtn: {
-      alignItems: "center",
-      marginTop: 16,
-      padding: 8,
-    },
-    skipText: {
-      color: colors.textSecondary,
-      fontSize: 14,
+    disclaimer: {
+      marginTop: 12,
+      fontSize: 12,
       fontFamily: "Inter_400Regular",
+      color: colors.textTertiary,
+      textAlign: "center",
+      lineHeight: 18,
+      marginBottom: 8,
     },
   });
