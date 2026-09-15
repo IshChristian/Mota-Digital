@@ -123,6 +123,9 @@ export const authApi = {
   submitRegistrationRequest: () => api.post('/auth/submit-registration'),
   /** Check current registration approval status */
   getRegistrationApproval: () => api.get('/auth/registration-approval'),
+  /** 2FA Setup and Verify */
+  setup2FA: () => api.post('/auth/2fa/setup'),
+  verify2FA: (data: { userId: string; token: string }) => api.post('/auth/2fa/verify', data),
   logout: () => api.post('/auth/logout'),
 };
 
@@ -157,6 +160,27 @@ export const driverApi = {
   getLeaderboard: (limit = 10) => api.get(`/driver/leaderboard?limit=${limit}`),
   payFine: (data: { fineId: string; paymentAmount: number }) => api.post('/driver/pay-fine', data),
   requestFine: (data: any) => api.post('/driver/request-fine', data),
+  updateAvailability: (data: { isOnline: boolean }) => api.put('/driver/availability', data),
+  updateLocation: (data: { latitude: number; longitude: number }) => api.put('/driver/location', data),
+  getActiveRide: () => api.get('/driver/active-ride'),
+};
+
+// ─── Rides API ───────────────────────────────────────────────────────────────
+export const ridesApi = {
+  // Driver-side
+  acceptRide: (id: string) => api.post(`/rides/${id}/accept`),
+  declineRide: (id: string) => api.post(`/rides/${id}/decline`),
+  getRideDetails: (id: string) => api.get(`/rides/${id}`),
+  notifyArrival: (id: string) => api.post(`/rides/${id}/arrived`),
+  startRide: (id: string, pin: string) => api.post(`/rides/${id}/start`, { pin }),
+  completeRide: (id: string) => api.post(`/rides/${id}/complete`),
+  // Passenger-side
+  requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number }) =>
+    api.post('/rides/request', data),
+  getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
+  cancelRide: (id: string) => api.post(`/rides/${id}/cancel`),
+  rateRide: (id: string, data: { rating: number; comment?: string }) =>
+    api.post(`/rides/${id}/rate`, data),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
@@ -213,8 +237,8 @@ export const walletApi = {
 
 // Loans
 export const loansApi = {
-  // API requires { fineId } — loans are only issued against an active fine
-  requestLoan: (data: { fineId: string }) => api.post('/loans/request', data),
+  // API requires { tinNumber, ticketNumber }
+  requestLoan: (data: { tinNumber: string; ticketNumber: string }) => api.post('/loans/request', data),
   getMyLoans: () => api.get('/loans/my-loans'),
   repayLoan: (data: { loanId: string; amount: number }) => api.post('/loans/repay', data),
 };
@@ -269,6 +293,9 @@ export const paymentApi = {
   /** Request ride payment from passenger via Paypack */
   requestPayment: (data: { passengerPhone: string; amount: number; rideId: string }) =>
     api.post('/payment/request', data),
+
+  /** Check payment status manually (Polling fallback) */
+  checkPaymentStatus: (ref: string) => api.get(`/payment/status/${ref}`),
 };
 
 // ─── Transfers (P2P) ────────────────────────────────────────────────────────
@@ -280,6 +307,14 @@ export const transferApi = {
   /** Send money via QR code scan */
   sendViaQR: (data: { phone: string; amount: number; description?: string }) =>
     api.post('/transfer/send-qr', data),
+
+  /** Generate QR code for receiving payments */
+  getQRCode: (amount?: number) =>
+    api.get(`/transfer/qr-code${amount ? `?amount=${amount}` : ''}`),
+
+  /** Get transfer history */
+  getHistory: (page = 1, limit = 20) =>
+    api.get(`/transfer/history?page=${page}&limit=${limit}`),
 };
 
 // ─── Fuel Vouchers (Tier 3+) ────────────────────────────────────────────────
@@ -307,4 +342,44 @@ export const fuelVoucherApi = {
   /** Mark a voucher as redeemed */
   markRedeemed: (voucherId: string) =>
     api.patch(`/fuel-vouchers/${voucherId}/redeem`),
+};
+
+// ─── Rides ──────────────────────────────────────────────────────────────────
+export const rideApi = {
+  /** Get ride details by ID */
+  getById: (id: string) => api.get(`/ride/${id}`),
+};
+
+// ─── Search ─────────────────────────────────────────────────────────────────
+export const searchApi = {
+  /** Universal search (drivers, rides, transactions) */
+  searchAll: (q: string) => api.get(`/search?q=${encodeURIComponent(q)}`),
+  /** Search specifically for users */
+  searchUsers: (q: string) => api.get(`/search/users?q=${encodeURIComponent(q)}`),
+};
+
+// ─── Uploads ────────────────────────────────────────────────────────────────
+export const uploadsApi = {
+  /** Upload a new file (requires FormData) */
+  upload: (data: FormData) =>
+    api.post('/uploads', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  /** Get upload metadata by ID */
+  getById: (id: string) => api.get(`/uploads/${id}`),
+  /** Delete an uploaded file */
+  delete: (id: string) => api.delete(`/uploads/${id}`),
+};
+
+// ─── Finance ─────────────────────────────────────────────────────────────────
+export const financeApi = {
+  getEligibility: () => api.get('/finance/eligibility'),
+  getRiskScore: () => api.get('/finance/risk-score'),
+  getLoanSchedule: (id: string) => api.get(`/finance/loans/${id}/schedule`),
+  getSavingsStatus: () => api.get('/finance/savings/status'),
+  depositSavings: (data: { amount: number }) => api.post('/finance/savings/deposit', data),
+  withdrawSavings: (data: { amount: number }) => api.post('/finance/savings/withdraw', data),
+  getMigrationStage: () => api.get('/finance/migration-stage'),
+  getConsent: () => api.get('/finance/consent'),
+  signConsent: (data: { consentType: string; version: string }) => api.post('/finance/consent', data),
 };

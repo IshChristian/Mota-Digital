@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -18,9 +18,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import EventSource from "react-native-sse";
-
-import { driverApi, algorithmApi, getStoredToken, API_BASE_URL } from "@/services/api";
+import { driverApi, algorithmApi, getStoredToken, API_BASE_URL, transferApi, paymentApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -73,6 +71,16 @@ export default function LogRideScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentWaiting, setPaymentWaiting] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const cancelStream = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setPaymentWaiting(false);
+    setSubmitting(false);
+  };
 
   // Fetch rides
   const [page, setPage] = useState(1);
@@ -91,7 +99,7 @@ export default function LogRideScreen() {
       setHasMore(rides.length >= 20);
       return rides;
     },
-    staleTime: 30000,
+    refetchInterval: 5000,
   });
 
   const onRefresh = useCallback(async () => {
@@ -110,7 +118,7 @@ export default function LogRideScreen() {
       setAllRides((prev) => [...prev, ...more]);
       setPage(nextPage);
       setHasMore(more.length >= 20);
-    } catch {}
+    } catch { }
     setLoadingMore(false);
   };
 
@@ -140,49 +148,47 @@ export default function LogRideScreen() {
 
       if (ref) {
         setPaymentWaiting(true);
-        const token = await getStoredToken();
-        const es = new EventSource(`${API_BASE_URL}/payment/status-stream/${ref}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
 
-        es.addEventListener('message', async (event) => {
-            if (!event.data) return;
-            try {
-              const data = JSON.parse(event.data);
-              if (data.status === 'completed' || data.status === 'successful') {
-                  es.close();
-                  setPaymentWaiting(false);
-                  setPaymentSuccess(true);
-                  try { await algorithmApi.completeRide(); } catch {}
-                  
-                  // Hide modal after 2 seconds
-                  setTimeout(async () => {
-                      setFare("");
-                      setPassengerPhone("");
-                      setPaymentSuccess(false);
-                      setModalVisible(false);
-                      await refetch();
-                      queryClient.invalidateQueries({ queryKey: ["rider_status"] });
-                      queryClient.invalidateQueries({ queryKey: ["rider_earnings"] });
-                  }, 2500);
-              } else if (data.status === 'failed') {
-                  es.close();
-                  setPaymentWaiting(false);
-                  alert("Payment failed. Passenger may have declined.");
-                  setSubmitting(false);
-              }
-            } catch (e) {
-              console.error("Error parsing SSE data", e);
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const statusRes = await paymentApi.checkPaymentStatus(ref);
+            const data = statusRes.data?.data || statusRes.data;
+            const status = data?.status;
+
+            if (status === 'completed' || status === 'successful') {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+
+              setPaymentWaiting(false);
+              setPaymentSuccess(true);
+              try { await algorithmApi.completeRide(); } catch { }
+
+              // Hide modal after 2 seconds
+              setTimeout(async () => {
+                setFare("");
+                setPassengerPhone("");
+                setPaymentSuccess(false);
+                setModalVisible(false);
+                await refetch();
+                queryClient.invalidateQueries({ queryKey: ["rider_status"] });
+                queryClient.invalidateQueries({ queryKey: ["rider_earnings"] });
+              }, 2500);
+            } else if (status === 'failed') {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+
+              setPaymentWaiting(false);
+              alert("Payment failed. Passenger may have declined.");
+              setSubmitting(false);
             }
-        });
-
-        es.addEventListener('error', (err) => {
-            console.error("Stream disconnected", err);
-        });
+          } catch (e) {
+            // Silently ignore polling errors
+          }
+        }, 1000); // Poll every 1 second
 
       } else {
         // Fallback without SSE
-        try { await algorithmApi.completeRide(); } catch {}
+        try { await algorithmApi.completeRide(); } catch { }
         setFare("");
         setPassengerPhone("");
         setModalVisible(false);
@@ -369,8 +375,15 @@ export default function LogRideScreen() {
             ) : paymentWaiting ? (
               <View style={s.successBox}>
                 <ActivityIndicator color={colors.primary} size="large" />
-                <Text style={[s.modalTitle, { marginTop: 16 }]}>Waiting for Passenger</Text>
-                <Text style={s.label}>Waiting for passenger to enter PIN...</Text>
+                <Text style={[s.modalTitle, { marginTop: 16 }]}>Waiting for Passengers</Text>
+                <Text style={s.label}>Waiting for passengers to enter PIN...</Text>
+
+                <TouchableOpacity
+                  style={[s.submitBtn, { backgroundColor: colors.error, marginTop: 32 }]}
+                  onPress={cancelStream}
+                >
+                  <Text style={s.submitText}>Cancel Waiting</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <>

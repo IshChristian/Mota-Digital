@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usersApi, algorithmApi, driverApi } from '../services/api';
@@ -85,7 +85,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [riderStatus, setRiderStatus] = useState<RiderStatus | null>(null);
@@ -207,11 +207,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (newToken: string, newUser: User) => {
     await storeToken(newToken);
     await AsyncStorage.setItem('user_data', JSON.stringify(newUser));
+    // Cache verification status keyed by phone for login 403 handling
+    if (newUser.phone) {
+      await AsyncStorage.setItem(
+        `verification_cache_${newUser.phone}`,
+        JSON.stringify({
+          isVerified: newUser.isVerified,
+          isEmailVerified: newUser.isEmailVerified,
+          registrationStatus: newUser.registrationStatus,
+          registrationPaid: newUser.registrationPaid,
+          isActive: newUser.isActive,
+          kycLevel: newUser.kycLevel,
+          role: newUser.role,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    }
     setToken(newToken);
     setUser(newUser);
-    // Check if driver profile exists — if so, skip the "Complete Your Profile" screen
+    // Await the profile check so hasDriverProfile is resolved before routing evaluates
     if (newUser.kycLevel !== 'full') {
-      checkDriverProfile(newUser);
+      await checkDriverProfile(newUser);
     } else {
       setHasDriverProfile(true);
     }

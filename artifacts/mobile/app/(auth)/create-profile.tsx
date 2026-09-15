@@ -102,7 +102,43 @@ export default function CreateProfileScreen() {
     }
   };
 
+  const isPassenger = user?.role?.toUpperCase() === 'CLIENT' || user?.role?.toUpperCase() === 'PASSENGER';
+
+  const [passengerData, setPassengerData] = useState({
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    preferredPayment: "CASH", // CASH, MOMO, CARD
+  });
+
+  const updatePassenger = (key: string, value: string) =>
+    setPassengerData((prev) => ({ ...prev, [key]: value }));
+
+  const handlePassengerSubmit = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Complete passenger profile, setting kycLevel and active status directly
+      await updateUser({
+        kycLevel: "full",
+        isActive: true,
+        emergencyContactName: passengerData.emergencyContactName,
+        emergencyContactPhone: passengerData.emergencyContactPhone,
+        preferredPayment: passengerData.preferredPayment,
+      });
+      router.replace("/(passenger)" as any);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to complete profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (isPassenger) {
+      await handlePassengerSubmit();
+      return;
+    }
+
     if (!formData.plateNumber || !formData.nid) {
       setError("Please fill required fields (Plate Number and National ID)");
       return;
@@ -210,100 +246,170 @@ export default function CreateProfileScreen() {
       <View style={s.iconWrap}>
         <Feather name="user-check" size={40} color={colors.primary} />
       </View>
-      <Text style={s.title}>Driver Profile</Text>
-      <Text style={s.subtitle}>
-        Complete your driver profile to start earning.
-      </Text>
 
-      {error ? <Text style={s.errorText}>{error}</Text> : null}
+      {isPassenger ? (
+        <View>
+          <Text style={s.title}>Passenger Profile</Text>
+          <Text style={s.subtitle}>
+            Complete your passenger profile details.
+          </Text>
 
-      {/* Profile Fields */}
-      <View style={s.inputGroup}>
-        <Text style={s.label}>
-          Plate Number <Text style={{ color: colors.primary }}>*</Text>
-        </Text>
-        <TextInput
-          style={s.input}
-          placeholder="RAC 123 A"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.plateNumber}
-          onChangeText={(v) => update("plateNumber", v)}
-          autoCapitalize="characters"
-        />
-      </View>
+          {error ? <Text style={s.errorText}>{error}</Text> : null}
 
-      <View style={s.inputGroup}>
-        <Text style={s.label}>Cooperative Name</Text>
-        <TextInput
-          style={s.input}
-          placeholder="e.g. Kigali Moto Coop"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.cooperativeName}
-          onChangeText={(v) => update("cooperativeName", v)}
-        />
-      </View>
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Emergency Contact Name</Text>
+            <TextInput
+              style={s.input}
+              placeholder="e.g. John Doe"
+              placeholderTextColor={colors.textTertiary}
+              value={passengerData.emergencyContactName}
+              onChangeText={(v) => updatePassenger("emergencyContactName", v)}
+            />
+          </View>
 
-      <View style={s.inputGroup}>
-        <Text style={s.label}>
-          National ID <Text style={{ color: colors.primary }}>*</Text>
-        </Text>
-        <TextInput
-          style={s.input}
-          placeholder="1199880012345678"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.nid}
-          onChangeText={(v) => update("nid", v)}
-          keyboardType="numeric"
-          maxLength={16}
-        />
-      </View>
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Emergency Contact Phone</Text>
+            <TextInput
+              style={s.input}
+              placeholder="e.g. 0788123456"
+              placeholderTextColor={colors.textTertiary}
+              value={passengerData.emergencyContactPhone}
+              onChangeText={(v) => updatePassenger("emergencyContactPhone", v)}
+              keyboardType="phone-pad"
+            />
+          </View>
 
-      <View style={s.inputGroup}>
-        <Text style={s.label}>
-          Permit ID <Text style={{ color: colors.primary }}>*</Text>
-        </Text>
-        <TextInput
-          style={s.input}
-          placeholder="DL-2024-001234"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.permitId}
-          onChangeText={(v) => update("permitId", v)}
-          autoCapitalize="characters"
-        />
-      </View>
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Preferred Payment Method</Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+              {["CASH", "MOMO", "CARD"].map((method) => (
+                <TouchableOpacity
+                  key={method}
+                  style={[
+                    s.methodBtn,
+                    passengerData.preferredPayment === method && s.methodBtnActive,
+                  ]}
+                  onPress={() => updatePassenger("preferredPayment", method)}
+                >
+                  <Text
+                    style={[
+                      s.methodBtnText,
+                      passengerData.preferredPayment === method && s.methodBtnTextActive,
+                    ]}
+                  >
+                    {method}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
-      {/* Document Upload Section */}
-      <View style={s.sectionDivider}>
-        <View style={s.dividerLine} />
-        <Text style={s.sectionLabel}>Upload Documents</Text>
-        <View style={s.dividerLine} />
-      </View>
+          <TouchableOpacity style={s.button} onPress={handleSubmit} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.buttonText}>Complete Profile ✓</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View>
+          <Text style={s.title}>Driver Profile</Text>
+          <Text style={s.subtitle}>
+            Complete your driver profile to start earning.
+          </Text>
 
-      <DocUploadCard
-        docKey="insuranceAttachment"
-        icon="shield"
-        title="Insurance Document"
-        description="Upload your bike insurance (JPG, PNG)"
-      />
-      <DocUploadCard
-        docKey="permitAttachment"
-        icon="file-text"
-        title="Permit Document"
-        description="Upload your driving permit (JPG, PNG)"
-      />
+          {error ? <Text style={s.errorText}>{error}</Text> : null}
 
-      <TouchableOpacity style={s.button} onPress={handleSubmit} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={s.buttonText}>Submit for Approval →</Text>
-        )}
-      </TouchableOpacity>
+          {/* Profile Fields */}
+          <View style={s.inputGroup}>
+            <Text style={s.label}>
+              Plate Number <Text style={{ color: colors.primary }}>*</Text>
+            </Text>
+            <TextInput
+              style={s.input}
+              placeholder="RAC 123 A"
+              placeholderTextColor={colors.textTertiary}
+              value={formData.plateNumber}
+              onChangeText={(v) => update("plateNumber", v)}
+              autoCapitalize="characters"
+            />
+          </View>
 
-      <Text style={s.disclaimer}>
-        Your profile will be reviewed by an admin. You'll be notified once
-        approved.
-      </Text>
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Cooperative Name</Text>
+            <TextInput
+              style={s.input}
+              placeholder="e.g. Kigali Moto Coop"
+              placeholderTextColor={colors.textTertiary}
+              value={formData.cooperativeName}
+              onChangeText={(v) => update("cooperativeName", v)}
+            />
+          </View>
+
+          <View style={s.inputGroup}>
+            <Text style={s.label}>
+              National ID <Text style={{ color: colors.primary }}>*</Text>
+            </Text>
+            <TextInput
+              style={s.input}
+              placeholder="1199880012345678"
+              placeholderTextColor={colors.textTertiary}
+              value={formData.nid}
+              onChangeText={(v) => update("nid", v)}
+              keyboardType="numeric"
+              maxLength={16}
+            />
+          </View>
+
+          <View style={s.inputGroup}>
+            <Text style={s.label}>
+              Permit ID <Text style={{ color: colors.primary }}>*</Text>
+            </Text>
+            <TextInput
+              style={s.input}
+              placeholder="DL-2024-001234"
+              placeholderTextColor={colors.textTertiary}
+              value={formData.permitId}
+              onChangeText={(v) => update("permitId", v)}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          {/* Document Upload Section */}
+          <View style={s.sectionDivider}>
+            <View style={s.dividerLine} />
+            <Text style={s.sectionLabel}>Upload Documents</Text>
+            <View style={s.dividerLine} />
+          </View>
+
+          <DocUploadCard
+            docKey="insuranceAttachment"
+            icon="shield"
+            title="Insurance Document"
+            description="Upload your bike insurance (JPG, PNG)"
+          />
+          <DocUploadCard
+            docKey="permitAttachment"
+            icon="file-text"
+            title="Permit Document"
+            description="Upload your driving permit (JPG, PNG)"
+          />
+
+          <TouchableOpacity style={s.button} onPress={handleSubmit} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.buttonText}>Submit for Approval →</Text>
+            )}
+          </TouchableOpacity>
+
+          <Text style={s.disclaimer}>
+            Your profile will be reviewed by an admin. You'll be notified once
+            approved.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -468,5 +574,28 @@ const styles = (colors: any) =>
       textAlign: "center",
       lineHeight: 18,
       marginBottom: 8,
+    },
+    methodBtn: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 10,
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    methodBtnActive: {
+      borderColor: colors.primary,
+      backgroundColor: `${colors.primary}12`,
+    },
+    methodBtnText: {
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+    },
+    methodBtnTextActive: {
+      color: colors.primary,
+      fontFamily: "Inter_600SemiBold",
     },
   });

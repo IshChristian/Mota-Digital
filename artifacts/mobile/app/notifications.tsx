@@ -42,6 +42,7 @@ export default function NotificationsScreen() {
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       return all;
     },
+    refetchInterval: 5000,
   });
 
   const s = styles(colors);

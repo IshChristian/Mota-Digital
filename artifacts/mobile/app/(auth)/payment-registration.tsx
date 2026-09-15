@@ -11,10 +11,9 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { authApi, API_BASE_URL, getStoredToken } from "@/services/api";
+import { authApi, API_BASE_URL, getStoredToken, paymentApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import EventSource from "react-native-sse";
 
 export default function PaymentRegistrationScreen() {
   const router = useRouter();
@@ -56,40 +55,31 @@ export default function PaymentRegistrationScreen() {
       setSuccess(true);
       
       if (ref) {
-        // Start SSE listener
-        const token = await getStoredToken();
-        const es = new EventSource(`${API_BASE_URL}/payment/status-stream/${ref}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        // Start high-frequency status polling (every 1 second)
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const statusRes = await paymentApi.checkPaymentStatus(ref);
+            const data = statusRes.data?.data || statusRes.data;
+            const status = data?.status;
 
-        es.addEventListener('message', async (event) => {
-            if (!event.data) return;
-            try {
-              const data = JSON.parse(event.data);
-              if (data.status === 'completed' || data.status === 'successful') {
-                  es.close();
-                  if (user) {
-                    await updateUser({ registrationPaid: true });
-                  }
-              } else if (data.status === 'failed') {
-                  es.close();
-                  setSuccess(false);
-                  setError("Payment failed. Please try again.");
+            if (status === 'completed' || status === 'successful') {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+              
+              if (user) {
+                await updateUser({ registrationPaid: true });
               }
-            } catch (e) {
-              console.error("Error parsing SSE data", e);
+            } else if (status === 'failed') {
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+              
+              setSuccess(false);
+              setError("Payment failed. Please try again.");
             }
-        });
-
-        es.addEventListener('error', (err) => {
-            console.error("Stream disconnected", err);
-            // Fallback: we could show a refresh button, or just wait.
-        });
-        
-        // Clean up on unmount
-        return () => {
-          es.close();
-        };
+          } catch (err) {
+            console.error("Error checking payment status", err);
+          }
+        }, 1000);
       } else {
         // Fallback if no ref returned
         setTimeout(async () => {
@@ -101,7 +91,7 @@ export default function PaymentRegistrationScreen() {
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
-        router.replace("/(tabs)");
+        router.replace("/(driver)" as any);
       } else {
         setError(msg);
       }

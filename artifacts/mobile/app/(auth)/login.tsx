@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,7 @@ import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const [identifier, setIdentifier] = useState("");
@@ -48,18 +49,78 @@ export default function LoginScreen() {
       const { token, user } = res.data || {};
       if (token && user) {
         await login(token, user);
-        // Fetch rider status in background
-        // Fetch rider status in background
+        // Cache verification status for future login attempts
+        await AsyncStorage.setItem(
+          `verification_cache_${identifier}`,
+          JSON.stringify({
+            isVerified: user.isVerified,
+            isEmailVerified: user.isEmailVerified,
+            registrationStatus: user.registrationStatus,
+            registrationPaid: user.registrationPaid,
+            isActive: user.isActive,
+            kycLevel: user.kycLevel,
+            role: user.role,
+            updatedAt: new Date().toISOString(),
+          })
+        );
         fetchRiderStatus();
-        // Navigation is exclusively handled by RootLayoutNav in app/_layout.tsx based on user state
-        // avoiding duplicate routing logic.
+        // Navigation is handled by RootLayoutNav in app/_layout.tsx based on user state
       }
     } catch (err: any) {
       if (err.response?.status === 403) {
-        router.push({
-          pathname: "/(auth)/confirm-phone",
-          params: { phone: err.response?.data?.phone || identifier, userId: err.response?.data?.userId },
-        });
+        const errData = err.response?.data || {};
+
+        // If the 403 response includes a token + user, the user is authenticated
+        // but not fully active — log them in and let RootLayoutNav handle routing
+        if (errData.token && errData.user) {
+          await login(errData.token, errData.user);
+          // Cache verification data
+          await AsyncStorage.setItem(
+            `verification_cache_${identifier}`,
+            JSON.stringify({
+              isVerified: errData.user.isVerified,
+              isEmailVerified: errData.user.isEmailVerified,
+              registrationStatus: errData.user.registrationStatus,
+              registrationPaid: errData.user.registrationPaid,
+              isActive: errData.user.isActive,
+              kycLevel: errData.user.kycLevel,
+              role: errData.user.role,
+              updatedAt: new Date().toISOString(),
+            })
+          );
+          fetchRiderStatus();
+          return;
+        }
+
+        // Check cached verification data to avoid sending a verified user to confirm-phone
+        let cachedVerification: any = null;
+        try {
+          const cached = await AsyncStorage.getItem(`verification_cache_${identifier}`);
+          if (cached) cachedVerification = JSON.parse(cached);
+        } catch {}
+
+        // Determine if the user actually needs phone verification
+        const responseUser = errData.user;
+        const isAlreadyVerified =
+          responseUser?.isVerified === true ||
+          cachedVerification?.isVerified === true;
+
+        if (isAlreadyVerified) {
+          // User is already verified — the 403 is for another reason (isActive: false)
+          setError(
+            errData.message ||
+            "Your account is verified but not yet active. Please contact support."
+          );
+        } else {
+          // User genuinely needs phone verification
+          router.push({
+            pathname: "/(auth)/confirm-phone",
+            params: {
+              phone: errData.phone || identifier,
+              userId: errData.userId,
+            },
+          });
+        }
       } else {
         setError(err.response?.data?.message || t("error"));
       }
@@ -85,7 +146,7 @@ export default function LoginScreen() {
 
         <View style={s.header}>
           <Image source={logoSource} style={s.logo} resizeMode="contain" />
-          <Text style={s.subtitle}>Driver Portal</Text>
+          <Text style={s.subtitle}>Move. Earn. Grow.</Text>
         </View>
 
         <View style={s.form}>

@@ -44,7 +44,7 @@ export default function PendingApprovalScreen() {
 
         if (newStatus === "approved") {
           // Account is now active, navigate to tabs
-          router.replace("/(tabs)");
+          router.replace("/(driver)" as any);
         } else if (manual) {
            alert("Your status is currently: " + newStatus);
         }

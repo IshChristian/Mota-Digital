@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MOTA Driver App",
-    "slug": "mobile",
+    "slug": "mota",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -33,6 +33,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c503fc3c-650c-4f52-93ee-c6c151e28fb3"
+      }
+    },
+    "owner": "tiangroupinnovation"
   }
 }

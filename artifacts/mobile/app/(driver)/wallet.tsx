@@ -36,23 +36,18 @@ export default function WalletScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const { data: balanceData, isLoading: balLoading } = useQuery({
+  const { data: balanceData, isLoading: balLoading, refetch, isFetching } = useQuery({
     queryKey: ["wallet_balance"],
     queryFn: async () => {
       const res = await walletApi.getBalance();
       return res.data;
     },
-  });
-
-  const { data: txData, refetch, isFetching } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: async () => {
-      const res = await walletApi.getTransactions(1);
-      return res.data?.transactions || [];
-    },
+    refetchInterval: 5000,
   });
 
   const balance = balanceData?.balance ?? 0;
+  const today = balanceData?.today;
+  const recentTransactions = balanceData?.recentTransactions || [];
 
   const openModal = (type: ModalType) => {
     setAmount("");
@@ -90,7 +85,6 @@ export default function WalletScreen() {
       }
       closeModal();
       queryClient.invalidateQueries({ queryKey: ["wallet_balance"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
     } catch (err: any) {
       setSubmitError(err.response?.data?.message || "Something went wrong. Please try again.");
     } finally {
@@ -128,7 +122,7 @@ export default function WalletScreen() {
       </View>
 
       <FlatList
-        data={txData}
+        data={recentTransactions}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         renderItem={renderTx}
         contentContainerStyle={s.listContent}
@@ -143,7 +137,27 @@ export default function WalletScreen() {
               {balLoading ? (
                 <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
               ) : (
-                <Text style={s.balanceAmount}>{balance.toLocaleString()} RWF</Text>
+                <>
+                  <Text style={s.balanceAmount}>{balance.toLocaleString()} RWF</Text>
+                  
+                  {today && (
+                    <View style={s.todayStatsRow}>
+                      <View style={s.todayStat}>
+                        <Text style={s.todayStatLabel}>Today's Income</Text>
+                        <Text style={[s.todayStatValue, { color: colors.success }]}>
+                          +{today.income?.toLocaleString()} RWF
+                        </Text>
+                      </View>
+                      <View style={s.todayStatDivider} />
+                      <View style={s.todayStat}>
+                        <Text style={s.todayStatLabel}>Today's Net</Text>
+                        <Text style={[s.todayStatValue, { color: '#fff' }]}>
+                          {today.net > 0 ? '+' : ''}{today.net?.toLocaleString()} RWF
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </>
               )}
 
               <View style={s.actions}>
@@ -282,7 +296,12 @@ const styles = (colors: any) =>
       marginBottom: 28,
     },
     balanceLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)", marginBottom: 6 },
-    balanceAmount: { fontSize: 36, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 24 },
+    balanceAmount: { fontSize: 36, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 16 },
+    todayStatsRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(0,0,0,0.15)", borderRadius: 12, padding: 12, marginBottom: 24 },
+    todayStat: { flex: 1, alignItems: "center" },
+    todayStatLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)", marginBottom: 4 },
+    todayStatValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
+    todayStatDivider: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.2)" },
     actions: { flexDirection: "row", alignItems: "center" },
     actionBtn: {
       flex: 1,

@@ -17,6 +17,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import Colors from "@/constants/colors";
+import { useFinanceStore } from "@/store/financeStore";
+import { useEffect } from "react";
 
 export default function DashboardScreen() {
   const { user, riderStatus: cachedRiderStatus } = useAuth();
@@ -26,50 +28,57 @@ export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
-  // Algorithm Engine — rider status
-  const { data: algoData, refetch: refetchAlgo } = useQuery({
-    queryKey: ["rider_status"],
+  const { riskScore, migrationStage, fetchRiskScore, fetchMigrationStage } = useFinanceStore();
+
+  useEffect(() => {
+    fetchRiskScore();
+    fetchMigrationStage();
+  }, []);
+
+  // Only use the unified backend dashboard API
+  const { data: dashData, refetch: refetchDash } = useQuery({
+    queryKey: ["dashboard"],
     queryFn: async () => {
-      const res = await algorithmApi.getRiderStatus();
-      return res.data?.data || res.data;
+      const res = await driverApi.getDashboard();
+      if (res.data?.isOnline !== undefined) {
+        setIsOnline(res.data.isOnline);
+      }
+      return res.data;
     },
-    staleTime: 60000,
+    refetchInterval: 5000,
   });
 
-  // Algorithm Engine — rider earnings
-  const { data: earningsData, refetch: refetchEarnings } = useQuery({
-    queryKey: ["rider_earnings"],
-    queryFn: async () => {
-      const res = await algorithmApi.getRiderEarnings();
-      return res.data?.data || res.data;
-    },
-    staleTime: 60000,
-  });
-
-  // Wallet balance
-  const { data: balanceData, refetch: refetchBalance } = useQuery({
+  // Fetch real wallet data for accurate balance & today's net
+  const { data: walletData, refetch: refetchWallet } = useQuery({
     queryKey: ["wallet_balance"],
     queryFn: async () => {
       const res = await walletApi.getBalance();
       return res.data;
     },
-    staleTime: 30000,
-  });
-
-  // Dashboard data (fallback for referrals, etc.)
-  const { data: dashData, refetch: refetchDash } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => {
-      const res = await driverApi.getDashboard();
-      return res.data;
-    },
+    refetchInterval: 5000,
   });
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchAlgo(), refetchEarnings(), refetchBalance(), refetchDash()]);
+    await Promise.all([refetchDash(), refetchWallet()]);
     setRefreshing(false);
+  };
+
+  const toggleAvailability = async () => {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      const newState = !isOnline;
+      await driverApi.updateAvailability({ isOnline: newState });
+      setIsOnline(newState);
+    } catch (error) {
+      console.error("Failed to update availability", error);
+    } finally {
+      setToggling(false);
+    }
   };
 
   const getGreeting = () => {
@@ -79,22 +88,29 @@ export default function DashboardScreen() {
     return t("good_evening");
   };
 
-  // Merge algorithm data with dashboard fallback
-  const currentTier = (algoData?.current_tier || dashData?.tier || user?.tier || "bronze").toLowerCase();
-  const dailyRides = algoData?.daily_rides ?? dashData?.ridesToday ?? 0;
-  const monthlyRides = algoData?.monthly_rides ?? dashData?.ridesMonth ?? 0;
-  const streakDays = algoData?.streak_days ?? dashData?.streak ?? 0;
-  const dailyEarnings = earningsData?.daily_earnings ?? algoData?.daily_earnings ?? 0;
-  const walletBalance = balanceData?.balance ?? dashData?.wallet ?? 0;
-  const trophies = algoData?.trophies || [];
-  const featuresUnlocked = algoData?.features_unlocked || [];
-  const cycleNumber = algoData?.cycle_number ?? 0;
-  const tierMultiplier = earningsData?.tier_multiplier ?? dashData?.multiplier ?? 1.0;
+  const currentTier = (dashData?.tier || user?.tier || "bronze").toLowerCase();
+  const dailyRides = dashData?.ridesToday ?? 0;
+  const monthlyRides = dashData?.ridesMonth ?? 0;
+  const streakDays = dashData?.streak ?? 0;
+  const walletBalance = walletData?.balance ?? dashData?.wallet ?? 0;
+  const todayNet = walletData?.today?.net ?? dashData?.daily_earnings ?? 0;
+  
+  const trophies = dashData?.trophies || [];
+  const featuresUnlocked = dashData?.features_unlocked || [];
+  const cycleNumber = dashData?.cycle_number ?? 0;
+  const tierMultiplier = dashData?.multiplier ?? 1.0;
   const referrals = dashData?.referrals ?? 0;
   const target = dashData?.target ?? 20;
 
   const tierColor =
     (Colors.tier as any)[currentTier] || Colors.tier.bronze;
+
+  const getRiskColor = (grade: string) => {
+    if (grade === "A" || grade === "B") return "#10B981"; // Green
+    if (grade === "C" || grade === "D") return "#F4A261"; // Yellow
+    if (grade === "F") return "#E63946"; // Red
+    return colors.textSecondary;
+  };
 
   const s = styles(colors, isDark);
 
@@ -118,6 +134,16 @@ export default function DashboardScreen() {
           <Text style={s.name}>{user?.firstName || "Driver"}!</Text>
         </View>
         <View style={s.headerActions}>
+          {riskScore && (
+            <TouchableOpacity
+              style={[s.iconButton, { borderColor: getRiskColor(riskScore.grade) }]}
+              onPress={() => alert(`Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`)}
+            >
+              <Text style={{ fontFamily: "Inter_700Bold", color: getRiskColor(riskScore.grade) }}>
+                {riskScore.grade}
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={s.iconButton}
             onPress={() => router.push("/card")}
@@ -133,6 +159,37 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Availability Toggle */}
+      <View style={s.availabilityCard}>
+        <View style={s.availabilityHeader}>
+          <View style={s.statusIndicatorRow}>
+            <View style={[s.statusDot, { backgroundColor: isOnline ? "#10B981" : "#6B7280" }]} />
+            <Text style={s.statusText}>{isOnline ? "ONLINE" : "OFFLINE"}</Text>
+          </View>
+        </View>
+        <Text style={s.availabilityMessage}>
+          {isOnline ? "You're available for rides." : "You won't receive ride requests."}
+        </Text>
+        <TouchableOpacity
+          style={[s.toggleBtn, { backgroundColor: isOnline ? "#EF4444" : "#10B981" }]}
+          onPress={toggleAvailability}
+          disabled={toggling}
+        >
+          <Text style={s.toggleBtnText}>
+            {toggling ? "UPDATING..." : isOnline ? "GO OFFLINE" : "GO ONLINE"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {migrationStage?.currentStage === "repayment_trust" && (
+        <View style={s.migrationBanner}>
+          <Feather name="star" size={20} color="#FFD700" />
+          <Text style={s.migrationText}>
+            Pay for 5 more rides digitally to unlock the Keep Me in Bank savings account!
+          </Text>
+        </View>
+      )}
 
       {/* Tier Badge */}
       <View style={[s.tierCard, { borderColor: tierColor }]}>
@@ -162,78 +219,84 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <View style={s.walletRight}>
-            <Text style={s.earningsLabel}>Today's Earnings</Text>
-            <Text style={s.earningsAmount}>
-              +{dailyEarnings.toLocaleString()} RWF
+            <Text style={s.earningsLabel}>Today's Balance</Text>
+            <Text style={[s.earningsAmount, { color: todayNet >= 0 ? '#10B981' : '#E63946' }]}>
+              {todayNet > 0 ? '+' : ''}{todayNet.toLocaleString()} RWF
             </Text>
           </View>
         </View>
       </View>
 
       {/* Quick Actions */}
-      <View style={s.quickActions}>
-        <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/log-ride")}>
-          <View
-            style={[
-              s.actionIcon,
-              { backgroundColor: isDark ? "rgba(230,57,70,0.18)" : "rgba(230,57,70,0.12)" },
-            ]}
-          >
-            <Feather name="plus-circle" size={24} color={colors.primary} />
-          </View>
-          <Text style={s.actionText}>{t("log_ride")}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/send-money")}>
-          <View
-            style={[
-              s.actionIcon,
-              { backgroundColor: isDark ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.12)" },
-            ]}
-          >
-            <Feather name="send" size={24} color={colors.success} />
-          </View>
-          <Text style={s.actionText}>Send</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/leaderboard")}>
-          <View
-            style={[
-              s.actionIcon,
-              { backgroundColor: isDark ? "rgba(244,162,97,0.18)" : "rgba(244,162,97,0.12)" },
-            ]}
-          >
-            <Feather name="bar-chart-2" size={24} color={Colors.accent} />
-          </View>
-          <Text style={s.actionText}>{t("leaderboard")}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/loans")}>
-          <View
-            style={[
-              s.actionIcon,
-              { backgroundColor: isDark ? "rgba(29,53,87,0.8)" : "rgba(29,53,87,0.12)" },
-            ]}
-          >
-            <Feather name="briefcase" size={24} color="#81c3d7" />
-          </View>
-          <Text style={s.actionText}>{t("loans")}</Text>
-        </TouchableOpacity>
-
-        {/* Fuel Vouchers — Tier 3+ only */}
-        {["gold", "platinum", "gorilla"].includes(currentTier) && (
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/fuel-vouchers" as any)}>
+      <View style={s.quickActionsWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.quickActionsContent}
+        >
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/log-ride")}>
             <View
               style={[
                 s.actionIcon,
-                { backgroundColor: isDark ? "rgba(255,215,0,0.18)" : "rgba(255,215,0,0.12)" },
+                { backgroundColor: isDark ? "rgba(230,57,70,0.18)" : "rgba(230,57,70,0.12)" },
               ]}
             >
-              <Feather name="zap" size={24} color="#FFD700" />
+              <Feather name="plus-circle" size={24} color={colors.primary} />
             </View>
-            <Text style={s.actionText}>Fuel</Text>
+            <Text style={s.actionText}>{t("log_ride")}</Text>
           </TouchableOpacity>
-        )}
+
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/send-money")}>
+            <View
+              style={[
+                s.actionIcon,
+                { backgroundColor: isDark ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.12)" },
+              ]}
+            >
+              <Feather name="send" size={24} color={colors.success} />
+            </View>
+            <Text style={s.actionText}>Send</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/leaderboard")}>
+            <View
+              style={[
+                s.actionIcon,
+                { backgroundColor: isDark ? "rgba(244,162,97,0.18)" : "rgba(244,162,97,0.12)" },
+              ]}
+            >
+              <Feather name="bar-chart-2" size={24} color={Colors.accent} />
+            </View>
+            <Text style={s.actionText}>{t("leaderboard")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/loans")}>
+            <View
+              style={[
+                s.actionIcon,
+                { backgroundColor: isDark ? "rgba(29,53,87,0.8)" : "rgba(29,53,87,0.12)" },
+              ]}
+            >
+              <Feather name="briefcase" size={24} color="#81c3d7" />
+            </View>
+            <Text style={s.actionText}>{t("loans")}</Text>
+          </TouchableOpacity>
+
+          {/* Fuel Vouchers — Tier 3+ only */}
+          {["gold", "platinum", "gorilla"].includes(currentTier) && (
+            <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/fuel-vouchers" as any)}>
+              <View
+                style={[
+                  s.actionIcon,
+                  { backgroundColor: isDark ? "rgba(255,215,0,0.18)" : "rgba(255,215,0,0.12)" },
+                ]}
+              >
+                <Feather name="zap" size={24} color="#FFD700" />
+              </View>
+              <Text style={s.actionText}>Fuel</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       </View>
 
       {/* Stats Grid */}
@@ -366,6 +429,55 @@ const styles = (colors: any, isDark: boolean) =>
       marginBottom: 16,
       backgroundColor: colors.backgroundCard,
     },
+    availabilityCard: {
+      backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+    },
+    availabilityHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    statusIndicatorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    statusDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    statusText: {
+      fontSize: 18,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+      letterSpacing: 1,
+    },
+    availabilityMessage: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginBottom: 16,
+    },
+    toggleBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 24,
+      width: "100%",
+      alignItems: "center",
+    },
+    toggleBtnText: {
+      color: "#fff",
+      fontFamily: "Inter_700Bold",
+      fontSize: 14,
+      letterSpacing: 0.5,
+    },
     tierInfo: {
       marginLeft: 16,
       flex: 1,
@@ -427,14 +539,18 @@ const styles = (colors: any, isDark: boolean) =>
       fontFamily: "Inter_700Bold",
       color: "#10B981",
     },
-    quickActions: {
-      flexDirection: "row",
-      justifyContent: "space-between",
+    quickActionsWrapper: {
       marginBottom: 24,
+      marginHorizontal: -16,
+    },
+    quickActionsContent: {
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      gap: 20,
     },
     actionBtn: {
       alignItems: "center",
-      width: "23%",
+      width: 76,
     },
     actionIcon: {
       width: 56,
@@ -536,5 +652,23 @@ const styles = (colors: any, isDark: boolean) =>
       fontSize: 14,
       fontFamily: "Inter_400Regular",
       color: colors.textPrimary,
+    },
+    migrationBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: isDark ? "rgba(255,215,0,0.1)" : "rgba(255,215,0,0.15)",
+      padding: 16,
+      borderRadius: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,215,0,0.3)" : "rgba(255,215,0,0.4)",
+      gap: 12,
+    },
+    migrationText: {
+      flex: 1,
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+      color: colors.textPrimary,
+      lineHeight: 20,
     },
   });

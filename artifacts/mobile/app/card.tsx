@@ -11,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useQuery } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ export default function CardScreen() {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Real wallet balance
   const { data: balanceData, isLoading: balLoading } = useQuery({
@@ -118,8 +120,16 @@ export default function CardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <Feather name="arrow-left" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Virtual Card</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: 24 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: 16 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Virtual Card */}
@@ -188,7 +198,7 @@ export default function CardScreen() {
 
           <TouchableOpacity
             style={s(colors, isDark).quickAction}
-            onPress={() => router.push("/(tabs)/wallet")}
+            onPress={() => router.push("/(driver)/wallet" as any)}
           >
             <Feather name="credit-card" size={18} color={colors.textSecondary} />
             <Text style={s(colors, isDark).quickActionText}>Wallet</Text>

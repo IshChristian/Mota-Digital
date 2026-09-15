@@ -4,14 +4,12 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 
-export default function TabLayout() {
+export default function AgentTabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const safeAreaInsets = useSafeAreaInsets();
-  const t = useT();
   const { colors, isDark } = useTheme();
 
   return (
@@ -46,28 +44,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t("dashboard"),
+          title: "Dashboard",
           tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="rides"
+        name="drivers"
         options={{
-          title: t("rides"),
-          tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="wallet"
-        options={{
-          title: t("wallet"),
-          tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} />,
+          title: "My Drivers",
+          tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: t("profile"),
+          title: "Account",
           tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
         }}
       />

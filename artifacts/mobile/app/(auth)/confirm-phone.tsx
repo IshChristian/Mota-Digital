@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -17,6 +17,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function ConfirmPhoneScreen() {
   const router = useRouter();
@@ -54,8 +55,18 @@ export default function ConfirmPhoneScreen() {
         },
       });
     } catch (err: any) {
-      // If error is "already verified" or similar
-      setError(err.response?.data?.message || "Failed to send OTP. Please try again.");
+      const errMsg = (err.response?.data?.message || "").toLowerCase();
+      // If the backend says "already verified" — user doesn't need this screen
+      if (errMsg.includes("already verified") || errMsg.includes("already been verified")) {
+        // Cache the verified status and go back to login
+        await AsyncStorage.setItem(
+          `verification_cache_${phone}`,
+          JSON.stringify({ isVerified: true, updatedAt: new Date().toISOString() })
+        );
+        router.replace("/(auth)/login");
+      } else {
+        setError(err.response?.data?.message || "Failed to send OTP. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, memo } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,7 @@ import {
   ScrollView,
   Image,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -18,6 +18,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function RegisterScreen() {
+  const { selectedRole } = useLocalSearchParams<{ selectedRole?: string }>();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -25,7 +26,7 @@ export default function RegisterScreen() {
     email: "",
     nationalId: "",
     password: "",
-    role: "driver",
+    role: selectedRole || "passenger",
     referralCode: "",
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -60,25 +61,35 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!formData.firstName || !formData.lastName || !formData.phone || !formData.password) {
+    if (!formData.firstName || !formData.lastName || !formData.phone || !formData.password || !formData.nationalId) {
       setError("Please fill all required fields");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      const submitData = { ...formData, phone: getSubmitPhone() };
+      const submitData = {
+        ...formData,
+        phone: getSubmitPhone(),
+        role: formData.role === "driver" ? "driver" : "client"
+      };
       const res = await authApi.register(submitData);
-      const { token, user } = res.data || {};
-      if (user) {
+      const data = res.data || {};
+      
+      // The backend returns { message, userId, payment }
+      const uid = data.userId || (data.user && (data.user.id || data.user._id));
+      
+      if (uid) {
         // Go to confirm phone before sending OTP
         router.push({
           pathname: "/(auth)/confirm-phone",
-          params: { userId: user.id || user._id, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
-        });
+          params: { userId: uid, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
+        } as any);
+      } else {
+        setError(data.message || "Registration succeeded but failed to parse response.");
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || t("error"));
+      setError(err.response?.data?.message || err.message || t("error"));
     } finally {
       setLoading(false);
     }
@@ -104,7 +115,9 @@ export default function RegisterScreen() {
         <View style={s.header}>
           <Image source={logoSource} style={s.logo} width={10} resizeMode="contain" />
           <Text style={s.title}>Create Account</Text>
-          <Text style={s.subtitle}>Join MOTA as a Driver</Text>
+          <Text style={s.subtitle}>
+            Join MOTA as a {formData.role === "driver" ? "Driver" : "Passenger"}
+          </Text>
         </View>
 
         {error ? <Text style={s.errorText}>{error}</Text> : null}
@@ -151,12 +164,14 @@ export default function RegisterScreen() {
           keyboardType="email-address"
           s={s} colors={colors}
         />
+
         <InputField
           label="National ID"
           value={formData.nationalId}
           onChangeText={(v: string) => update("nationalId", v)}
           placeholder="1199880012345678"
           keyboardType="numeric"
+          required
           s={s} colors={colors}
         />
         <InputField
@@ -197,7 +212,7 @@ export default function RegisterScreen() {
   );
 }
 
-const InputField = React.memo(({
+const InputField = memo(({
   label,
   value,
   onChangeText,
