@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { ridesApi, paymentApi, realtimeApi } from "@/services/api";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -56,6 +56,8 @@ export default function PassengerHomeScreen() {
   const [driverPos, setDriverPos] = useState({ lat: -1.9500, lng: 30.0650 });
   const [rideId, setRideId] = useState<string | null>(null);
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
+  const [serverRideStatus, setServerRideStatus] = useState<string>('');
+  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
 
   // 0. GPS Location Tracking
   useEffect(() => {
@@ -144,8 +146,9 @@ export default function PassengerHomeScreen() {
         setSearchTimer((t) => t + 1);
         try {
           const res = await ridesApi.getRideDetails(rideId);
-          const ride = res.data?.ride || res.data;
-          if (ride?.status === 'accepted' || ride?.status === 'in_progress') {
+          const ride = res.data?.data?.ride || res.data?.ride || res.data;
+          if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(ride?.status)) {
+            setServerRideStatus(ride.status);
             setAcceptedDriver(ride.driver || ride.assignedDriver);
             if (ride.driver?.lastLocation) {
               setDriverPos({
@@ -171,29 +174,30 @@ export default function PassengerHomeScreen() {
     return () => clearInterval(interval);
   }, [rideState, rideId]);
 
-  // 3. Accepted driver moving towards passenger
+  // 3. Live assigned-driver position and lifecycle state from the backend.
   useEffect(() => {
     let interval: any;
-    if (rideState === "accepted") {
-      interval = setInterval(() => {
-        setDriverPos((prev) => {
-          const latDiff = pickupLoc.latitude - prev.lat;
-          const lngDiff = pickupLoc.longitude - prev.lng;
-          
-          if (Math.abs(latDiff) < 0.0001 && Math.abs(lngDiff) < 0.0001) {
-            clearInterval(interval);
-            return { lat: pickupLoc.latitude, lng: pickupLoc.longitude };
+    if (rideState === "accepted" && rideId) {
+      const refresh = async () => {
+        try {
+          const ride = (await ridesApi.getRideStatus(rideId)).data;
+          setServerRideStatus(ride.rideStatus || ride.status || '');
+          const location = ride.driverId?.lastLocation || ride.driver?.lastLocation;
+          if (location?.latitude != null && location?.longitude != null) {
+            setDriverPos({ lat: location.latitude, lng: location.longitude });
+            const latKm = (pickupLoc.latitude - location.latitude) * 111;
+            const lngKm = (pickupLoc.longitude - location.longitude) * 111 * Math.cos(pickupLoc.latitude * Math.PI / 180);
+            const remaining = Math.sqrt(latKm * latKm + lngKm * lngKm);
+            setDistanceKm(Number(remaining.toFixed(1)));
+            setEtaMin(Math.max(1, Math.ceil((remaining / 20) * 60)));
           }
-          
-          return {
-            lat: prev.lat + latDiff * 0.15,
-            lng: prev.lng + lngDiff * 0.15,
-          };
-        });
-      }, 1000);
+        } catch (error) { console.warn('Ride tracking refresh failed', error); }
+      };
+      refresh();
+      interval = setInterval(refresh, 3000);
     }
     return () => clearInterval(interval);
-  }, [rideState, pickupLoc]);
+  }, [rideState, rideId, pickupLoc.latitude, pickupLoc.longitude]);
 
   const adjustOffer = (amount: number) => {
     const newOffer = offer + amount;
@@ -208,8 +212,8 @@ export default function PassengerHomeScreen() {
     setAcceptedDriver(null);
     try {
       const res = await ridesApi.requestRide({
-        pickup: { name: locationName, lat: pickupLoc.latitude, lng: pickupLoc.longitude },
-        destination: { name: destination, lat: destinationLoc?.latitude, lng: destinationLoc?.longitude },
+        pickup: { name: locationName, latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, lat: pickupLoc.latitude, lng: pickupLoc.longitude },
+        destination: { name: destination, latitude: destinationLoc?.latitude, longitude: destinationLoc?.longitude, lat: destinationLoc?.latitude, lng: destinationLoc?.longitude },
         offeredFare: offer,
         backupDrivers: backupDrivers
       });
@@ -309,7 +313,8 @@ export default function PassengerHomeScreen() {
     <View style={s.container}>
       {/* 1. Map View */}
       <MapView
-        provider={PROVIDER_GOOGLE}
+        provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
+        mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
         style={StyleSheet.absoluteFillObject}
         region={{
           latitude: pickupLoc.latitude,
@@ -322,6 +327,7 @@ export default function PassengerHomeScreen() {
         onPress={handleMapPress}
         onPoiClick={handlePoiClick}
       >
+        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} /> : null}
         {/* Destination Marker */}
         {destinationLoc && (
           <Marker coordinate={destinationLoc}>
@@ -345,7 +351,7 @@ export default function PassengerHomeScreen() {
         ))}
 
         {/* Directions Polyline */}
-        {destinationLoc && rideState !== 'idle' && (
+        {destinationLoc && rideState !== 'idle' && mapProvider === 'google' && GOOGLE_MAPS_APIKEY && (
           <MapViewDirections
               origin={pickupLoc}
               destination={destinationLoc}
@@ -394,6 +400,10 @@ export default function PassengerHomeScreen() {
           </View>
         </Marker>
       </MapView>
+      <View style={{ position: 'absolute', top: insets.top + 78, right: 16, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 3, zIndex: 50 }}>
+        <TouchableOpacity onPress={() => setMapProvider('openstreetmap')} style={{ padding: 8, borderRadius: 8, backgroundColor: mapProvider === 'openstreetmap' ? '#111827' : 'transparent' }}><Text style={{ color: mapProvider === 'openstreetmap' ? '#fff' : '#111827' }}>OpenMap</Text></TouchableOpacity>
+        <TouchableOpacity disabled={!GOOGLE_MAPS_APIKEY} onPress={() => setMapProvider('google')} style={{ padding: 8, borderRadius: 8, opacity: GOOGLE_MAPS_APIKEY ? 1 : 0.4, backgroundColor: mapProvider === 'google' ? '#111827' : 'transparent' }}><Text style={{ color: mapProvider === 'google' ? '#fff' : '#111827' }}>Google</Text></TouchableOpacity>
+      </View>
 
       {/* 2. Top Overlays */}
       {rideState === 'accepted' ? (
@@ -720,16 +730,15 @@ export default function PassengerHomeScreen() {
                    </View>
                  </View>
 
-                 <TouchableOpacity 
+                 {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) await ridesApi.confirmStart(rideId); }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
+                 {serverRideStatus === 'stop_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) { await ridesApi.confirmStop(rideId); setServerRideStatus('awaiting_payment'); } }}><Text style={s.primaryBtnText}>Confirm Destination Reached</Text></TouchableOpacity>}
+                 {serverRideStatus === 'awaiting_payment' && <TouchableOpacity 
                    style={[s.primaryBtn, { marginTop: 24 }]} 
                    onPress={async () => {
                      try {
                        if (paymentMethod === 'momo') {
-                         await paymentApi.requestPayment({
-                           passengerPhone: user?.phone || "+250788000000",
-                           amount: offer,
-                           rideId: rideId || "ride-" + Date.now()
-                         });
+                         if (!rideId) throw new Error('Ride not found');
+                         await ridesApi.payRide(rideId);
                        }
                        const msg = paymentMethod === 'momo' 
                           ? `Your payment request of ${offer} RWF via MoMo (Paypack API) has been successfully initiated!` 
@@ -743,7 +752,7 @@ export default function PassengerHomeScreen() {
                    <Text style={s.primaryBtnText}>
                      {paymentMethod === 'momo' ? `Pay ${offer} RWF (MoMo)` : `Pay ${offer} RWF (Cash)`}
                    </Text>
-                 </TouchableOpacity>
+                 </TouchableOpacity>}
 
                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
                    <TouchableOpacity style={[s.primaryBtn, { flex: 1, backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}>

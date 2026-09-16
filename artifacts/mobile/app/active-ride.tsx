@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ActivityIndicator, Platform, Linking } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
-import { ridesApi } from "@/services/api";
+import { driverApi, ridesApi } from "@/services/api";
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
-type RideState = "approaching" | "arrived" | "in_progress" | "completed";
+type RideState = "accepted" | "approaching" | "arrived" | "start_requested" | "in_progress" | "stop_requested" | "awaiting_payment" | "completed";
 
 export default function ActiveRideScreen() {
   const router = useRouter();
@@ -21,7 +21,7 @@ export default function ActiveRideScreen() {
   const mapRef = useRef<MapView>(null);
 
   const [rideState, setRideState] = useState<RideState>("approaching");
-  const [pin, setPin] = useState("");
+  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,10 +50,11 @@ export default function ActiveRideScreen() {
                 latitude: newLoc.coords.latitude,
                 longitude: newLoc.coords.longitude,
               });
+              driverApi.updateLocation({ latitude: newLoc.coords.latitude, longitude: newLoc.coords.longitude }).catch((error) => console.warn('Location update failed', error));
             }
           );
         }
-      } catch (e) {}
+      } catch (e) { console.warn('GPS tracking unavailable', e); }
     })();
 
     return () => {
@@ -76,7 +77,7 @@ export default function ActiveRideScreen() {
       try {
         if (!rideId) return;
         const res = await ridesApi.getRideDetails(rideId as string);
-        const data = res.data?.ride || res.data;
+        const data = res.data?.data?.ride || res.data?.ride || res.data;
         if (data) {
           setRideData({
             passengerName: data.passenger?.firstName || data.passengerName || "Passenger",
@@ -87,11 +88,11 @@ export default function ActiveRideScreen() {
             etaMin: data.etaMin || 8,
           });
 
-          if (data.pickup?.lat && data.pickup?.lng) {
-            setPassengerPos({ latitude: data.pickup.lat, longitude: data.pickup.lng });
+          if (data.pickup) {
+            setPassengerPos({ latitude: data.pickup.latitude ?? data.pickup.lat, longitude: data.pickup.longitude ?? data.pickup.lng });
           }
-          if (data.destination?.lat && data.destination?.lng) {
-            setDestPos({ latitude: data.destination.lat, longitude: data.destination.lng });
+          if (data.destination) {
+            setDestPos({ latitude: data.destination.latitude ?? data.destination.lat, longitude: data.destination.longitude ?? data.destination.lng });
           }
 
           if (data.status) {
@@ -103,6 +104,8 @@ export default function ActiveRideScreen() {
       }
     };
     fetchRide();
+    const interval = setInterval(fetchRide, 3000);
+    return () => clearInterval(interval);
   }, [rideId]);
 
   // Fit map bounds to show route
@@ -132,17 +135,13 @@ export default function ActiveRideScreen() {
   };
 
   const handleStartRide = async () => {
-    if (pin.length !== 4) {
-      setError("Please enter a 4-digit PIN.");
-      return;
-    }
     setLoading(true);
     setError("");
     try {
-      if (rideId) await ridesApi.startRide(rideId as string, pin);
-      setRideState("in_progress");
+      if (rideId) await ridesApi.requestStart(rideId as string);
+      setRideState("start_requested");
     } catch (e: any) {
-      setError(e.response?.data?.message || "Invalid PIN. Try again.");
+      setError(e.response?.data?.message || "Unable to request passenger confirmation.");
     } finally {
       setLoading(false);
     }
@@ -151,13 +150,22 @@ export default function ActiveRideScreen() {
   const handleCompleteRide = async () => {
     setLoading(true);
     try {
-      if (rideId) await ridesApi.completeRide(rideId as string);
-      setRideState("completed");
+      if (rideId) await ridesApi.requestStop(rideId as string);
+      setRideState("stop_requested");
     } catch (e) {
       setError("Failed to complete ride.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClaimFare = async () => {
+    setLoading(true); setError("");
+    try {
+      if (rideId) await ridesApi.claimFare(rideId as string);
+      setRideState("completed");
+    } catch (e: any) { setError(e.response?.data?.message || "Payment is not confirmed yet."); }
+    finally { setLoading(false); }
   };
 
   const openNavigation = () => {
@@ -195,7 +203,8 @@ export default function ActiveRideScreen() {
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          provider={PROVIDER_DEFAULT}
+          provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
+          mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
           initialRegion={{
             latitude: driverPos.latitude,
             longitude: driverPos.longitude,
@@ -203,6 +212,7 @@ export default function ActiveRideScreen() {
             longitudeDelta: 0.02,
           }}
         >
+          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} /> : null}
           {/* Driver Location Marker */}
           <Marker coordinate={driverPos} title="You (Motor Driver)">
             <View style={s.driverMarker}>
@@ -229,7 +239,7 @@ export default function ActiveRideScreen() {
           )}
 
           {/* Map Directions Polyline */}
-          {GOOGLE_MAPS_APIKEY ? (
+          {mapProvider === 'google' && GOOGLE_MAPS_APIKEY ? (
             <MapViewDirections
               origin={driverPos}
               destination={rideState === "in_progress" ? destPos : passengerPos}
@@ -249,6 +259,11 @@ export default function ActiveRideScreen() {
             />
           )}
         </MapView>
+
+        <View style={{ position: 'absolute', top: 16, left: 16, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 3 }}>
+          <TouchableOpacity onPress={() => setMapProvider('openstreetmap')} style={{ padding: 8, backgroundColor: mapProvider === 'openstreetmap' ? '#111827' : 'transparent', borderRadius: 8 }}><Text style={{ color: mapProvider === 'openstreetmap' ? '#fff' : '#111827' }}>OpenMap</Text></TouchableOpacity>
+          <TouchableOpacity disabled={!GOOGLE_MAPS_APIKEY} onPress={() => setMapProvider('google')} style={{ padding: 8, opacity: GOOGLE_MAPS_APIKEY ? 1 : 0.4, backgroundColor: mapProvider === 'google' ? '#111827' : 'transparent', borderRadius: 8 }}><Text style={{ color: mapProvider === 'google' ? '#fff' : '#111827' }}>Google</Text></TouchableOpacity>
+        </View>
 
         {/* Floating Navigation Button */}
         <TouchableOpacity style={s.floatingNavBtn} onPress={openNavigation}>
@@ -287,25 +302,18 @@ export default function ActiveRideScreen() {
           </View>
         )}
 
-        {/* State: Arrived (Needs PIN) */}
+        {/* State: Arrived */}
         {rideState === "arrived" && (
           <View>
             <Text style={s.sheetTitle}>Passenger Arrived?</Text>
-            <Text style={s.sheetSub}>Ask {rideData.passengerName} for their 4-digit Ride PIN to start.</Text>
-            <TextInput
-              style={s.pinInput}
-              keyboardType="number-pad"
-              maxLength={4}
-              placeholder="0 0 0 0"
-              placeholderTextColor={colors.textTertiary}
-              value={pin}
-              onChangeText={(v) => { setPin(v); setError(""); }}
-            />
-            <TouchableOpacity style={s.primaryBtn} onPress={handleStartRide} disabled={loading || pin.length !== 4}>
-              <Text style={s.primaryBtnText}>{loading ? "Starting..." : "Start Ride"}</Text>
+            <Text style={s.sheetSub}>Request confirmation from {rideData.passengerName} before starting.</Text>
+            <TouchableOpacity style={s.primaryBtn} onPress={handleStartRide} disabled={loading}>
+              <Text style={s.primaryBtnText}>{loading ? "Requesting..." : "Request Start"}</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {rideState === "start_requested" && <View><Text style={s.sheetTitle}>Waiting for passenger</Text><Text style={s.sheetSub}>The ride starts only after the passenger confirms.</Text></View>}
 
         {/* State: In Progress */}
         {rideState === "in_progress" && (
@@ -317,10 +325,13 @@ export default function ActiveRideScreen() {
               <Text style={s.fareValue}>{rideData.fare.toLocaleString()} RWF</Text>
             </View>
             <TouchableOpacity style={s.primaryBtn} onPress={handleCompleteRide} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Completing..." : "Complete Ride"}</Text>
+              <Text style={s.primaryBtnText}>{loading ? "Requesting..." : "Request Stop"}</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {rideState === "stop_requested" && <View><Text style={s.sheetTitle}>Waiting for passenger</Text><Text style={s.sheetSub}>The passenger must confirm arrival before payment.</Text></View>}
+        {rideState === "awaiting_payment" && <View><Text style={s.sheetTitle}>Awaiting payment</Text><Text style={s.sheetSub}>Claim becomes available after the payment provider confirms the fare.</Text><TouchableOpacity style={s.primaryBtn} onPress={handleClaimFare} disabled={loading}><Text style={s.primaryBtnText}>{loading ? 'Checking…' : 'Claim confirmed fare'}</Text></TouchableOpacity></View>}
 
         {/* State: Completed */}
         {rideState === "completed" && (

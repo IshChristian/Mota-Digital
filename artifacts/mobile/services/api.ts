@@ -94,9 +94,17 @@ export const ridesApi = {
   requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number }) =>
     api.post('/rides/request', data),
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
+  getDriverRequests: () => api.get('/rides/driver/requests'),
+  getRideStatus: (id: string) => api.get(`/rides/${id}/status`),
   cancelRide: (id: string) => api.post(`/rides/${id}/cancel`),
   rateRide: (id: string, data: { rating: number; comment?: string }) =>
     api.post(`/rides/${id}/rating`, data),
+  requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
+  confirmStart: (id: string) => api.post(`/rides/${id}/confirm-start`),
+  requestStop: (id: string) => api.post(`/rides/${id}/request-stop`),
+  confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
+  claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
+  payRide: (id: string) => api.post(`/rides/${id}/pay`),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
