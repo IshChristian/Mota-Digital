@@ -4,7 +4,7 @@ export default {
   wallet: "Wallet",
   profile: "Profile",
   notifications: "Notifications",
-  card: "MOTA Card",
+  card: "Membership Card",
   login: "Login",
   register: "Register",
   otp_verify: "Verify OTP",
