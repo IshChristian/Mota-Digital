@@ -8,6 +8,7 @@ import {
   storeSensitiveJson,
   storeToken,
 } from '../services/secureStorage';
+import { unregisterPushNotifications } from '../services/pushNotifications';
 
 type User = {
   id: string;
@@ -189,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    await unregisterPushNotifications().catch((error) => console.warn('Unable to unregister push token', error));
     await clearSensitiveSession();
     setToken(null);
     setUser(null);

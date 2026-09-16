@@ -173,6 +173,8 @@ export const notificationsApi = {
   getUnread: (page = 1) => api.get(`/notifications/unread?page=${page}`),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   deleteNotification: (id: string) => api.delete(`/notifications/${id}`),
+  registerPushToken: (token: string, platform: 'android' | 'ios') => api.post('/notifications/push-token', { token, platform }),
+  unregisterPushToken: (token: string) => api.delete('/notifications/push-token', { data: { token } }),
 };
 
 // Users

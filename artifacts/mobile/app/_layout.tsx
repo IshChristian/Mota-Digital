@@ -15,6 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
@@ -85,7 +86,10 @@ function RootLayoutNav() {
   if (isLoading) return null;
 
   return (
-    <ThemedStack />
+    <>
+      <PushNotificationManager />
+      <ThemedStack />
+    </>
   );
 }
 
