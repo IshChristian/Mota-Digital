@@ -1,36 +1,13 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { usersApi, algorithmApi, driverApi } from '../services/api';
-
-const TOKEN_KEY = 'auth_token';
-
-async function storeToken(token: string) {
-  if (Platform.OS === 'web') {
-    await AsyncStorage.setItem(TOKEN_KEY, token);
-  } else {
-    const SecureStore = await import('expo-secure-store');
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-  }
-}
-
-async function getToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    return await AsyncStorage.getItem(TOKEN_KEY);
-  } else {
-    const SecureStore = await import('expo-secure-store');
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  }
-}
-
-async function removeToken() {
-  if (Platform.OS === 'web') {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-  } else {
-    const SecureStore = await import('expo-secure-store');
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-  }
-}
+import {
+  clearSensitiveSession,
+  getSensitiveJson,
+  getStoredToken,
+  storeSensitiveJson,
+  storeToken,
+} from '../services/secureStorage';
 
 type User = {
   id: string;
@@ -97,18 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await algorithmApi.getRiderStatus();
       const status = res.data?.data || res.data;
       setRiderStatus(status);
-      await AsyncStorage.setItem('rider_status', JSON.stringify(status));
+      await storeSensitiveJson('riderStatus', status);
       return status;
     } catch (err) {
-      // Load cached if API fails
-      try {
-        const cached = await AsyncStorage.getItem('rider_status');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          setRiderStatus(parsed);
-          return parsed;
-        }
-      } catch {}
+      console.warn('Unable to refresh rider status', err);
       return null;
     }
   };
@@ -127,13 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser((prev) => {
           if (!prev) return prev;
           const updated = { ...prev, kycLevel: 'full' };
-          AsyncStorage.setItem('user_data', JSON.stringify(updated));
+          storeSensitiveJson('user', updated).catch((error) => console.warn('Unable to persist user profile', error));
           return updated;
         });
         return true;
       }
-    } catch {
-      // 404 or network error — profile doesn't exist yet
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) {
+        console.warn('Unable to check driver profile', error);
+      }
     }
     return false;
   };
@@ -141,34 +112,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function loadAuth() {
       try {
-        const storedToken = await getToken();
+        const storedToken = await getStoredToken();
         if (storedToken) {
           setToken(storedToken);
-          const userData = await AsyncStorage.getItem('user_data');
-          let resolvedUser: User | null = null;
-          if (userData) {
-            resolvedUser = JSON.parse(userData);
-            setUser(resolvedUser);
-          }
-          // Load cached rider status
-          const cachedStatus = await AsyncStorage.getItem('rider_status');
-          if (cachedStatus) {
-            setRiderStatus(JSON.parse(cachedStatus));
-          }
+          let resolvedUser = await getSensitiveJson<User>('user');
+          if (resolvedUser) setUser(resolvedUser);
+          const cachedStatus = await getSensitiveJson<RiderStatus>('riderStatus');
+          if (cachedStatus) setRiderStatus(cachedStatus);
           try {
             const res = await usersApi.getMe();
             if (res.data?.user) {
               resolvedUser = res.data.user;
               setUser(resolvedUser);
-              await AsyncStorage.setItem('user_data', JSON.stringify(resolvedUser));
+              await storeSensitiveJson('user', resolvedUser);
             } else if (res.data?.data) {
               resolvedUser = res.data.data;
               setUser(resolvedUser);
-              await AsyncStorage.setItem('user_data', JSON.stringify(resolvedUser));
+              await storeSensitiveJson('user', resolvedUser);
             } else if (res.data) {
               resolvedUser = res.data;
               setUser(resolvedUser);
-              await AsyncStorage.setItem('user_data', JSON.stringify(resolvedUser));
+              await storeSensitiveJson('user', resolvedUser);
             }
             // If kycLevel is not yet 'full', verify against the actual driver profile
             if (resolvedUser && resolvedUser.kycLevel !== 'full') {
@@ -179,20 +143,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Fetch rider status in background after user data loads
             fetchRiderStatus();
           } catch (apiErr) {
-            // If token is invalid, clear it
-            await removeToken();
-            await AsyncStorage.removeItem('user_data');
-            await AsyncStorage.removeItem('rider_status');
-            setToken(null);
-            setUser(null);
-            setRiderStatus(null);
-            setHasDriverProfile(false);
+            // Only a confirmed authentication failure invalidates the session.
+            if (axios.isAxiosError(apiErr) && apiErr.response?.status === 401) {
+              await clearSensitiveSession();
+              setToken(null);
+              setUser(null);
+              setRiderStatus(null);
+              setHasDriverProfile(false);
+            } else {
+              console.warn('Unable to refresh session; keeping secure cached state', apiErr);
+            }
           }
         }
       } catch (error) {
-        await removeToken();
-        await AsyncStorage.removeItem('user_data');
-        await AsyncStorage.removeItem('rider_status');
+        console.warn('Unable to restore secure session', error);
+        await clearSensitiveSession();
         setToken(null);
         setUser(null);
         setRiderStatus(null);
@@ -206,23 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (newToken: string, newUser: User) => {
     await storeToken(newToken);
-    await AsyncStorage.setItem('user_data', JSON.stringify(newUser));
-    // Cache verification status keyed by phone for login 403 handling
-    if (newUser.phone) {
-      await AsyncStorage.setItem(
-        `verification_cache_${newUser.phone}`,
-        JSON.stringify({
-          isVerified: newUser.isVerified,
-          isEmailVerified: newUser.isEmailVerified,
-          registrationStatus: newUser.registrationStatus,
-          registrationPaid: newUser.registrationPaid,
-          isActive: newUser.isActive,
-          kycLevel: newUser.kycLevel,
-          role: newUser.role,
-          updatedAt: new Date().toISOString(),
-        })
-      );
-    }
+    await storeSensitiveJson('user', newUser);
     setToken(newToken);
     setUser(newUser);
     // Await the profile check so hasDriverProfile is resolved before routing evaluates
@@ -240,9 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await removeToken();
-    await AsyncStorage.removeItem('user_data');
-    await AsyncStorage.removeItem('rider_status');
+    await clearSensitiveSession();
     setToken(null);
     setUser(null);
     setRiderStatus(null);
@@ -253,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
-      await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
+      await storeSensitiveJson('user', updatedUser);
     }
   };
 
