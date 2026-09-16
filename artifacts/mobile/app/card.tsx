@@ -110,8 +110,8 @@ export default function CardScreen() {
   const shareCard = async () => {
     try {
       await Share.share({
-        message: `MOTA Driver Card\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nID: ${user?.id || ""}`,
-        title: "My MOTA Card",
+        message: `MOTA Driver Membership\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nID: ${user?.id || ""}`,
+        title: "My MOTA Membership",
       });
     } catch {}
   };
@@ -124,7 +124,7 @@ export default function CardScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Feather name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Virtual Card</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Membership Card</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -132,7 +132,7 @@ export default function CardScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingTop: 16 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Virtual Card */}
+        {/* Membership credential; this is not a bank or payment card. */}
         <LinearGradient
           colors={gradientColors as [string, string]}
           start={{ x: 0, y: 0 }}
@@ -149,7 +149,7 @@ export default function CardScreen() {
           </View>
 
           <View style={styles.cardBody}>
-            <Text style={styles.cardNumber}>MOTA •••• •••• {last4}</Text>
+            <Text style={styles.cardNumber}>MEMBER ID •••• {last4}</Text>
           </View>
 
           <View style={styles.cardFooter}>

@@ -15,9 +15,11 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { isPassengerRole, normalizeRole } from "@/constants/roles";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,7 +34,7 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const isPassenger = user?.role?.toUpperCase() === 'CLIENT' || user?.role?.toUpperCase() === 'PASSENGER';
+    const isPassenger = isPassengerRole(user?.role);
 
     // A user is fully onboarded when all verification & approval steps are done.
     // We check each gate individually rather than relying on isActive, because
@@ -71,10 +73,10 @@ function RootLayoutNav() {
       } else {
         // Fully onboarded — route to the appropriate home screen
         if (inAuthGroup) {
-          const role = user?.role?.toUpperCase() || 'DRIVER';
-          if (role === 'ADMIN') router.replace("/(admin)" as any);
-          else if (role === 'AGENT') router.replace("/(agent)" as any);
-          else if (role === 'CLIENT' || role === 'PASSENGER') router.replace("/(passenger)" as any);
+          const role = normalizeRole(user?.role);
+          if (role === 'admin') router.replace("/(admin)" as any);
+          else if (role === 'agent') router.replace("/(agent)" as any);
+          else if (role === 'client') router.replace("/(passenger)" as any);
           else router.replace("/(driver)" as any);
         }
       }
@@ -84,7 +86,10 @@ function RootLayoutNav() {
   if (isLoading) return null;
 
   return (
-    <ThemedStack />
+    <>
+      <PushNotificationManager />
+      <ThemedStack />
+    </>
   );
 }
 
@@ -106,7 +111,7 @@ function ThemedStack() {
       <Stack.Screen name="(admin)" options={{ headerShown: false }} />
       <Stack.Screen name="(guest)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', title: 'Notifications' }} />
-      <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Card' }} />
+      <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Membership Card' }} />
       <Stack.Screen name="send-money" options={{ presentation: 'modal', title: 'Send Money' }} />
       <Stack.Screen name="active-ride" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="log-ride" options={{ presentation: 'modal', title: 'Log Ride' }} />

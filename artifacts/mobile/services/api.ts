@@ -1,36 +1,9 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStoredToken, removeStoredToken } from './secureStorage';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://mota-be-v1-0-0-1.onrender.com/api';
 
-const TOKEN_KEY = 'auth_token';
-
-export async function getStoredToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    return await AsyncStorage.getItem(TOKEN_KEY);
-  } else {
-    try {
-      const SecureStore = await import('expo-secure-store');
-      return await SecureStore.getItemAsync(TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  }
-}
-
-export async function removeStoredToken() {
-  if (Platform.OS === 'web') {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-  } else {
-    try {
-      const SecureStore = await import('expo-secure-store');
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-    } catch {
-      // ignore
-    }
-  }
-}
+export { getStoredToken, removeStoredToken } from './secureStorage';
 
 const api = axios.create({ baseURL: API_BASE_URL, timeout: 15000 });
 
@@ -41,64 +14,7 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  async (response) => {
-    if (response.config.method && ['post', 'put', 'patch', 'delete'].includes(response.config.method.toLowerCase())) {
-      const url = response.config.url || '';
-      let title = "Action Successful";
-      let msg = "Your request was processed successfully.";
-
-      let shouldLog = false;
-      if (url.includes('/driver/log-ride')) {
-        title = "Ride Logged"; msg = "You successfully logged a new ride."; shouldLog = true;
-      } else if (url.includes('/loans/request')) {
-        title = "Loan Requested"; msg = "Your fine loan request has been submitted."; shouldLog = true;
-      } else if (url.includes('/loans/repay')) {
-        title = "Loan Repaid"; msg = "Your loan repayment was successful."; shouldLog = true;
-      } else if (url.includes('/auth/pay-registration')) {
-        title = "Payment Processed"; msg = "Your account registration payment has been initiated."; shouldLog = true;
-      } else if (url.includes('/driver/update-profile') || url.includes('/driver/create-profile')) {
-        title = "Profile Updated"; msg = "Your profile information was saved."; shouldLog = true;
-      } else if (url.includes('/transfer/send')) {
-        title = "Transfer Sent"; msg = "Your money transfer was completed successfully."; shouldLog = true;
-      } else if (url.includes('/auth/verify-otp')) {
-        title = "Verification Complete"; msg = "Your phone has been verified successfully."; shouldLog = true;
-      } else if (url.includes('/fine-requests')) {
-        title = "Fine Request"; msg = "Your fine request was submitted."; shouldLog = true;
-      } else if (url.includes('/wallet/cash-out')) {
-        title = "Cash Out Requested"; msg = "Your cash-out request is pending approval."; shouldLog = true;
-      } else if (url.includes('/wallet/cash-in')) {
-        title = "Cash In Processed"; msg = "Money added to your wallet."; shouldLog = true;
-      } else if (url.includes('/auth/resend-otp')) {
-        title = "Code Sent"; msg = "A new verification code was sent to you."; shouldLog = true;
-      } else if (url.includes('/auth/resend-email-otp')) {
-        title = "Email Code Sent"; msg = "A new verification code was sent to your email."; shouldLog = true;
-      } else if (url.includes('/auth/verify-email-otp')) {
-        title = "Email Verified"; msg = "Your email has been verified successfully."; shouldLog = true;
-      } else if (url.includes('/auth/submit-registration')) {
-        title = "Registration Submitted"; msg = "Your registration has been submitted for admin review."; shouldLog = true;
-      } else if (url.includes('/fuel-vouchers/claim-momo')) {
-        title = "⛽ MoMo Fuel Claimed!"; msg = "1,000 RWF sent to your MTN MoMo. Dial *182*1525# at any pump."; shouldLog = true;
-      } else if (url.includes('/fuel-vouchers/claim-qr')) {
-        title = "⛽ QR Voucher Generated!"; msg = "Show your QR code at a Rubis station. Expires at 23:59 today."; shouldLog = true;
-      }
-
-      if (shouldLog) {
-        try {
-          const existingStr = await AsyncStorage.getItem("local_notifs");
-          const existing = existingStr ? JSON.parse(existingStr) : [];
-          existing.unshift({
-            id: "local-" + Date.now(),
-            title,
-            message: msg,
-            read: false,
-            createdAt: new Date().toISOString()
-          });
-          await AsyncStorage.setItem("local_notifs", JSON.stringify(existing));
-        } catch(e) {}
-      }
-    }
-    return response;
-  },
+  (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       await removeStoredToken();
@@ -116,7 +32,7 @@ export const authApi = {
   verifyOtp: (data: any) => api.post('/auth/verify-otp', data),
   resendOtp: (data: any) => api.post('/auth/resend-otp', data),
   resendEmailOtp: (data: { email: string }) => api.post('/auth/resend-email-otp', data),
-  verifyEmailOtp: (data: { email: string; otp: string }) => api.post('/auth/verify-email-otp', data),
+  verifyEmailOtp: (data: { email: string; otp: string }) => api.post('/auth/verify-email', data),
   payRegistration: (data: any) => api.post('/auth/pay-registration', data),
   registrationStatus: (data: any) => api.post('/auth/registration-status', data),
   /** Submit full registration request for admin review */
@@ -136,7 +52,7 @@ export const adminApi = {
     status?: 'pending' | 'correction' | 'approved';
     page?: number;
     limit?: number;
-  }) => api.get('/admin/registrations', { params }),
+  }) => api.get('/admin/registrations/pending', { params }),
 
   /** Get a specific registration request by user ID */
   getRegistrationById: (userId: string) => api.get(`/admin/registrations/${userId}`),
@@ -178,9 +94,17 @@ export const ridesApi = {
   requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number }) =>
     api.post('/rides/request', data),
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
+  getDriverRequests: () => api.get('/rides/driver/requests'),
+  getRideStatus: (id: string) => api.get(`/rides/${id}/status`),
   cancelRide: (id: string) => api.post(`/rides/${id}/cancel`),
   rateRide: (id: string, data: { rating: number; comment?: string }) =>
-    api.post(`/rides/${id}/rate`, data),
+    api.post(`/rides/${id}/rating`, data),
+  requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
+  confirmStart: (id: string) => api.post(`/rides/${id}/confirm-start`),
+  requestStop: (id: string) => api.post(`/rides/${id}/request-stop`),
+  confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
+  claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
+  payRide: (id: string) => api.post(`/rides/${id}/pay`),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
@@ -249,12 +173,14 @@ export const notificationsApi = {
   getUnread: (page = 1) => api.get(`/notifications/unread?page=${page}`),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   deleteNotification: (id: string) => api.delete(`/notifications/${id}`),
+  registerPushToken: (token: string, platform: 'android' | 'ios') => api.post('/notifications/push-token', { token, platform }),
+  unregisterPushToken: (token: string) => api.delete('/notifications/push-token', { data: { token } }),
 };
 
 // Users
 export const usersApi = {
   getMe: () => api.get('/users/me'),
-  updateMe: (data: { firstName?: string; lastName?: string; email?: string }) =>
+  updateMe: (data: { firstName?: string; lastName?: string; phone?: string; emergencyContactName?: string; emergencyContactPhone?: string; preferredPayment?: 'CASH' | 'MOMO' | 'CARD' }) =>
     api.put('/users/me', data),
   /**
    * Upload avatar via backend multipart endpoint.
@@ -286,6 +212,13 @@ export const usersApi = {
     // Backend may return { user: { profileImage } } or { profileImage }
     return data?.user || data;
   },
+};
+
+export const realtimeApi = {
+  updateLocation: (data: { latitude: number; longitude: number; heading?: number; speed?: number }) =>
+    api.post('/realtime/location', data),
+  getNearbyDrivers: (lat: number, lng: number, radius = 3) =>
+    api.get('/realtime/nearby-drivers', { params: { lat, lng, radius } }),
 };
 
 // ─── Payments (Paypack) ──────────────────────────────────────────────────────

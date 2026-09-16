@@ -12,6 +12,8 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { usersApi } from "@/services/api";
+import { isPassengerRole } from "@/constants/roles";
 import { driverApi, authApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
 import { Feather } from "@expo/vector-icons";
@@ -102,7 +104,7 @@ export default function CreateProfileScreen() {
     }
   };
 
-  const isPassenger = user?.role?.toUpperCase() === 'CLIENT' || user?.role?.toUpperCase() === 'PASSENGER';
+  const isPassenger = isPassengerRole(user?.role);
 
   const [passengerData, setPassengerData] = useState({
     emergencyContactName: "",
@@ -117,14 +119,12 @@ export default function CreateProfileScreen() {
     setLoading(true);
     setError("");
     try {
-      // Complete passenger profile, setting kycLevel and active status directly
-      await updateUser({
-        kycLevel: "full",
-        isActive: true,
+      const response = await usersApi.updateMe({
         emergencyContactName: passengerData.emergencyContactName,
         emergencyContactPhone: passengerData.emergencyContactPhone,
-        preferredPayment: passengerData.preferredPayment,
+        preferredPayment: passengerData.preferredPayment as "CASH" | "MOMO" | "CARD",
       });
+      await updateUser(response.data?.data || { ...passengerData, passengerProfileCompleted: true });
       router.replace("/(passenger)" as any);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to complete profile");

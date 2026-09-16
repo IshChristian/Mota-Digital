@@ -212,6 +212,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="requests"
+        options={{
+          title: "Requests",
+          tabBarIcon: ({ color }) => <Feather name="radio" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="rides"
         options={{
           title: t("rides"),
