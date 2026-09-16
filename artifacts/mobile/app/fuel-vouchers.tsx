@@ -40,22 +40,8 @@ const FUEL = {
   white: "#FFFFFF",
 };
 
-// ─── Mock data for demo (replaced by API when backend is ready) ─────────────
-const MOCK_DAILY = { momoUsed: 1, qrUsed: 0, momoLimit: 2, qrLimit: 2 };
-const MOCK_HISTORY = [
-  { id: "1", type: "momo", amount: 1000, station: "Rubis Nyabugogo", status: "redeemed", time: "14:32", date: "Today" },
-  { id: "2", type: "qr", amount: 1000, station: "Rubis Nyabugogo", status: "active", time: "13:50", date: "Today", qrCode: "MOTA-QR-2024-0042" },
-  { id: "3", type: "momo", amount: 1000, station: "Total Kicukiro", status: "redeemed", time: "13:45", date: "Today" },
-  { id: "4", type: "qr", amount: 1000, station: "Rubis Remera", status: "expired", time: "09:10", date: "Yesterday" },
-];
-const MOCK_SAVINGS = { weekTotal: 3500, momoTotal: 2000, qrTotal: 1500, rank: 3 };
-const MOCK_STATIONS = [
-  { id: "s1", name: "Rubis Nyabugogo", distance: "500m", hours: "24hr", lat: -1.9403, lng: 29.8739 },
-  { id: "s2", name: "Engen Remera", distance: "1.2km", hours: "6am-10pm", lat: -1.9560, lng: 29.8880 },
-  { id: "s3", name: "Rubis Kicukiro", distance: "1.8km", hours: "24hr", lat: -1.9780, lng: 29.8700 },
-  { id: "s4", name: "Total Kimironko", distance: "2.0km", hours: "5am-11pm", lat: -1.9430, lng: 29.9010 },
-  { id: "s5", name: "Rubis Gisozi", distance: "2.5km", hours: "24hr", lat: -1.9300, lng: 29.8600 },
-];
+const EMPTY_DAILY = { momoUsed: 0, qrUsed: 0, momoLimit: 0, qrLimit: 0 };
+const EMPTY_SAVINGS = { weekTotal: 0, momoTotal: 0, qrTotal: 0 };
 
 export default function FuelVouchersScreen() {
   const router = useRouter();
@@ -96,25 +82,20 @@ export default function FuelVouchersScreen() {
     ]).start();
   }, []);
 
-  // Queries (use mock fallback)
-  const { data: dailyStatus } = useQuery({
+  const { data: dailyStatus, isError: dailyUnavailable } = useQuery({
     queryKey: ["fuel_daily"],
     queryFn: async () => {
-      try {
-        const res = await fuelVoucherApi.getDailyStatus();
-        return res.data?.data || res.data || MOCK_DAILY;
-      } catch { return MOCK_DAILY; }
+      const res = await fuelVoucherApi.getDailyStatus();
+      return res.data?.data || res.data;
     },
     staleTime: 30000,
   });
 
-  const { data: history } = useQuery({
+  const { data: history = [], isError: historyUnavailable } = useQuery({
     queryKey: ["fuel_history"],
     queryFn: async () => {
-      try {
-        const res = await fuelVoucherApi.getHistory();
-        return res.data?.data || res.data?.vouchers || MOCK_HISTORY;
-      } catch { return MOCK_HISTORY; }
+      const res = await fuelVoucherApi.getHistory();
+      return res.data?.data?.vouchers || res.data?.vouchers || [];
     },
     staleTime: 30000,
   });
@@ -122,31 +103,27 @@ export default function FuelVouchersScreen() {
   const { data: savings } = useQuery({
     queryKey: ["fuel_savings"],
     queryFn: async () => {
-      try {
-        const res = await fuelVoucherApi.getWeeklySavings();
-        return res.data?.data || res.data || MOCK_SAVINGS;
-      } catch { return MOCK_SAVINGS; }
+      const res = await fuelVoucherApi.getWeeklySavings();
+      return res.data?.data || res.data;
     },
   });
 
   const { data: walletData } = useQuery({
     queryKey: ["wallet_balance"],
     queryFn: async () => {
-      try {
-        const res = await walletApi.getBalance();
-        return res.data?.data || res.data;
-      } catch { return { balance: 44500 }; }
+      const res = await walletApi.getBalance();
+      return res.data?.data || res.data;
     },
   });
 
-  const daily = dailyStatus || MOCK_DAILY;
+  const daily = dailyStatus || EMPTY_DAILY;
   const momoRemaining = daily.momoLimit - daily.momoUsed;
   const qrRemaining = daily.qrLimit - daily.qrUsed;
   const totalRemaining = momoRemaining + qrRemaining;
   const walletBalance = walletData?.balance || 0;
   const currentTier = riderStatus?.current_tier || user?.tier || "Tier 3";
-  const weeklySavings = savings || MOCK_SAVINGS;
-  const stations = MOCK_STATIONS;
+  const weeklySavings = savings || EMPTY_SAVINGS;
+  const stations: any[] = [];
   const filteredStations = stationFilter === "rubis"
     ? stations.filter((s) => s.name.toLowerCase().includes("rubis"))
     : stations;
@@ -269,6 +246,12 @@ export default function FuelVouchersScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
       >
+        {(dailyUnavailable || historyUnavailable) && (
+          <View style={{ margin: 16, padding: 14, borderRadius: 12, backgroundColor: "#7F1D1D" }}>
+            <Text style={{ color: FUEL.white, fontWeight: "700" }}>Fuel voucher service unavailable</Text>
+            <Text style={{ color: FUEL.white, marginTop: 4 }}>Live limits or history could not be loaded. No demo values are being shown.</Text>
+          </View>
+        )}
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
           {/* ── Tier & Daily Status ──────────────────────────────────────── */}
           <View style={s.statusBar}>
@@ -303,7 +286,7 @@ export default function FuelVouchersScreen() {
                       <Text style={s.heroBtnEmoji}>💧</Text>
                     </View>
                     <Text style={s.heroBtnTitle}>CLAIM 1k MOMO FUEL</Text>
-                    <Text style={s.heroBtnSub}>→ Instant MTN MoMo → 1525# any pump</Text>
+                    <Text style={s.heroBtnSub}>→ Request MoMo voucher fulfillment</Text>
                     {momoRemaining <= 0 && <Text style={s.heroBtnSoldOut}>TODAY'S LIMIT REACHED</Text>}
                   </>
                 )}
@@ -356,11 +339,11 @@ export default function FuelVouchersScreen() {
               </View>
               <Text style={s.statsValue}>MoMo: {daily.momoUsed}/{daily.momoLimit}</Text>
               <View style={s.progressBarWrap}>
-                <View style={[s.progressBar, { width: `${(daily.momoUsed / daily.momoLimit) * 100}%`, backgroundColor: FUEL.green }]} />
+                <View style={[s.progressBar, { width: `${daily.momoLimit ? (daily.momoUsed / daily.momoLimit) * 100 : 0}%`, backgroundColor: FUEL.green }]} />
               </View>
               <Text style={[s.statsValue, { marginTop: 4 }]}>QR: {daily.qrUsed}/{daily.qrLimit}</Text>
               <View style={s.progressBarWrap}>
-                <View style={[s.progressBar, { width: `${(daily.qrUsed / daily.qrLimit) * 100}%`, backgroundColor: FUEL.gold }]} />
+                <View style={[s.progressBar, { width: `${daily.qrLimit ? (daily.qrUsed / daily.qrLimit) * 100 : 0}%`, backgroundColor: FUEL.gold }]} />
               </View>
             </View>
 
@@ -467,6 +450,11 @@ export default function FuelVouchersScreen() {
                 </View>
               </TouchableOpacity>
             ))}
+            {filteredStations.length === 0 && (
+              <Text style={{ color: colors.textSecondary, textAlign: "center", paddingVertical: 16 }}>
+                No live station directory is configured yet.
+              </Text>
+            )}
           </View>
 
           {/* ── Weekly Savings Tracker ───────────────────────────────────── */}
@@ -542,11 +530,11 @@ export default function FuelVouchersScreen() {
             <View style={s.modalIconWrap}>
               <Text style={{ fontSize: 56 }}>📱</Text>
             </View>
-            <Text style={s.modalTitle}>1k RWF Sent to MTN MoMo!</Text>
+            <Text style={s.modalTitle}>MoMo voucher requested</Text>
             <View style={s.smsPreview}>
-              <Text style={s.smsLabel}>SMS Preview</Text>
+              <Text style={s.smsLabel}>Status</Text>
               <Text style={s.smsText}>
-                Mota Fuel! You've received 1,000 RWF fuel voucher. Dial *182*1525# at any fuel pump ⛽
+                Your request is pending fulfillment. The app will not claim funds were sent until the payment provider confirms delivery.
               </Text>
             </View>
             <View style={s.modalSteps}>
@@ -560,7 +548,7 @@ export default function FuelVouchersScreen() {
                 <View style={[s.modalStepNum, { backgroundColor: FUEL.gold }]}>
                   <Text style={[s.modalStepNumText, { color: FUEL.black }]}>2</Text>
                 </View>
-                <Text style={s.modalStepText}>Dial *182*1525# on your phone</Text>
+                <Text style={s.modalStepText}>Wait for confirmed delivery</Text>
               </View>
               <View style={s.modalStep}>
                 <View style={[s.modalStepNum, { backgroundColor: colors.primary }]}>
