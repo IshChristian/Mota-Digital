@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi, paymentApi } from "@/services/api";
+import { ridesApi, paymentApi, realtimeApi } from "@/services/api";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
@@ -115,23 +115,19 @@ export default function PassengerHomeScreen() {
     if (rideState === "idle") {
       const fetchNearby = async () => {
         try {
-          const res = await fetch(
-            `${require('@/services/api').API_BASE_URL}/realtime/nearby-drivers?lat=${pickupLoc.latitude}&lng=${pickupLoc.longitude}&radius=3`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.drivers)) {
-              setAvailableMotors(data.drivers.map((d: any, i: number) => ({
-                id: d._id || String(i),
+          const res = await realtimeApi.getNearbyDrivers(pickupLoc.latitude, pickupLoc.longitude, 3);
+          const drivers = res.data?.data || [];
+          if (Array.isArray(drivers)) {
+              setAvailableMotors(drivers.map((d: any, i: number) => ({
+                id: d.id || String(i),
                 name: d.firstName || 'Rider',
                 plate: d.plate || '',
-                lat: d.lastLocation?.latitude || pickupLoc.latitude + (Math.random() - 0.5) * 0.01,
-                lng: d.lastLocation?.longitude || pickupLoc.longitude + (Math.random() - 0.5) * 0.01,
+                lat: d.latitude,
+                lng: d.longitude,
               })));
-            }
           }
         } catch (e) {
-          // Backend may not have this endpoint yet - leave motors empty
+          setAvailableMotors([]);
         }
       };
       fetchNearby();
