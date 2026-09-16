@@ -106,7 +106,7 @@ function ThemedStack() {
       <Stack.Screen name="(admin)" options={{ headerShown: false }} />
       <Stack.Screen name="(guest)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', title: 'Notifications' }} />
-      <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Card' }} />
+      <Stack.Screen name="card" options={{ presentation: 'modal', title: 'MOTA Membership Card' }} />
       <Stack.Screen name="send-money" options={{ presentation: 'modal', title: 'Send Money' }} />
       <Stack.Screen name="active-ride" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="log-ride" options={{ presentation: 'modal', title: 'Log Ride' }} />
