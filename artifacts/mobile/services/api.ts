@@ -77,7 +77,7 @@ api.interceptors.response.use(
       } else if (url.includes('/auth/submit-registration')) {
         title = "Registration Submitted"; msg = "Your registration has been submitted for admin review."; shouldLog = true;
       } else if (url.includes('/fuel-vouchers/claim-momo')) {
-        title = "⛽ MoMo Fuel Claimed!"; msg = "1,000 RWF sent to your MTN MoMo. Dial *182*1525# at any pump."; shouldLog = true;
+        title = "Fuel voucher requested"; msg = "Your 1,000 RWF MoMo fuel voucher is pending fulfillment."; shouldLog = true;
       } else if (url.includes('/fuel-vouchers/claim-qr')) {
         title = "⛽ QR Voucher Generated!"; msg = "Show your QR code at a Rubis station. Expires at 23:59 today."; shouldLog = true;
       }
@@ -116,7 +116,7 @@ export const authApi = {
   verifyOtp: (data: any) => api.post('/auth/verify-otp', data),
   resendOtp: (data: any) => api.post('/auth/resend-otp', data),
   resendEmailOtp: (data: { email: string }) => api.post('/auth/resend-email-otp', data),
-  verifyEmailOtp: (data: { email: string; otp: string }) => api.post('/auth/verify-email-otp', data),
+  verifyEmailOtp: (data: { email: string; otp: string }) => api.post('/auth/verify-email', data),
   payRegistration: (data: any) => api.post('/auth/pay-registration', data),
   registrationStatus: (data: any) => api.post('/auth/registration-status', data),
   /** Submit full registration request for admin review */
@@ -136,7 +136,7 @@ export const adminApi = {
     status?: 'pending' | 'correction' | 'approved';
     page?: number;
     limit?: number;
-  }) => api.get('/admin/registrations', { params }),
+  }) => api.get('/admin/registrations/pending', { params }),
 
   /** Get a specific registration request by user ID */
   getRegistrationById: (userId: string) => api.get(`/admin/registrations/${userId}`),
@@ -180,7 +180,7 @@ export const ridesApi = {
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
   cancelRide: (id: string) => api.post(`/rides/${id}/cancel`),
   rateRide: (id: string, data: { rating: number; comment?: string }) =>
-    api.post(`/rides/${id}/rate`, data),
+    api.post(`/rides/${id}/rating`, data),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
@@ -254,7 +254,7 @@ export const notificationsApi = {
 // Users
 export const usersApi = {
   getMe: () => api.get('/users/me'),
-  updateMe: (data: { firstName?: string; lastName?: string; email?: string }) =>
+  updateMe: (data: { firstName?: string; lastName?: string; phone?: string; emergencyContactName?: string; emergencyContactPhone?: string; preferredPayment?: 'CASH' | 'MOMO' | 'CARD' }) =>
     api.put('/users/me', data),
   /**
    * Upload avatar via backend multipart endpoint.
@@ -286,6 +286,13 @@ export const usersApi = {
     // Backend may return { user: { profileImage } } or { profileImage }
     return data?.user || data;
   },
+};
+
+export const realtimeApi = {
+  updateLocation: (data: { latitude: number; longitude: number; heading?: number; speed?: number }) =>
+    api.post('/realtime/location', data),
+  getNearbyDrivers: (lat: number, lng: number, radius = 3) =>
+    api.get('/realtime/nearby-drivers', { params: { lat, lng, radius } }),
 };
 
 // ─── Payments (Paypack) ──────────────────────────────────────────────────────
