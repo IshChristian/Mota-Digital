@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, Text, Alert, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EventSource from "react-native-sse";
-import { Audio } from "expo-av";
+import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as Location from "expo-location";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -23,27 +23,19 @@ export default function TabLayout() {
   const { token, user } = useAuth();
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "off">("granted");
-  const [soundObject, setSoundObject] = useState<Audio.Sound | null>(null);
+  const requestSound = useAudioPlayer('https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav');
 
   // Play loud notification sound when incoming request arrives
   const playLoudNotificationSound = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
       });
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav' },
-        { shouldPlay: true, volume: 1.0 }
-      );
-      setSoundObject(sound);
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
+      requestSound.volume = 1;
+      await requestSound.seekTo(0);
+      requestSound.play();
     } catch (e) {
       console.log("Error playing notification sound:", e);
     }
@@ -127,9 +119,7 @@ export default function TabLayout() {
 
   const handleAcceptRide = async (id: string) => {
     try {
-      if (soundObject) {
-        await soundObject.unloadAsync();
-      }
+      requestSound.pause();
       await ridesApi.acceptRide(id);
       setIncomingRequest(null);
       router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
@@ -142,9 +132,7 @@ export default function TabLayout() {
 
   const handleDeclineRide = async (id: string) => {
     try {
-      if (soundObject) {
-        await soundObject.unloadAsync();
-      }
+      requestSound.pause();
       await ridesApi.declineRide(id);
     } catch (e) {
       console.error("Failed to decline ride", e);
