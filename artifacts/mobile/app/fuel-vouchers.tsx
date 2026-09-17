@@ -887,7 +887,7 @@ const styles = (colors: any) =>
     rankText: { color: FUEL.gold, fontFamily: "Inter_600SemiBold", fontSize: 13 },
     // Confetti
     confettiOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: 999,
       pointerEvents: "none",
     },

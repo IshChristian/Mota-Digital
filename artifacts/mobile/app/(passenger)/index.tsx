@@ -315,7 +315,7 @@ export default function PassengerHomeScreen() {
       <MapView
         provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
         mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         region={{
           latitude: pickupLoc.latitude,
           longitude: pickupLoc.longitude,

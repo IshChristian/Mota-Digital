@@ -16,7 +16,7 @@ export function PushNotificationManager() {
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
+      const data = response.notification.request.content.data ?? {};
       const rideId = typeof data.rideId === 'string' ? data.rideId : null;
       if (!rideId) return;
       if (data.event === 'rideRequest') router.push(`/ride-request/${rideId}` as any);
@@ -27,4 +27,3 @@ export function PushNotificationManager() {
 
   return null;
 }
-
