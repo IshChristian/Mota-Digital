@@ -5,15 +5,29 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi, paymentApi, realtimeApi } from "@/services/api";
+import { ridesApi, paymentApi, realtimeApi, mapsApi } from "@/services/api";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
 type RideState = "idle" | "estimating" | "negotiating" | "searching" | "accepted";
+
+function decodePolyline(encoded: string) {
+  const points: Array<{ latitude: number; longitude: number }> = [];
+  let index = 0, latitude = 0, longitude = 0;
+  while (index < encoded.length) {
+    let result = 0, shift = 0, byte: number;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    latitude += (result & 1) ? ~(result >> 1) : result >> 1;
+    result = 0; shift = 0;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    longitude += (result & 1) ? ~(result >> 1) : result >> 1;
+    points.push({ latitude: latitude / 1e5, longitude: longitude / 1e5 });
+  }
+  return points;
+}
 
 export default function PassengerHomeScreen() {
   const router = useRouter();
@@ -58,6 +72,39 @@ export default function PassengerHomeScreen() {
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
   const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const [waitingMinimized, setWaitingMinimized] = useState(false);
+
+  useEffect(() => {
+    if (!destinationLoc) { setRouteCoordinates([]); return; }
+    let active = true;
+    const loadRouteAndFare = async () => {
+      const [routeResult, fareResult] = await Promise.allSettled([
+        mapsApi.getRoute(pickupLoc, destinationLoc),
+        ridesApi.estimateFare(pickupLoc, destinationLoc),
+      ]);
+      if (!active) return;
+      if (routeResult.status === 'fulfilled') {
+        const route = routeResult.value.data?.data;
+        const coordinates = route?.encodedPolyline ? decodePolyline(route.encodedPolyline) : [];
+        setRouteCoordinates(coordinates.length > 1 ? coordinates : [pickupLoc, destinationLoc]);
+        setDistanceKm(Number(((route?.distanceMeters || 0) / 1000).toFixed(1)));
+        setEtaMin(Math.max(1, Math.ceil(Number(String(route?.duration || '0s').replace('s', '')) / 60)));
+      } else {
+        setRouteCoordinates([pickupLoc, destinationLoc]);
+      }
+      if (fareResult.status === 'fulfilled') {
+        const estimate = fareResult.value.data?.data || fareResult.value.data;
+        setDistanceKm(estimate.distanceKm);
+        setEtaMin(estimate.durationMinutes);
+        setMinFare(estimate.minimumFare);
+        setMaxFare(estimate.maximumFare);
+        setOffer(estimate.suggestedFare);
+      }
+    };
+    void loadRouteAndFare();
+    return () => { active = false; };
+  }, [destinationLoc?.latitude, destinationLoc?.longitude]);
 
   // 0. GPS Location Tracking
   useEffect(() => {
@@ -207,7 +254,12 @@ export default function PassengerHomeScreen() {
   };
 
   const handleRequestRide = async () => {
+    if (!destinationLoc) {
+      Alert.alert('Destination required', 'Select a destination before requesting a ride.');
+      return;
+    }
     setRideState("searching");
+    setWaitingMinimized(false);
     setSearchTimer(0);
     setAcceptedDriver(null);
     try {
@@ -215,13 +267,19 @@ export default function PassengerHomeScreen() {
         pickup: { name: locationName, latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, lat: pickupLoc.latitude, lng: pickupLoc.longitude },
         destination: { name: destination, latitude: destinationLoc?.latitude, longitude: destinationLoc?.longitude, lat: destinationLoc?.latitude, lng: destinationLoc?.longitude },
         offeredFare: offer,
-        backupDrivers: backupDrivers
+        backupDrivers,
+        passengers,
+        paymentMethod,
+        scheduledDate: isScheduled ? scheduledDate : undefined,
+        scheduledTime: isScheduled ? scheduledTime : undefined,
       });
-      const id = res.data?.rideId || res.data?.ride?._id || res.data?._id;
+      const id = res.data?.data?.rideId || res.data?.rideId || res.data?.ride?._id || res.data?._id;
       if (id) setRideId(id);
-    } catch (err) {
-      console.log("Ride request error:", err);
-      // Stay in searching state so user sees the waiting UI
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Unable to request this ride. Please check the trip details and try again.';
+      console.warn("Ride request error:", message);
+      setRideState('negotiating');
+      Alert.alert('Ride request failed', message);
     }
   };
 
@@ -351,23 +409,7 @@ export default function PassengerHomeScreen() {
         ))}
 
         {/* Directions Polyline */}
-        {destinationLoc && rideState !== 'idle' && mapProvider === 'google' && GOOGLE_MAPS_APIKEY && (
-          <MapViewDirections
-              origin={pickupLoc}
-              destination={destinationLoc}
-              apikey={GOOGLE_MAPS_APIKEY}
-              strokeWidth={5}
-              strokeColor={colors.primary}
-            onReady={result => {
-              setDistanceKm(Number(result.distance.toFixed(1)));
-              setEtaMin(Math.ceil(result.duration));
-              const baseFare = Math.max(500, Math.round(result.distance * 300));
-              setMinFare(baseFare);
-              setMaxFare(baseFare + 1500);
-              setOffer(baseFare + 500);
-            }}
-          />
-        )}
+        {routeCoordinates.length > 1 ? <Polyline coordinates={routeCoordinates} strokeWidth={5} strokeColor={colors.primary} /> : null}
 
         {/* Driver in Progress Marker */}
         {rideState === "accepted" ? (
@@ -688,8 +730,16 @@ export default function PassengerHomeScreen() {
             </View>
           )}
 
-          {rideState === "searching" && (
-            <View style={[s.whiteCard, { alignItems: 'center', paddingVertical: 32 }]}>
+          {rideState === "searching" && waitingMinimized && (
+            <TouchableOpacity style={[s.whiteCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setWaitingMinimized(false)}>
+              <View><Text style={s.cardTitle}>Finding your rider…</Text><Text style={s.cardSub}>{searchTimer}s elapsed • tap to expand</Text></View>
+              <ActivityIndicator color={colors.primary} />
+            </TouchableOpacity>
+          )}
+
+          {rideState === "searching" && !waitingMinimized && (
+            <View style={[s.whiteCard, { alignItems: 'center', paddingVertical: 32 }]}> 
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Minimize rider search" onPress={() => setWaitingMinimized(true)} style={{ alignSelf: 'flex-end', padding: 8 }}><Feather name="minus" size={22} color={colors.textPrimary} /></TouchableOpacity>
               <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
               <Text style={s.cardTitle}>Waiting for a rider...</Text>
               <Text style={s.cardSub}>
