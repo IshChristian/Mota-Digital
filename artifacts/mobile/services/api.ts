@@ -98,7 +98,7 @@ export const ridesApi = {
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
   getDriverRequests: () => api.get('/rides/driver/requests'),
   getRideStatus: (id: string) => api.get(`/rides/${id}/status`),
-  cancelRide: (id: string) => api.post(`/rides/${id}/cancel`),
+  cancelRide: (id: string, reason?: string) => api.post(`/rides/${id}/cancel`, { reason }),
   rateRide: (id: string, data: { rating: number; comment?: string }) =>
     api.post(`/rides/${id}/rating`, data),
   requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
