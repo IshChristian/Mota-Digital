@@ -57,7 +57,7 @@ export default function PassengerHomeScreen() {
   const [searchTimer, setSearchTimer] = useState(0);
   const [passengers, setPassengers] = useState(1);
   const [vehicleType, setVehicleType] = useState<"motor"|"car"|null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cash"|"momo"|"wallet">("momo");
+  const paymentMethod = "wallet" as const;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -304,9 +304,9 @@ export default function PassengerHomeScreen() {
     }
   };
 
-  const handleCancel = async () => {
+  const cancelWithReason = async (reason: string) => {
     if (rideId && (rideState === "searching" || rideState === "accepted")) {
-      try { await ridesApi.cancelRide(rideId); } catch (e) {}
+      try { await ridesApi.cancelRide(rideId, reason); } catch (e) { Alert.alert('Cancellation failed', 'The ride could not be cancelled.'); return; }
     }
     setRideState("idle");
     setDestinationLoc(null);
@@ -315,6 +315,12 @@ export default function PassengerHomeScreen() {
     setRideId(null);
     setAcceptedDriver(null);
   };
+
+  const handleCancel = () => Alert.alert('Cancel ride', 'Choose the reason for cancellation. This will be saved in ride history.', [
+    { text: 'Keep ride', style: 'cancel' },
+    { text: 'Changed plans', onPress: () => void cancelWithReason('Passenger changed plans') },
+    { text: 'Driver delayed', style: 'destructive', onPress: () => void cancelWithReason('Driver delayed') },
+  ]);
 
   const handleMapPress = async (e: any) => {
     if (rideState === "idle" || rideState === "estimating") {
@@ -754,24 +760,7 @@ export default function PassengerHomeScreen() {
                 )}
               </View>
               
-              {/* Payment Card */}
-              <View style={[s.whiteCard, { marginTop: 12 }]}>
-                 <TouchableOpacity style={s.payRow} onPress={() => setPaymentMethod('cash')}>
-                    <Text style={{fontSize: 20, marginRight: 12}}>💵</Text>
-                    <Text style={[s.payText, paymentMethod === 'cash' && {color: colors.primary, fontFamily: 'Inter_700Bold'}]}>Cash Payment</Text>
-                    {paymentMethod === 'cash' && <Feather name="check-circle" size={20} color={colors.primary} style={{marginLeft: 'auto'}} />}
-                 </TouchableOpacity>
-                 <TouchableOpacity style={[s.payRow, { borderTopWidth: 1, borderTopColor: '#F3F4F6', marginTop: 12, paddingTop: 12 }]} onPress={() => setPaymentMethod('momo')}>
-                    <Text style={{fontSize: 20, marginRight: 12}}>📱</Text>
-                    <Text style={[s.payText, paymentMethod === 'momo' && {color: colors.primary, fontFamily: 'Inter_700Bold'}]}>MoMo / Airtel Money</Text>
-                    {paymentMethod === 'momo' && <Feather name="check-circle" size={20} color={colors.primary} style={{marginLeft: 'auto'}} />}
-                 </TouchableOpacity>
-                 <TouchableOpacity style={[s.payRow, { borderTopWidth: 1, borderTopColor: '#F3F4F6', marginTop: 12, paddingTop: 12 }]} onPress={() => setPaymentMethod('wallet')}>
-                    <Feather name="credit-card" size={20} color={colors.primary} style={{marginRight: 12}} />
-                    <Text style={[s.payText, paymentMethod === 'wallet' && {color: colors.primary, fontFamily: 'Inter_700Bold'}]}>MOTA Wallet</Text>
-                    {paymentMethod === 'wallet' && <Feather name="check-circle" size={20} color={colors.primary} style={{marginLeft: 'auto'}} />}
-                 </TouchableOpacity>
-              </View>
+              <View style={[s.whiteCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}><Feather name="credit-card" size={20} color={colors.primary} /><View style={{ marginLeft: 12, flex: 1 }}><Text style={s.payText}>Payment from MOTA Wallet</Text><Text style={s.cardSub}>Your balance is verified before submitting the request.</Text></View></View>
 
               <TouchableOpacity style={s.primaryBtn} onPress={handleRequestRide}>
                 <Text style={s.primaryBtnText}>Start ride</Text>
@@ -831,27 +820,7 @@ export default function PassengerHomeScreen() {
 
                  {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) await ridesApi.confirmStart(rideId); }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
                  {serverRideStatus === 'stop_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) { await ridesApi.confirmStop(rideId); setServerRideStatus('awaiting_payment'); } }}><Text style={s.primaryBtnText}>Confirm Destination Reached</Text></TouchableOpacity>}
-                 {serverRideStatus === 'awaiting_payment' && <TouchableOpacity 
-                   style={[s.primaryBtn, { marginTop: 24 }]} 
-                   onPress={async () => {
-                     try {
-                       if (paymentMethod === 'momo') {
-                         if (!rideId) throw new Error('Ride not found');
-                         await ridesApi.payRide(rideId);
-                       }
-                       const msg = paymentMethod === 'momo' 
-                          ? `Your payment request of ${offer} RWF via MoMo (Paypack API) has been successfully initiated!` 
-                          : `You have opted to pay ${offer} RWF in Cash to the driver.`;
-                       Alert.alert("Payment Info", msg + " The ride is ready to start.");
-                     } catch (err: any) {
-                       Alert.alert("Payment Error", err?.response?.data?.message || "Could not request payment via MoMo.");
-                     }
-                   }}
-                 >
-                   <Text style={s.primaryBtnText}>
-                     {paymentMethod === 'momo' ? `Pay ${offer} RWF (MoMo)` : `Pay ${offer} RWF (Cash)`}
-                   </Text>
-                 </TouchableOpacity>}
+                 {serverRideStatus === 'awaiting_payment' && <View style={[s.whiteCard, { marginTop: 18 }]}><Text style={s.cardTitle}>Wallet payment confirmed</Text><Text style={s.cardSub}>{offer.toLocaleString()} RWF was settled securely through your MOTA Wallet.</Text></View>}
 
                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
                    <TouchableOpacity style={[s.primaryBtn, { flex: 1, backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}>
