@@ -91,8 +91,10 @@ export const ridesApi = {
   startRide: (id: string, pin: string) => api.post(`/rides/${id}/start`, { pin }),
   completeRide: (id: string) => api.post(`/rides/${id}/complete`),
   // Passenger-side
-  requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number }) =>
+  requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number; passengers?: number; paymentMethod?: string; scheduledDate?: string; scheduledTime?: string }) =>
     api.post('/rides/request', data),
+  estimateFare: (pickup: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }) =>
+    api.post('/rides/estimate', { pickup, destination }),
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
   getDriverRequests: () => api.get('/rides/driver/requests'),
   getRideStatus: (id: string) => api.get(`/rides/${id}/status`),
@@ -105,6 +107,11 @@ export const ridesApi = {
   confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
   claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
   payRide: (id: string) => api.post(`/rides/${id}/pay`),
+};
+
+export const mapsApi = {
+  getRoute: (origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }) =>
+    api.post('/maps/route', { origin, destination, travelMode: 'DRIVE' }),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
