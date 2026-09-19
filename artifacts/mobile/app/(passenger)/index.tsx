@@ -10,6 +10,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-nativ
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
+import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -462,6 +463,8 @@ export default function PassengerHomeScreen() {
           onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })}
           onReady={() => setMapReady(true)}
         />
+      ) : GOOGLE_MAPS_APIKEY ? (
+        <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={pickupLoc} destination={destinationLoc} route={routeCoordinates} drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))} onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })} onReady={() => { setMapReady(true); setMapError(null); }} onError={setMapError} />
       ) : null}
       {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
       {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
@@ -763,7 +766,7 @@ export default function PassengerHomeScreen() {
 
           {rideState === "searching" && !waitingMinimized && (
             <View style={[s.whiteCard, { alignItems: 'center', paddingVertical: 32 }]}> 
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Minimize rider search" onPress={() => setWaitingMinimized(true)} style={{ alignSelf: 'flex-end', padding: 8 }}><Feather name="minus" size={22} color={colors.textPrimary} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Minimize rider search" onPress={() => setWaitingMinimized(true)} style={{ alignSelf: 'flex-end', padding: 8 }}><Feather name="minimize-2" size={22} color={colors.textPrimary} /></TouchableOpacity>
               <ActivityIndicator size="large" color={colors.primary} style={{ marginBottom: 16 }} />
               <Text style={s.cardTitle}>Waiting for a rider...</Text>
               <Text style={s.cardSub}>
