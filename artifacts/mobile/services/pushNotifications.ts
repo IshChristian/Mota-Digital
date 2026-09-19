@@ -1,23 +1,39 @@
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { notificationsApi } from './api';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 let registeredToken: string | null = null;
+let notificationHandlerConfigured = false;
+
+export const supportsPushNotifications =
+  Platform.OS !== 'web' &&
+  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+
+async function getNotifications() {
+  if (!supportsPushNotifications) return null;
+
+  const Notifications = await import('expo-notifications');
+  if (!notificationHandlerConfigured) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+    notificationHandlerConfigured = true;
+  }
+  return Notifications;
+}
 
 export async function registerForPushNotifications() {
-  if (Platform.OS === 'web' || !Device.isDevice) return null;
+  if (!supportsPushNotifications || !Device.isDevice) return null;
+
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('rides', {
@@ -49,4 +65,3 @@ export async function unregisterPushNotifications() {
     registeredToken = null;
   }
 }
-
