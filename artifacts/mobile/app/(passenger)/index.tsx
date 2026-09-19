@@ -72,6 +72,8 @@ export default function PassengerHomeScreen() {
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
   const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [waitingMinimized, setWaitingMinimized] = useState(false);
 
@@ -371,21 +373,29 @@ export default function PassengerHomeScreen() {
     <View style={s.container}>
       {/* 1. Map View */}
       <MapView
+        key={mapProvider}
         provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
-        mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
-        style={StyleSheet.absoluteFill}
-        region={{
+        mapType="standard"
+        style={s.map}
+        initialRegion={{
           latitude: pickupLoc.latitude,
           longitude: pickupLoc.longitude,
           latitudeDelta: 0.015,
           longitudeDelta: 0.015,
         }}
+        loadingEnabled
+        loadingBackgroundColor="#E5E7EB"
+        loadingIndicatorColor={colors.primary}
+        moveOnMarkerPress={false}
+        showsCompass
         showsUserLocation={true}
         showsMyLocationButton={false}
+        onMapReady={() => { setMapReady(true); setMapError(null); }}
+        onMapLoaded={() => { setMapReady(true); setMapError(null); }}
         onPress={handleMapPress}
         onPoiClick={handlePoiClick}
       >
-        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} /> : null}
+        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={1} opacity={1} /> : null}
         {/* Destination Marker */}
         {destinationLoc && (
           <Marker coordinate={destinationLoc}>
@@ -442,10 +452,13 @@ export default function PassengerHomeScreen() {
           </View>
         </Marker>
       </MapView>
-      <View style={{ position: 'absolute', top: insets.top + 78, right: 16, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 3, zIndex: 50 }}>
-        <TouchableOpacity onPress={() => setMapProvider('openstreetmap')} style={{ padding: 8, borderRadius: 8, backgroundColor: mapProvider === 'openstreetmap' ? '#111827' : 'transparent' }}><Text style={{ color: mapProvider === 'openstreetmap' ? '#fff' : '#111827' }}>OpenMap</Text></TouchableOpacity>
-        <TouchableOpacity disabled={!GOOGLE_MAPS_APIKEY} onPress={() => setMapProvider('google')} style={{ padding: 8, borderRadius: 8, opacity: GOOGLE_MAPS_APIKEY ? 1 : 0.4, backgroundColor: mapProvider === 'google' ? '#111827' : 'transparent' }}><Text style={{ color: mapProvider === 'google' ? '#fff' : '#111827' }}>Google</Text></TouchableOpacity>
+      {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
+      {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
+      <View style={s.mapServerSwitch}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Use map server 1 OpenStreetMap" onPress={() => { setMapReady(false); setMapError(null); setMapProvider('openstreetmap'); }} style={[s.serverButton, mapProvider === 'openstreetmap' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>Server 1</Text><Text style={[s.serverCaption, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>OpenMap</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Use map server 2 Google Maps" onPress={() => { setMapReady(false); setMapError(null); setMapProvider('google'); }} style={[s.serverButton, mapProvider === 'google' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'google' && s.serverButtonTextActive]}>Server 2</Text><Text style={[s.serverCaption, mapProvider === 'google' && s.serverButtonTextActive]}>Google</Text></TouchableOpacity>
       </View>
+      {mapProvider === 'openstreetmap' ? <Text style={s.mapAttribution}>© OpenStreetMap contributors</Text> : null}
 
       {/* 2. Top Overlays */}
       {rideState === 'accepted' ? (
@@ -845,6 +858,18 @@ const mapStyleLight = [
 
 const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+  map: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#E5E7EB' },
+  mapLoading: { position: 'absolute', top: '38%', alignSelf: 'center', flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, zIndex: 8 },
+  mapLoadingText: { color: '#111827', fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  mapError: { position: 'absolute', top: '45%', alignSelf: 'center', backgroundColor: '#991B1B', borderRadius: 12, padding: 12, zIndex: 20 },
+  mapErrorText: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
+  mapServerSwitch: { position: 'absolute', top: 98, right: 16, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 14, padding: 4, zIndex: 50, elevation: 10 },
+  serverButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, alignItems: 'center', minWidth: 74 },
+  serverButtonActive: { backgroundColor: '#111827' },
+  serverButtonText: { color: '#111827', fontFamily: 'Inter_700Bold', fontSize: 12 },
+  serverButtonTextActive: { color: '#fff' },
+  serverCaption: { color: '#6B7280', fontFamily: 'Inter_500Medium', fontSize: 9, marginTop: 1 },
+  mapAttribution: { position: 'absolute', right: 8, bottom: 4, color: '#374151', backgroundColor: 'rgba(255,255,255,0.75)', fontSize: 9, paddingHorizontal: 4, zIndex: 5 },
   
   // Top Navigation
   topNavBanner: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.primary, zIndex: 10, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
