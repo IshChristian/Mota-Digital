@@ -9,6 +9,7 @@ import { ridesApi, paymentApi, realtimeApi, mapsApi } from "@/services/api";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
+import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -71,7 +72,7 @@ export default function PassengerHomeScreen() {
   const [rideId, setRideId] = useState<string | null>(null);
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
-  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
+  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>('openstreetmap');
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
@@ -452,6 +453,16 @@ export default function PassengerHomeScreen() {
           </View>
         </Marker>
       </MapView>
+      {mapProvider === 'openstreetmap' ? (
+        <OpenStreetMapView
+          center={pickupLoc}
+          destination={destinationLoc}
+          route={routeCoordinates}
+          drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))}
+          onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })}
+          onReady={() => setMapReady(true)}
+        />
+      ) : null}
       {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
       {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
       <View style={s.mapServerSwitch}>
