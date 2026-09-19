@@ -1,20 +1,24 @@
 import React, { useState } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, RefreshControl, TouchableOpacity, FlatList,
+  StyleSheet, Text, View, RefreshControl, TouchableOpacity, FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
 import { ridesApi } from "@/services/api";
+import { useRouter } from "expo-router";
 
 type RideHistoryItem = {
-  id: string;
-  pickup: string;
-  destination: string;
+  id?: string;
+  _id?: string;
+  pickup: string | { name?: string; address?: string };
+  destination: string | { name?: string; address?: string };
   fare: number;
-  status: "completed" | "cancelled" | "in_progress";
-  driverName: string;
+  status?: string;
+  rideStatus?: string;
+  driverName?: string;
+  driverId?: { firstName?: string; lastName?: string };
   createdAt: string;
   rating?: number;
 };
@@ -27,6 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function PassengerRidesScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "cancelled">("all");
 
@@ -35,7 +40,7 @@ export default function PassengerRidesScreen() {
     queryFn: async () => {
       try {
         const res = await ridesApi.getMyRides();
-        return res.data?.rides || [];
+        return res.data?.rides || res.data?.data?.rides || [];
       } catch {
         return [];
       }
@@ -44,17 +49,22 @@ export default function PassengerRidesScreen() {
 
   const filteredRides = activeTab === "all"
     ? rides
-    : rides.filter((r: RideHistoryItem) => r.status === activeTab);
+    : rides.filter((r: RideHistoryItem) => (r.rideStatus || r.status) === activeTab);
 
   const s = styles(colors, isDark);
 
-  const renderRide = ({ item }: { item: RideHistoryItem }) => (
-    <View style={s.rideCard}>
+  const renderRide = ({ item }: { item: RideHistoryItem }) => {
+    const status = item.rideStatus || item.status || "requested";
+    const statusColor = STATUS_COLORS[status] || "#64748B";
+    const pickup = typeof item.pickup === "string" ? item.pickup : item.pickup?.name || item.pickup?.address || "Pickup location";
+    const destination = typeof item.destination === "string" ? item.destination : item.destination?.name || item.destination?.address || "Destination";
+    const driverName = item.driverName || [item.driverId?.firstName, item.driverId?.lastName].filter(Boolean).join(" ") || "Not assigned";
+    return <TouchableOpacity style={s.rideCard} onPress={() => router.push({ pathname: "/(passenger)/ride-details/[id]", params: { id: item._id || item.id || "" } } as any)}>
       <View style={s.rideHeader}>
-        <View style={[s.statusBadge, { backgroundColor: `${STATUS_COLORS[item.status]}20` }]}>
-          <View style={[s.statusDot, { backgroundColor: STATUS_COLORS[item.status] }]} />
-          <Text style={[s.statusText, { color: STATUS_COLORS[item.status] }]}>
-            {item.status.replace("_", " ").toUpperCase()}
+        <View style={[s.statusBadge, { backgroundColor: `${statusColor}20` }]}> 
+          <View style={[s.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[s.statusText, { color: statusColor }]}> 
+            {status.replaceAll("_", " ").toUpperCase()}
           </Text>
         </View>
         <Text style={s.rideDate}>
@@ -69,15 +79,15 @@ export default function PassengerRidesScreen() {
           <View style={[s.routeDot, { backgroundColor: "#10B981" }]} />
         </View>
         <View style={s.routeTexts}>
-          <Text style={s.routeText} numberOfLines={1}>{item.pickup}</Text>
-          <Text style={[s.routeText, { marginTop: 16 }]} numberOfLines={1}>{item.destination}</Text>
+          <Text style={s.routeText} numberOfLines={1}>{pickup}</Text>
+          <Text style={[s.routeText, { marginTop: 16 }]} numberOfLines={1}>{destination}</Text>
         </View>
       </View>
 
       <View style={s.rideFooter}>
         <View style={s.driverInfo}>
           <Feather name="user" size={14} color={colors.textSecondary} />
-          <Text style={s.driverText}>{item.driverName}</Text>
+          <Text style={s.driverText}>{driverName}</Text>
         </View>
         <Text style={s.fareText}>{item.fare.toLocaleString()} RWF</Text>
       </View>
@@ -94,8 +104,8 @@ export default function PassengerRidesScreen() {
           ))}
         </View>
       )}
-    </View>
-  );
+    </TouchableOpacity>;
+  };
 
   const tabs = [
     { key: "all" as const, label: "All" },
@@ -121,7 +131,7 @@ export default function PassengerRidesScreen() {
 
       <FlatList
         data={filteredRides}
-        keyExtractor={(item: RideHistoryItem) => item.id}
+        keyExtractor={(item: RideHistoryItem, index) => item._id || item.id || `ride-${index}`}
         renderItem={renderRide}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primary} />}
         contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 16 }}
