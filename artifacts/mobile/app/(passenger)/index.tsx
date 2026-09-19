@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi, paymentApi, realtimeApi, mapsApi } from "@/services/api";
+import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi } from "@/services/api";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,7 +57,7 @@ export default function PassengerHomeScreen() {
   const [searchTimer, setSearchTimer] = useState(0);
   const [passengers, setPassengers] = useState(1);
   const [vehicleType, setVehicleType] = useState<"motor"|"car"|null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cash"|"momo">("momo");
+  const [paymentMethod, setPaymentMethod] = useState<"cash"|"momo"|"wallet">("momo");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -262,6 +262,16 @@ export default function PassengerHomeScreen() {
       Alert.alert('Destination required', 'Select a destination before requesting a ride.');
       return;
     }
+    if (paymentMethod === 'wallet') {
+      try {
+        const wallet = (await walletApi.getBalance()).data;
+        const balance = Number(wallet?.balance || 0);
+        if (balance < offer) {
+          Alert.alert('Wallet balance too low', `This ride needs ${offer.toLocaleString()} RWF, but your wallet has ${balance.toLocaleString()} RWF.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Top up wallet', onPress: () => router.push('/(passenger)/wallet' as any) }]);
+          return;
+        }
+      } catch { Alert.alert('Wallet unavailable', 'Could not verify your balance. Please try again.'); return; }
+    }
     setRideState("searching");
     setWaitingMinimized(false);
     setSearchTimer(0);
@@ -281,6 +291,13 @@ export default function PassengerHomeScreen() {
       if (id) setRideId(id);
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Unable to request this ride. Please check the trip details and try again.';
+      if (message.includes('already have an active ride')) {
+        try {
+          const history = (await ridesApi.getMyRides()).data?.rides || [];
+          const active = history.find((ride: any) => ['requested','searching','accepted','approaching','arrived','start_requested','in_progress','stop_requested','awaiting_payment'].includes(ride.rideStatus || ride.status));
+          if (active) { setRideId(active._id); setServerRideStatus(active.rideStatus || active.status); setRideState(['requested','searching'].includes(active.rideStatus || active.status) ? 'searching' : 'accepted'); return; }
+        } catch { /* Show the backend message below. */ }
+      }
       console.warn("Ride request error:", message);
       setRideState('negotiating');
       Alert.alert('Ride request failed', message);
@@ -748,6 +765,11 @@ export default function PassengerHomeScreen() {
                     <Text style={{fontSize: 20, marginRight: 12}}>📱</Text>
                     <Text style={[s.payText, paymentMethod === 'momo' && {color: colors.primary, fontFamily: 'Inter_700Bold'}]}>MoMo / Airtel Money</Text>
                     {paymentMethod === 'momo' && <Feather name="check-circle" size={20} color={colors.primary} style={{marginLeft: 'auto'}} />}
+                 </TouchableOpacity>
+                 <TouchableOpacity style={[s.payRow, { borderTopWidth: 1, borderTopColor: '#F3F4F6', marginTop: 12, paddingTop: 12 }]} onPress={() => setPaymentMethod('wallet')}>
+                    <Feather name="credit-card" size={20} color={colors.primary} style={{marginRight: 12}} />
+                    <Text style={[s.payText, paymentMethod === 'wallet' && {color: colors.primary, fontFamily: 'Inter_700Bold'}]}>MOTA Wallet</Text>
+                    {paymentMethod === 'wallet' && <Feather name="check-circle" size={20} color={colors.primary} style={{marginLeft: 'auto'}} />}
                  </TouchableOpacity>
               </View>
 
