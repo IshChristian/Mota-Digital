@@ -7,6 +7,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from "react-nativ
 import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
 import { driverApi, ridesApi } from "@/services/api";
+import { OpenStreetMapView } from "@/components/OpenStreetMapView";
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -20,7 +21,7 @@ export default function ActiveRideScreen() {
   const mapRef = useRef<MapView>(null);
 
   const [rideState, setRideState] = useState<RideState>("approaching");
-  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
+  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>('openstreetmap');
   const [mapReady, setMapReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -254,6 +255,15 @@ export default function ActiveRideScreen() {
             lineDashPattern={[0]}
           />
         </MapView>
+        {mapProvider === 'openstreetmap' ? (
+          <OpenStreetMapView
+            center={driverPos}
+            destination={rideState === 'in_progress' ? destPos : passengerPos}
+            route={[driverPos, rideState === 'in_progress' ? destPos : passengerPos]}
+            drivers={[{ ...driverPos, label: 'Driver' }]}
+            onReady={() => setMapReady(true)}
+          />
+        ) : null}
 
         {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
         <View style={s.mapServerSwitch}>
