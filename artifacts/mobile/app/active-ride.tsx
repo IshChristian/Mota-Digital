@@ -4,7 +4,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
 import { driverApi, ridesApi } from "@/services/api";
@@ -239,25 +238,12 @@ export default function ActiveRideScreen() {
           )}
 
           {/* Map Directions Polyline */}
-          {mapProvider === 'google' && GOOGLE_MAPS_APIKEY ? (
-            <MapViewDirections
-              origin={driverPos}
-              destination={rideState === "in_progress" ? destPos : passengerPos}
-              apikey={GOOGLE_MAPS_APIKEY}
-              strokeWidth={4}
-              strokeColor={colors.primary}
-            />
-          ) : (
-            <Polyline
-              coordinates={[
-                driverPos,
-                rideState === "in_progress" ? destPos : passengerPos
-              ]}
-              strokeColor={colors.primary}
-              strokeWidth={4}
-              lineDashPattern={[0]}
-            />
-          )}
+          <Polyline
+            coordinates={[driverPos, rideState === "in_progress" ? destPos : passengerPos]}
+            strokeColor={colors.primary}
+            strokeWidth={4}
+            lineDashPattern={[0]}
+          />
         </MapView>
 
         <View style={{ position: 'absolute', top: 16, left: 16, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 3 }}>
