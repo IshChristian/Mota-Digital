@@ -205,7 +205,7 @@ export default function ActiveRideScreen() {
           ref={mapRef}
           style={s.map}
           provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
-          mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
+          mapType="standard"
           initialRegion={{
             latitude: driverPos.latitude,
             longitude: driverPos.longitude,
@@ -220,7 +220,7 @@ export default function ActiveRideScreen() {
           onMapReady={() => setMapReady(true)}
           onMapLoaded={() => setMapReady(true)}
         >
-          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={0} /> : null}
+          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={1} opacity={1} /> : null}
           {/* Driver Location Marker */}
           <Marker coordinate={driverPos} title="You (Motor Driver)">
             <View style={s.driverMarker}>
