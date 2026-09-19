@@ -88,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * If found, patch kycLevel to 'full' locally so the onboarding gate is skipped.
    */
   const checkDriverProfile = async (currentUser?: User | null) => {
+    if (currentUser?.role?.trim().toLowerCase() !== 'driver') {
+      setHasDriverProfile(false);
+      return false;
+    }
+
     try {
       const res = await driverApi.getProfile();
       const profile = res.data?.data || res.data?.profile || res.data;
@@ -136,10 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await storeSensitiveJson('user', resolvedUser);
             }
             // If kycLevel is not yet 'full', verify against the actual driver profile
-            if (resolvedUser && resolvedUser.kycLevel !== 'full') {
+            if (resolvedUser?.role?.trim().toLowerCase() === 'driver' && resolvedUser.kycLevel !== 'full') {
               await checkDriverProfile(resolvedUser);
-            } else if (resolvedUser && resolvedUser.kycLevel === 'full') {
+            } else if (resolvedUser?.role?.trim().toLowerCase() === 'driver' && resolvedUser.kycLevel === 'full') {
               setHasDriverProfile(true);
+            } else {
+              setHasDriverProfile(false);
             }
             // Fetch rider status in background after user data loads
             fetchRiderStatus();
@@ -176,7 +183,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(newToken);
     setUser(newUser);
     // Await the profile check so hasDriverProfile is resolved before routing evaluates
-    if (newUser.kycLevel !== 'full') {
+    if (newUser.role?.trim().toLowerCase() !== 'driver') {
+      setHasDriverProfile(false);
+    } else if (newUser.kycLevel !== 'full') {
       await checkDriverProfile(newUser);
     } else {
       setHasDriverProfile(true);
