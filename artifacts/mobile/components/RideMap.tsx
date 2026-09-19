@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import { OpenStreetMapView } from '@/components/OpenStreetMapView';
+import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 
 export type Coordinate = { latitude: number; longitude: number };
 type Provider = 'openstreetmap' | 'google';
@@ -27,7 +27,7 @@ export function RideMap({ center, pickup, destination, driver, nearbyDrivers = [
   const route = useMemo(() => routeOrigin && destination ? [routeOrigin, destination] : [], [routeOrigin, destination]);
 
   useEffect(() => {
-    if (provider !== 'openstreetmap' || route.length !== 2) {
+    if (route.length !== 2) {
       setOpenRoute([]);
       setRouteUnavailable(false);
       return;
@@ -57,36 +57,11 @@ export function RideMap({ center, pickup, destination, driver, nearbyDrivers = [
       });
 
     return () => controller.abort();
-  }, [provider, route, onRoute]);
+  }, [route, onRoute]);
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={StyleSheet.absoluteFill}
-        provider={provider === 'google' ? PROVIDER_GOOGLE : undefined}
-        mapType={provider === 'openstreetmap' ? 'none' : 'standard'}
-        initialRegion={{ ...center, latitudeDelta: 0.025, longitudeDelta: 0.025 }}
-        onPress={onPress}
-        showsUserLocation
-      >
-        {provider === 'openstreetmap' ? (
-          <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-        ) : null}
-        {pickup ? <Marker coordinate={pickup} title="Pickup" pinColor="#2563EB" /> : null}
-        {destination ? <Marker coordinate={destination} title="Destination" pinColor="#10B981" /> : null}
-        {driver ? <Marker coordinate={driver} title="Driver"><Text style={styles.motor}>🏍️</Text></Marker> : null}
-        {nearbyDrivers.map((item) => <Marker key={item.id} coordinate={item} title="Available driver"><Text style={styles.motor}>🏍️</Text></Marker>)}
-        {route.length === 2 && provider === 'google' && GOOGLE_KEY ? (
-          <MapViewDirections
-            origin={route[0]}
-            destination={route[1]}
-            apikey={GOOGLE_KEY}
-            strokeWidth={5}
-            strokeColor="#DC2626"
-            onReady={(result) => onRoute?.(result.distance, result.duration)}
-          />
-        ) : openRoute.length >= 2 ? <Polyline coordinates={openRoute} strokeWidth={5} strokeColor="#DC2626" /> : null}
-      </MapView>
+      {provider === 'openstreetmap' ? <OpenStreetMapView center={center} destination={destination} route={openRoute} drivers={[...(driver ? [{ ...driver, label: 'Driver' }] : []), ...nearbyDrivers.map(item => ({ ...item, label: 'Nearby request' }))]} onCoordinatePress={coordinate => onPress?.({ nativeEvent: { coordinate } })} /> : <GoogleMapWebView apiKey={GOOGLE_KEY} center={center} destination={destination} route={openRoute} drivers={[...(driver ? [{ ...driver, label: 'Driver' }] : []), ...nearbyDrivers.map(item => ({ ...item, label: 'Nearby request' }))]} onCoordinatePress={coordinate => onPress?.({ nativeEvent: { coordinate } })} />}
       <View style={styles.switcher}>
         {(['openstreetmap', 'google'] as Provider[]).map((item) => (
           <TouchableOpacity
