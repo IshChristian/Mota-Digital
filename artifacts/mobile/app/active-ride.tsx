@@ -21,6 +21,7 @@ export default function ActiveRideScreen() {
 
   const [rideState, setRideState] = useState<RideState>("approaching");
   const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>(GOOGLE_MAPS_APIKEY ? 'google' : 'openstreetmap');
+  const [mapReady, setMapReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -200,8 +201,9 @@ export default function ActiveRideScreen() {
       {/* Real Map View with Directions for Motor Driver */}
       <View style={s.mapContainer}>
         <MapView
+          key={mapProvider}
           ref={mapRef}
-          style={StyleSheet.absoluteFill}
+          style={s.map}
           provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
           mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
           initialRegion={{
@@ -210,8 +212,15 @@ export default function ActiveRideScreen() {
             latitudeDelta: 0.02,
             longitudeDelta: 0.02,
           }}
+          loadingEnabled
+          loadingBackgroundColor="#E5E7EB"
+          loadingIndicatorColor={colors.primary}
+          showsCompass
+          showsUserLocation
+          onMapReady={() => setMapReady(true)}
+          onMapLoaded={() => setMapReady(true)}
         >
-          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} /> : null}
+          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={0} /> : null}
           {/* Driver Location Marker */}
           <Marker coordinate={driverPos} title="You (Motor Driver)">
             <View style={s.driverMarker}>
@@ -246,10 +255,12 @@ export default function ActiveRideScreen() {
           />
         </MapView>
 
-        <View style={{ position: 'absolute', top: 16, left: 16, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 3 }}>
-          <TouchableOpacity onPress={() => setMapProvider('openstreetmap')} style={{ padding: 8, backgroundColor: mapProvider === 'openstreetmap' ? '#111827' : 'transparent', borderRadius: 8 }}><Text style={{ color: mapProvider === 'openstreetmap' ? '#fff' : '#111827' }}>OpenMap</Text></TouchableOpacity>
-          <TouchableOpacity disabled={!GOOGLE_MAPS_APIKEY} onPress={() => setMapProvider('google')} style={{ padding: 8, opacity: GOOGLE_MAPS_APIKEY ? 1 : 0.4, backgroundColor: mapProvider === 'google' ? '#111827' : 'transparent', borderRadius: 8 }}><Text style={{ color: mapProvider === 'google' ? '#fff' : '#111827' }}>Google</Text></TouchableOpacity>
+        {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
+        <View style={s.mapServerSwitch}>
+          <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('openstreetmap'); }} style={[s.serverButton, mapProvider === 'openstreetmap' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>Server 1</Text><Text style={[s.serverCaption, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>OpenMap</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('google'); }} style={[s.serverButton, mapProvider === 'google' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'google' && s.serverButtonTextActive]}>Server 2</Text><Text style={[s.serverCaption, mapProvider === 'google' && s.serverButtonTextActive]}>Google</Text></TouchableOpacity>
         </View>
+        {mapProvider === 'openstreetmap' ? <Text style={s.mapAttribution}>© OpenStreetMap contributors</Text> : null}
 
         {/* Floating Navigation Button */}
         <TouchableOpacity style={s.floatingNavBtn} onPress={openNavigation}>
@@ -342,6 +353,16 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: colors.textPrimary, flex: 1, textAlign: "center", marginHorizontal: 8 },
   navIconBtn: { padding: 8, borderRadius: 8, backgroundColor: `${colors.primary}15` },
   mapContainer: { flex: 1, position: "relative" },
+  map: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "#E5E7EB" },
+  mapLoading: { position: "absolute", top: "45%", alignSelf: "center", backgroundColor: "rgba(255,255,255,0.94)", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, zIndex: 8 },
+  mapLoadingText: { color: "#111827", fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  mapServerSwitch: { position: "absolute", top: 16, left: 16, flexDirection: "row", backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 14, padding: 4, zIndex: 20, elevation: 10 },
+  serverButton: { minWidth: 74, alignItems: "center", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  serverButtonActive: { backgroundColor: "#111827" },
+  serverButtonText: { color: "#111827", fontFamily: "Inter_700Bold", fontSize: 12 },
+  serverButtonTextActive: { color: "#fff" },
+  serverCaption: { color: "#6B7280", fontFamily: "Inter_500Medium", fontSize: 9 },
+  mapAttribution: { position: "absolute", right: 6, bottom: 4, color: "#374151", backgroundColor: "rgba(255,255,255,0.75)", fontSize: 9, paddingHorizontal: 4, zIndex: 5 },
   driverMarker: { backgroundColor: "#fff", padding: 6, borderRadius: 20, borderWidth: 2, borderColor: colors.primary, elevation: 4 },
   passengerMarker: { backgroundColor: colors.primary, padding: 8, borderRadius: 20, borderWidth: 2, borderColor: "#fff", elevation: 4 },
   destMarker: { backgroundColor: "#10B981", padding: 8, borderRadius: 20, borderWidth: 2, borderColor: "#fff", elevation: 4 },
