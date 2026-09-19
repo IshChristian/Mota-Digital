@@ -375,7 +375,7 @@ export default function PassengerHomeScreen() {
       <MapView
         key={mapProvider}
         provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
-        mapType={mapProvider === 'openstreetmap' ? 'none' : 'standard'}
+        mapType="standard"
         style={s.map}
         initialRegion={{
           latitude: pickupLoc.latitude,
@@ -395,7 +395,7 @@ export default function PassengerHomeScreen() {
         onPress={handleMapPress}
         onPoiClick={handlePoiClick}
       >
-        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={0} /> : null}
+        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={1} opacity={1} /> : null}
         {/* Destination Marker */}
         {destinationLoc && (
           <Marker coordinate={destinationLoc}>
