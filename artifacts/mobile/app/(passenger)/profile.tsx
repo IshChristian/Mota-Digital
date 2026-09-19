@@ -22,12 +22,12 @@ export default function PassengerProfileScreen() {
   const s = styles(colors, isDark);
 
   const menuItems = [
-    { icon: "user" as const, label: "Personal Information", onPress: () => {} },
-    { icon: "shield" as const, label: "Safety", onPress: () => {} },
-    { icon: "credit-card" as const, label: "Payment Methods", onPress: () => {} },
-    { icon: "bell" as const, label: "Notifications", onPress: () => {} },
-    { icon: "help-circle" as const, label: "Help & Support", onPress: () => {} },
-    { icon: "info" as const, label: "About MOTA", onPress: () => {} },
+    { icon: "user" as const, label: "Personal Information", onPress: () => router.push('/(passenger)/profile/personal-info' as any) },
+    { icon: "shield" as const, label: "Safety", onPress: () => router.push('/(passenger)/profile/safety' as any) },
+    { icon: "credit-card" as const, label: "Payment Methods", onPress: () => router.push('/(passenger)/profile/payment-methods' as any) },
+    { icon: "bell" as const, label: "Notifications", onPress: () => router.push('/notifications' as any) },
+    { icon: "help-circle" as const, label: "Help & Support", onPress: () => router.push('/(passenger)/profile/support' as any) },
+    { icon: "info" as const, label: "About MOTA", onPress: () => router.push('/(passenger)/profile/about' as any) },
   ];
 
   return (
@@ -69,8 +69,8 @@ export default function PassengerProfileScreen() {
         </TouchableOpacity>
 
         {/* Menu Items */}
-        {menuItems.map((item, idx) => (
-          <TouchableOpacity key={idx} style={s.menuItem} onPress={item.onPress}>
+        {menuItems.map((item) => (
+          <TouchableOpacity key={item.label} style={s.menuItem} onPress={item.onPress}>
             <View style={s.menuLeft}>
               <View style={s.menuIconBox}>
                 <Feather name={item.icon} size={18} color={colors.primary} />
