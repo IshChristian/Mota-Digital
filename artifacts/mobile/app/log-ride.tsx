@@ -23,16 +23,17 @@ import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 
 type Ride = {
-  _id: string;
-  fare: number;
+  _id?: string;
+  fare?: number;
   distance?: number;
   pickupLocation?: string;
   dropoffLocation?: string;
   paymentMethod?: string;
-  createdAt: string;
+  createdAt?: string;
 };
 
-function isToday(dateStr: string): boolean {
+function isToday(dateStr?: string): boolean {
+  if (!dateStr) return false;
   const d = new Date(dateStr);
   const now = new Date();
   return (
@@ -42,14 +43,16 @@ function isToday(dateStr: string): boolean {
   );
 }
 
-function formatTime(dateStr: string): string {
+function formatTime(dateStr?: string): string {
+  if (!dateStr) return "Unknown time";
   return new Date(dateStr).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return "Unknown date";
   return new Date(dateStr).toLocaleDateString([], {
     day: "numeric",
     month: "short",
@@ -212,7 +215,7 @@ export default function LogRideScreen() {
           <Feather name="navigation" size={16} color={colors.primary} />
         </View>
         <View style={s.rideInfo}>
-          <Text style={s.rideFare}>{ride.fare.toLocaleString()} RWF</Text>
+          <Text style={s.rideFare}>{Number(ride.fare || 0).toLocaleString()} RWF</Text>
           <Text style={s.rideMeta}>
             {isToday(ride.createdAt)
               ? formatTime(ride.createdAt)
@@ -292,7 +295,7 @@ export default function LogRideScreen() {
                 <Text style={s.emptySubText}>Tap "+ Log New Ride" to add one</Text>
               </View>
             ) : (
-              todayRides.map((ride) => <RideCard key={ride._id} ride={ride} />)
+              todayRides.map((ride, index) => <RideCard key={ride._id || `today-${ride.createdAt || index}`} ride={ride} />)
             )}
           </View>
 
@@ -305,7 +308,7 @@ export default function LogRideScreen() {
                   <Text style={[s.countText, s.countTextGray]}>{historyRides.length}</Text>
                 </View>
               </View>
-              {historyRides.map((ride) => <RideCard key={ride._id} ride={ride} />)}
+              {historyRides.map((ride, index) => <RideCard key={ride._id || `history-${ride.createdAt || index}`} ride={ride} />)}
               {loadingMore && (
                 <ActivityIndicator
                   color={colors.primary}

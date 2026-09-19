@@ -8,6 +8,7 @@ import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
 import { driverApi, ridesApi } from "@/services/api";
 import { OpenStreetMapView } from "@/components/OpenStreetMapView";
+import { GoogleMapWebView } from "@/components/GoogleMapWebView";
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -263,6 +264,8 @@ export default function ActiveRideScreen() {
             drivers={[{ ...driverPos, label: 'Driver' }]}
             onReady={() => setMapReady(true)}
           />
+        ) : GOOGLE_MAPS_APIKEY ? (
+          <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={driverPos} destination={rideState === 'in_progress' ? destPos : passengerPos} route={[driverPos, rideState === 'in_progress' ? destPos : passengerPos]} drivers={[{ ...driverPos, label: 'Driver' }]} onReady={() => setMapReady(true)} onError={setError} />
         ) : null}
 
         {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
