@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -64,6 +65,8 @@ export default function PassengerHomeScreen() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  const [scheduledAt, setScheduledAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
+  const [schedulePicker, setSchedulePicker] = useState<'date' | 'time' | null>(null);
   const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "off">("granted");
 
   // Nearby available motors (fetched from backend when available)
@@ -302,6 +305,17 @@ export default function PassengerHomeScreen() {
       setRideState('negotiating');
       Alert.alert('Ride request failed', message);
     }
+  };
+
+  const updateSchedule = (_event: DateTimePickerEvent, value?: Date) => {
+    setSchedulePicker(null);
+    if (!value) return;
+    setScheduledAt(value);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    setScheduledDate(`${year}-${month}-${day}`);
+    setScheduledTime(`${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`);
   };
 
   const cancelWithReason = async (reason: string) => {
@@ -723,41 +737,34 @@ export default function PassengerHomeScreen() {
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, fontFamily: 'Inter_500Medium', color: '#6B7280', marginBottom: 4 }}>Date</Text>
-                        <TextInput
+                        <TouchableOpacity onPress={() => setSchedulePicker('date')}
                           style={{
                             borderWidth: 1,
                             borderColor: '#E5E7EB',
                             borderRadius: 12,
                             paddingHorizontal: 12,
                             paddingVertical: 10,
-                            fontSize: 14,
-                            fontFamily: 'Inter_500Medium'
+                            justifyContent: 'center'
                           }}
-                          placeholder="e.g. 2026-09-02"
-                          value={scheduledDate}
-                          onChangeText={setScheduledDate}
-                        />
+                        ><Text style={{ color: scheduledDate ? colors.textPrimary : '#6B7280' }}>{scheduledDate || 'Select date'}</Text></TouchableOpacity>
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, fontFamily: 'Inter_500Medium', color: '#6B7280', marginBottom: 4 }}>Time</Text>
-                        <TextInput
+                        <TouchableOpacity onPress={() => setSchedulePicker('time')}
                           style={{
                             borderWidth: 1,
                             borderColor: '#E5E7EB',
                             borderRadius: 12,
                             paddingHorizontal: 12,
                             paddingVertical: 10,
-                            fontSize: 14,
-                            fontFamily: 'Inter_500Medium'
+                            justifyContent: 'center'
                           }}
-                          placeholder="e.g. 02:30 PM"
-                          value={scheduledTime}
-                          onChangeText={setScheduledTime}
-                        />
+                        ><Text style={{ color: scheduledTime ? colors.textPrimary : '#6B7280' }}>{scheduledTime || 'Select time'}</Text></TouchableOpacity>
                       </View>
                     </View>
                   </View>
                 )}
+                {schedulePicker ? <DateTimePicker value={scheduledAt} mode={schedulePicker} minimumDate={new Date()} minuteInterval={5} onChange={updateSchedule} /> : null}
               </View>
               
               <View style={[s.whiteCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}><Feather name="credit-card" size={20} color={colors.primary} /><View style={{ marginLeft: 12, flex: 1 }}><Text style={s.payText}>Payment from MOTA Wallet</Text><Text style={s.cardSub}>Your balance is verified before submitting the request.</Text></View></View>
