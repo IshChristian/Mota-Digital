@@ -14,6 +14,7 @@ export default function PassengerLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="rides" />
+      <Stack.Screen name="wallet" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="profile/personal-info" />
       <Stack.Screen name="profile/safety" />

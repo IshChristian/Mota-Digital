@@ -22,6 +22,7 @@ export default function PassengerProfileScreen() {
   const s = styles(colors, isDark);
 
   const menuItems = [
+    { icon: "credit-card" as const, label: "Wallet", onPress: () => router.push('/(passenger)/wallet' as any) },
     { icon: "user" as const, label: "Personal Information", onPress: () => router.push('/(passenger)/profile/personal-info' as any) },
     { icon: "shield" as const, label: "Safety", onPress: () => router.push('/(passenger)/profile/safety' as any) },
     { icon: "credit-card" as const, label: "Payment Methods", onPress: () => router.push('/(passenger)/profile/payment-methods' as any) },

@@ -97,8 +97,8 @@ export default function ActiveRideScreen() {
             setDestPos({ latitude: data.destination.latitude ?? data.destination.lat, longitude: data.destination.longitude ?? data.destination.lng });
           }
 
-          if (data.status) {
-            setRideState(data.status);
+          if (data.rideStatus || data.status) {
+            setRideState(data.rideStatus || data.status);
           }
         }
       } catch (e) {

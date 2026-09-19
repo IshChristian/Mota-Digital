@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { ridesApi } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
+import { RideMap } from '@/components/RideMap';
 
 export default function DriverRequestsScreen() {
   const router = useRouter();
@@ -14,6 +15,9 @@ export default function DriverRequestsScreen() {
     queryFn: async () => (await ridesApi.getDriverRequests()).data?.data || [],
     refetchInterval: 5000,
   });
+  const requests = Array.isArray(query.data) ? query.data : [];
+  const requestPoints = requests.map((item: any) => ({ id: item._id, latitude: item.pickup?.latitude ?? item.pickup?.lat, longitude: item.pickup?.longitude ?? item.pickup?.lng })).filter((item: any) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  const mapCenter = requestPoints[0] || { latitude: -1.9536, longitude: 30.0606 };
 
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>
@@ -21,10 +25,11 @@ export default function DriverRequestsScreen() {
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Requests refresh every five seconds.</Text>
       {query.isLoading ? <ActivityIndicator style={styles.loader} /> : (
         <FlatList
-          data={query.data}
-          keyExtractor={(item: any) => item._id}
+          data={requests}
+          keyExtractor={(item: any, index) => item._id || `request-${index}`}
           refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} />}
           ListEmptyComponent={<Text style={[styles.empty, { color: colors.textSecondary }]}>No nearby requests right now.</Text>}
+          ListHeaderComponent={requestPoints.length ? <View style={styles.map}><RideMap center={mapCenter} nearbyDrivers={requestPoints} /></View> : null}
           renderItem={({ item }: any) => (
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
@@ -44,6 +49,6 @@ export default function DriverRequestsScreen() {
 const styles = StyleSheet.create({
   page: { flex: 1, padding: 18, paddingTop: 54 }, title: { fontSize: 26, fontWeight: '800' },
   subtitle: { marginTop: 5, marginBottom: 18 }, loader: { marginTop: 50 }, empty: { textAlign: 'center', marginTop: 50 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 }, row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  map: { height: 300, overflow: 'hidden', borderRadius: 18, marginBottom: 18 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 }, row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   place: { fontSize: 16, fontWeight: '700', flex: 1 }, meta: { marginTop: 10 }, fare: { marginTop: 12, fontSize: 20, fontWeight: '800' },
 });

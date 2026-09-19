@@ -91,7 +91,7 @@ export const ridesApi = {
   startRide: (id: string, pin: string) => api.post(`/rides/${id}/start`, { pin }),
   completeRide: (id: string) => api.post(`/rides/${id}/complete`),
   // Passenger-side
-  requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number; passengers?: number; paymentMethod?: string; scheduledDate?: string; scheduledTime?: string }) =>
+  requestRide: (data: { pickup: any; destination: any; offeredFare: number; backupDrivers: number; passengers?: number; paymentMethod?: 'cash' | 'momo' | 'wallet'; scheduledDate?: string; scheduledTime?: string }) =>
     api.post('/rides/request', data),
   estimateFare: (pickup: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }) =>
     api.post('/rides/estimate', { pickup, destination }),
