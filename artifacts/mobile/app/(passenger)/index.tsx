@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, FlatList, ScrollView } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, FlatList, ScrollView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -80,6 +80,8 @@ export default function PassengerHomeScreen() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [waitingMinimized, setWaitingMinimized] = useState(false);
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   useEffect(() => {
     if (!destinationLoc) { setRouteCoordinates([]); return; }
@@ -327,13 +329,12 @@ export default function PassengerHomeScreen() {
     setSearchQuery("");
     setRideId(null);
     setAcceptedDriver(null);
+    setServerRideStatus('');
+    setCancelModalVisible(false);
+    setCancellationReason('');
   };
 
-  const handleCancel = () => Alert.alert('Cancel ride', 'Choose the reason for cancellation. This will be saved in ride history.', [
-    { text: 'Keep ride', style: 'cancel' },
-    { text: 'Changed plans', onPress: () => void cancelWithReason('Passenger changed plans') },
-    { text: 'Driver delayed', style: 'destructive', onPress: () => void cancelWithReason('Driver delayed') },
-  ]);
+  const handleCancel = () => { setCancellationReason(''); setCancelModalVisible(true); };
 
   const handleMapPress = async (e: any) => {
     if (rideState === "idle" || rideState === "estimating") {
@@ -728,6 +729,15 @@ export default function PassengerHomeScreen() {
                  <Text style={s.cardTitle}>Driver: {acceptedDriver?.firstName || 'Your Rider'} {acceptedDriver?.lastName || ''}</Text>
                  <Text style={s.cardSub}>Plate: {acceptedDriver?.plate || 'N/A'} • {vehicleType === 'car' ? '🚗' : '🏍️'} MOTA {vehicleType === 'car' ? 'Car' : 'Standard'}</Text>
                  <Text style={[s.cardSub, { marginTop: 8 }]}>Destination: {destination}</Text>
+                 <View style={s.timeline}>
+                   {([
+                     ['Request sent', true],
+                     ['Driver accepted', !['requested','searching'].includes(serverRideStatus)],
+                     [`Driver approaching · ${etaMin || '—'} min`, ['approaching','arrived','start_requested','in_progress','stop_requested','awaiting_payment','completed'].includes(serverRideStatus)],
+                     ['Ride started', ['in_progress','stop_requested','awaiting_payment','completed'].includes(serverRideStatus)],
+                     ['Ride ended', ['awaiting_payment','completed'].includes(serverRideStatus)],
+                   ] as Array<[string, boolean]>).map(([label, done], index) => <View key={label} style={s.timelineItem}><View style={[s.timelineDot, done && s.timelineDotDone]} /><Text style={[s.timelineText, done && s.timelineTextDone]}>{label}</Text>{index < 4 ? <View style={[s.timelineLine, done && s.timelineLineDone]} /> : null}</View>)}
+                 </View>
                  
                  <View style={s.statsRow}>
                    <View style={s.statItem}>
@@ -761,6 +771,14 @@ export default function PassengerHomeScreen() {
           )}
         </LinearGradient>
       </View>
+      <Modal transparent visible={cancelModalVisible} animationType="fade" onRequestClose={() => setCancelModalVisible(false)}>
+        <View style={s.modalBackdrop}><View style={s.cancelModal}>
+          <Text style={s.cardTitle}>{serverRideStatus === 'in_progress' ? 'Cancel and report ride' : 'Cancel ride request'}</Text>
+          <Text style={s.cardSub}>{serverRideStatus === 'in_progress' ? 'The fare will be held while admin or caller support reviews the report.' : 'Tell us why you are cancelling. The reason is saved in ride history.'}</Text>
+          <TextInput multiline maxLength={500} value={cancellationReason} onChangeText={setCancellationReason} placeholder="Enter cancellation reason" placeholderTextColor="#9CA3AF" style={s.reasonInput} />
+          <View style={s.modalActions}><TouchableOpacity style={[s.primaryBtn, s.modalButton, { backgroundColor: '#E5E7EB' }]} onPress={() => setCancelModalVisible(false)}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Keep ride</Text></TouchableOpacity><TouchableOpacity disabled={cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3)} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#DC2626', opacity: cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3) ? .5 : 1 }]} onPress={() => void cancelWithReason(cancellationReason.trim())}><Text style={s.primaryBtnText}>Cancel ride</Text></TouchableOpacity></View>
+        </View></View>
+      </Modal>
     </View>
   );
 }
@@ -875,6 +893,19 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
   statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
+  timeline: { marginTop: 20, padding: 14, borderRadius: 16, backgroundColor: '#F9FAFB' },
+  timelineItem: { minHeight: 38, flexDirection: 'row', alignItems: 'flex-start', position: 'relative' },
+  timelineDot: { width: 12, height: 12, borderRadius: 6, marginTop: 3, marginRight: 10, backgroundColor: '#D1D5DB', zIndex: 2 },
+  timelineDotDone: { backgroundColor: colors.primary },
+  timelineLine: { position: 'absolute', left: 5, top: 14, bottom: -3, width: 2, backgroundColor: '#E5E7EB' },
+  timelineLineDone: { backgroundColor: colors.primary },
+  timelineText: { color: '#9CA3AF', fontFamily: 'Inter_500Medium', fontSize: 13 },
+  timelineTextDone: { color: '#111827', fontFamily: 'Inter_700Bold' },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,.55)' },
+  cancelModal: { borderRadius: 22, padding: 22, backgroundColor: '#fff' },
+  reasonInput: { minHeight: 110, marginTop: 18, padding: 14, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 14, color: '#111827', textAlignVertical: 'top' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalButton: { flex: 1, height: 50 },
 
   primaryBtn: { backgroundColor: colors.primary, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginTop: 24, flexDirection: 'row' },
   primaryBtnText: { color: "#fff", fontSize: 18, fontFamily: "Inter_700Bold" },
