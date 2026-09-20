@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { StyleSheet, Text, View, TouchableOpacity, Modal } from "react-native";
 import { useTheme } from "@/context/ThemeContext";
 import { Feather } from "@expo/vector-icons";
@@ -28,29 +28,6 @@ interface RideRequestModalProps {
 
 export function RideRequestModal({ request, onAccept, onDecline }: RideRequestModalProps) {
   const { colors, isDark } = useTheme();
-  const [timeLeft, setTimeLeft] = useState(30);
-
-  useEffect(() => {
-    if (request) {
-      setTimeLeft(request.expiresInSeconds || 30);
-    }
-  }, [request]);
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      if (request && timeLeft === 0) {
-        onDecline(request.id); // Auto-decline when time runs out
-      }
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, request, onDecline]);
-
   if (!request) return null;
 
   const pickupAddr = typeof request.pickup === 'string' ? request.pickup : (request.pickup?.address || 'Pickup Location');
@@ -120,8 +97,7 @@ export function RideRequestModal({ request, onAccept, onDecline }: RideRequestMo
             </View>
 
             <View style={styles(colors, isDark).timerBox}>
-              <Text style={styles(colors, isDark).timerLabel}>Auto-decline in</Text>
-              <Text style={styles(colors, isDark).timerText}>00:{timeLeft.toString().padStart(2, '0')}</Text>
+              <Text style={styles(colors, isDark).timerLabel}>This request stays available until it is accepted or explicitly cancelled.</Text>
             </View>
           </View>
 

@@ -167,6 +167,8 @@ export default function ActiveRideScreen() {
   };
 
   const s = styles(colors, isDark);
+  const approachDistanceKm = (() => { const toRad = (value: number) => value * Math.PI / 180; const dLat = toRad(passengerPos.latitude - driverPos.latitude); const dLng = toRad(passengerPos.longitude - driverPos.longitude); const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(driverPos.latitude)) * Math.cos(toRad(passengerPos.latitude)) * Math.sin(dLng / 2) ** 2; return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); })();
+  const approachEtaMin = Math.max(1, Math.ceil((approachDistanceKm / 20) * 60));
 
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
@@ -228,7 +230,7 @@ export default function ActiveRideScreen() {
         {rideState === "approaching" && (
           <View>
             <Text style={s.sheetTitle}>{rideData.passengerName}</Text>
-            <Text style={s.sheetSub}>{rideData.etaMin} min away • {rideData.distanceKm.toFixed(1)} km</Text>
+            <Text style={s.sheetSub}>{approachEtaMin} min away • {approachDistanceKm.toFixed(1)} km from passenger</Text>
             <View style={s.actionsRow}>
               <TouchableOpacity style={s.iconBtn}>
                 <Feather name="phone" size={20} color={colors.primary} />
