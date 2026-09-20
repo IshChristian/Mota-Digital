@@ -114,8 +114,8 @@ export default function ActiveRideScreen() {
     try {
       if (rideId) await ridesApi.notifyArrival(rideId as string);
       setRideState("arrived");
-    } catch (e) {
-      setError("Failed to notify arrival");
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Failed to notify the passenger of your arrival.");
     } finally {
       setLoading(false);
     }
@@ -240,7 +240,7 @@ export default function ActiveRideScreen() {
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={s.primaryBtn} onPress={handleArrival} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Updating..." : "I've Arrived"}</Text>
+              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : "I've Arrived — Notify Passenger"}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -251,7 +251,7 @@ export default function ActiveRideScreen() {
             <Text style={s.sheetTitle}>Passenger Arrived?</Text>
             <Text style={s.sheetSub}>Request confirmation from {rideData.passengerName} before starting.</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={handleStartRide} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Requesting..." : "Request Start"}</Text>
+              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : "Request Passenger to Start"}</Text>
             </TouchableOpacity>
           </View>
         )}
