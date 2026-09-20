@@ -239,8 +239,8 @@ export default function ActiveRideScreen() {
                 <Feather name="message-circle" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={s.primaryBtn} onPress={handleArrival} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : "I've Arrived — Notify Passenger"}</Text>
+            <TouchableOpacity style={[s.primaryBtn, { opacity: loading || approachDistanceKm > 2 ? .55 : 1 }]} onPress={handleArrival} disabled={loading || approachDistanceKm > 2}>
+              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : approachDistanceKm > 2 ? `Arrival unlocks within 2 km` : "I've Arrived — Notify Passenger"}</Text>
             </TouchableOpacity>
           </View>
         )}
