@@ -123,9 +123,17 @@ export default function TabLayout() {
       await ridesApi.acceptRide(id);
       setIncomingRequest(null);
       router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to accept ride", e);
-      alert("Failed to accept ride. It may have been taken by another driver.");
+      try {
+        const current = (await ridesApi.getRideStatus(id)).data;
+        if (current?.driverId && ['accepted','approaching','arrived','start_requested','in_progress','stop_requested','awaiting_payment'].includes(current.rideStatus)) {
+          setIncomingRequest(null);
+          router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
+          return;
+        }
+      } catch { /* Use the API message below. */ }
+      alert(e?.response?.data?.message || "Unable to accept this ride. Refresh to see its current timeline.");
       setIncomingRequest(null);
     }
   };
