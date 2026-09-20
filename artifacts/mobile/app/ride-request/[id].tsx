@@ -27,8 +27,15 @@ export default function RideRequestDetailsScreen() {
         router.back();
       }
     } catch (error: any) {
-      Alert.alert('Ride request', error.response?.data?.message || 'The request is no longer available.');
-      query.refetch();
+      try {
+        const current = (await ridesApi.getRideStatus(id)).data;
+        if (current?.driverId && ['accepted','approaching','arrived','start_requested','in_progress','stop_requested','awaiting_payment'].includes(current.rideStatus)) {
+          router.replace({ pathname: '/active-ride', params: { rideId: id } } as any);
+          return;
+        }
+      } catch { /* Show the original server error below. */ }
+      Alert.alert('Ride request', error.response?.data?.message || 'Unable to update this ride. Refresh to see its current timeline.');
+      void query.refetch();
     } finally { setSubmitting(false); }
   };
 
