@@ -82,6 +82,7 @@ export default function PassengerHomeScreen() {
   const [waitingMinimized, setWaitingMinimized] = useState(false);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [confirmingStop, setConfirmingStop] = useState(false);
 
   useEffect(() => {
     if (!destinationLoc) { setRouteCoordinates([]); return; }
@@ -335,6 +336,25 @@ export default function PassengerHomeScreen() {
   };
 
   const handleCancel = () => { setCancellationReason(''); setCancelModalVisible(true); };
+
+  const handleConfirmStop = async () => {
+    if (!rideId || confirmingStop) return;
+    setConfirmingStop(true);
+    try {
+      const response = await ridesApi.confirmStop(rideId);
+      const nextStatus = response.data?.data?.rideStatus || response.data?.rideStatus || 'awaiting_payment';
+      setServerRideStatus(nextStatus);
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Unable to confirm the destination. Refresh the ride timeline and try again.';
+      Alert.alert('Destination confirmation failed', message);
+      try {
+        const current = (await ridesApi.getRideStatus(rideId)).data;
+        if (current?.rideStatus) setServerRideStatus(current.rideStatus);
+      } catch { /* Keep the current timeline when refresh is unavailable. */ }
+    } finally {
+      setConfirmingStop(false);
+    }
+  };
 
   const handleMapPress = async (e: any) => {
     if (rideState === "idle" || rideState === "estimating") {
@@ -755,7 +775,7 @@ export default function PassengerHomeScreen() {
                  </View>
 
                  {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) await ridesApi.confirmStart(rideId); }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
-                 {serverRideStatus === 'stop_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) { await ridesApi.confirmStop(rideId); setServerRideStatus('awaiting_payment'); } }}><Text style={s.primaryBtnText}>Confirm Destination Reached</Text></TouchableOpacity>}
+                 {serverRideStatus === 'stop_requested' && <TouchableOpacity disabled={confirmingStop} style={[s.primaryBtn, { marginTop: 18, opacity: confirmingStop ? .6 : 1 }]} onPress={() => void handleConfirmStop()}><Text style={s.primaryBtnText}>{confirmingStop ? 'Confirming…' : 'Confirm Destination Reached'}</Text></TouchableOpacity>}
                  {serverRideStatus === 'awaiting_payment' && <View style={[s.whiteCard, { marginTop: 18 }]}><Text style={s.cardTitle}>Wallet payment confirmed</Text><Text style={s.cardSub}>{offer.toLocaleString()} RWF was settled securely through your MOTA Wallet.</Text></View>}
 
                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
