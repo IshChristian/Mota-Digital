@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from "react-native-maps";
 import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
 import { driverApi, ridesApi } from "@/services/api";
@@ -19,7 +18,6 @@ export default function ActiveRideScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { rideId } = useLocalSearchParams();
-  const mapRef = useRef<MapView>(null);
 
   const [rideState, setRideState] = useState<RideState>("approaching");
   const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>('openstreetmap');
@@ -110,19 +108,6 @@ export default function ActiveRideScreen() {
     return () => clearInterval(interval);
   }, [rideId]);
 
-  // Fit map bounds to show route
-  useEffect(() => {
-    if (mapRef.current) {
-      const markers = [
-        driverPos,
-        rideState === "in_progress" ? destPos : passengerPos
-      ];
-      mapRef.current.fitToCoordinates(markers, {
-        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-        animated: true,
-      });
-    }
-  }, [driverPos, passengerPos, destPos, rideState]);
 
   const handleArrival = async () => {
     setLoading(true);
@@ -202,60 +187,6 @@ export default function ActiveRideScreen() {
 
       {/* Real Map View with Directions for Motor Driver */}
       <View style={s.mapContainer}>
-        <MapView
-          key={mapProvider}
-          ref={mapRef}
-          style={s.map}
-          provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
-          mapType="standard"
-          initialRegion={{
-            latitude: driverPos.latitude,
-            longitude: driverPos.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }}
-          loadingEnabled
-          loadingBackgroundColor="#E5E7EB"
-          loadingIndicatorColor={colors.primary}
-          showsCompass
-          showsUserLocation
-          onMapReady={() => setMapReady(true)}
-          onMapLoaded={() => setMapReady(true)}
-        >
-          {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={1} opacity={1} /> : null}
-          {/* Driver Location Marker */}
-          <Marker coordinate={driverPos} title="You (Motor Driver)">
-            <View style={s.driverMarker}>
-              <Text style={{ fontSize: 20 }}>🏍️</Text>
-            </View>
-          </Marker>
-
-          {/* Passenger Pickup Marker */}
-          {(rideState === "approaching" || rideState === "arrived") && (
-            <Marker coordinate={passengerPos} title="Pickup Location" description={rideData.pickup}>
-              <View style={s.passengerMarker}>
-                <Feather name="user" size={16} color="#fff" />
-              </View>
-            </Marker>
-          )}
-
-          {/* Destination Marker */}
-          {rideState === "in_progress" && (
-            <Marker coordinate={destPos} title="Destination" description={rideData.destination}>
-              <View style={s.destMarker}>
-                <Feather name="flag" size={16} color="#fff" />
-              </View>
-            </Marker>
-          )}
-
-          {/* Map Directions Polyline */}
-          <Polyline
-            coordinates={[driverPos, rideState === "in_progress" ? destPos : passengerPos]}
-            strokeColor={colors.primary}
-            strokeWidth={4}
-            lineDashPattern={[0]}
-          />
-        </MapView>
         {mapProvider === 'openstreetmap' ? (
           <OpenStreetMapView
             center={driverPos}

@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi } from "@/services/api";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
@@ -411,86 +410,6 @@ export default function PassengerHomeScreen() {
   return (
     <View style={s.container}>
       {/* 1. Map View */}
-      <MapView
-        key={mapProvider}
-        provider={mapProvider === 'google' ? PROVIDER_GOOGLE : undefined}
-        mapType="standard"
-        style={s.map}
-        initialRegion={{
-          latitude: pickupLoc.latitude,
-          longitude: pickupLoc.longitude,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }}
-        loadingEnabled
-        loadingBackgroundColor="#E5E7EB"
-        loadingIndicatorColor={colors.primary}
-        moveOnMarkerPress={false}
-        showsCompass
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        onMapReady={() => { setMapReady(true); setMapError(null); }}
-        onMapLoaded={() => { setMapReady(true); setMapError(null); }}
-        onPress={handleMapPress}
-        onPoiClick={handlePoiClick}
-      >
-        {mapProvider === 'openstreetmap' ? <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" minimumZ={1} maximumZ={19} tileSize={256} flipY={false} zIndex={1} opacity={1} /> : null}
-        {/* Destination Marker */}
-        {destinationLoc && (
-          <Marker coordinate={destinationLoc}>
-            <View style={s.destMarker}>
-              <Feather name="map-pin" size={28} color={colors.primary} />
-            </View>
-          </Marker>
-        )}
-
-        {/* Search Result Markers on Map */}
-        {searchResults.map((item, idx) => (
-          <Marker
-            key={`sr-${idx}`}
-            coordinate={{ latitude: parseFloat(item.lat), longitude: parseFloat(item.lon) }}
-            onPress={() => handleSelectPlace(item)}
-          >
-            <View style={s.searchResultMarker}>
-              <Feather name="tag" size={20} color="#fff" />
-            </View>
-          </Marker>
-        ))}
-
-        {/* Directions Polyline */}
-        {routeCoordinates.length > 1 ? <Polyline coordinates={routeCoordinates} strokeWidth={5} strokeColor={colors.primary} /> : null}
-
-        {/* Driver in Progress Marker */}
-        {rideState === "accepted" ? (
-          <Marker coordinate={{ latitude: driverPos.lat, longitude: driverPos.lng }}>
-            <View style={s.scooterMarker}>
-              <View style={s.scooterMarkerCircle}>
-                <Text style={{fontSize: 16}}>🏍️</Text>
-              </View>
-              <View style={s.scooterMarkerTriangle} />
-            </View>
-          </Marker>
-        ) : (
-          /* Available Drivers */
-          !destinationLoc && availableMotors.map((motor) => (
-            <Marker key={motor.id} coordinate={{ latitude: motor.lat, longitude: motor.lng }} onPress={() => handleMotorPress(motor)}>
-              <View style={s.scooterMarker}>
-                <View style={s.scooterMarkerCircle}>
-                  <Text style={{fontSize: 16}}>🏍️</Text>
-                </View>
-                <View style={s.scooterMarkerTriangle} />
-              </View>
-            </Marker>
-          ))
-        )}
-
-        {/* User Location Marker */}
-        <Marker coordinate={pickupLoc} anchor={{x: 0.5, y: 0.5}}>
-          <View style={s.userMarkerHalo}>
-            <View style={s.userMarkerDot} />
-          </View>
-        </Marker>
-      </MapView>
       {mapProvider === 'openstreetmap' ? (
         <OpenStreetMapView
           center={pickupLoc}
