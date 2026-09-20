@@ -199,7 +199,7 @@ export default function ActiveRideScreen() {
           <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={driverPos} destination={rideState === 'in_progress' ? destPos : passengerPos} route={[driverPos, rideState === 'in_progress' ? destPos : passengerPos]} drivers={[{ ...driverPos, label: 'Driver' }]} onReady={() => setMapReady(true)} onError={setError} />
         ) : null}
 
-        {!mapReady ? <View pointerEvents="none" style={s.mapLoading}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
+        {!mapReady ? <View style={[s.mapLoading, { pointerEvents: 'none' }]}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
         <View style={s.mapServerSwitch}>
           <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('openstreetmap'); }} style={[s.serverButton, mapProvider === 'openstreetmap' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>Server 1</Text><Text style={[s.serverCaption, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>OpenMap</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('google'); }} style={[s.serverButton, mapProvider === 'google' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'google' && s.serverButtonTextActive]}>Server 2</Text><Text style={[s.serverCaption, mapProvider === 'google' && s.serverButtonTextActive]}>Google</Text></TouchableOpacity>

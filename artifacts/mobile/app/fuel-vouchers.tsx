@@ -500,8 +500,7 @@ export default function FuelVouchersScreen() {
       {/* ── Confetti Overlay ────────────────────────────────────────────── */}
       {confettiVisible && (
         <Animated.View
-          style={[s.confettiOverlay, { opacity: Animated.multiply(confettiAnim, Animated.subtract(new Animated.Value(1.5), confettiAnim)) }]}
-          pointerEvents="none"
+          style={[s.confettiOverlay, { opacity: Animated.multiply(confettiAnim, Animated.subtract(new Animated.Value(1.5), confettiAnim)), pointerEvents: 'none' }]}
         >
           {Array.from({ length: 30 }).map((_, i) => (
             <Animated.Text
