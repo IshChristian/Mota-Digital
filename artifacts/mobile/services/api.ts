@@ -228,6 +228,18 @@ export const realtimeApi = {
     api.get('/realtime/nearby-drivers', { params: { lat, lng, radius } }),
 };
 
+export type KycStatus = 'draft' | 'submitted' | 'approved' | 'correction' | 'rejected' | 'not_submitted';
+export const kycApi = {
+  getMine: () => api.get('/kyc/me'),
+  submitMine: (data: Record<string, string>) => api.put('/kyc/me', data),
+};
+
+export const driverFinanceApi = {
+  getSummary: () => api.get('/driver-finance/summary'),
+  getTransactions: (params?: { limit?: number; type?: string; before?: string }) =>
+    api.get('/driver-finance/transactions', { params }),
+};
+
 // ─── Payments (Paypack) ──────────────────────────────────────────────────────
 export const paymentApi = {
   /** Request ride payment from passenger via Paypack */
