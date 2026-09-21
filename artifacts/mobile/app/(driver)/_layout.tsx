@@ -243,6 +243,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
         }}
       />
+      <Tabs.Screen name="finance" options={{ href: null }} />
+      <Tabs.Screen name="kyc" options={{ href: null }} />
     </Tabs>
     
     <RideRequestModal
