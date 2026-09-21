@@ -31,8 +31,8 @@ export default function ConfirmPhoneScreen() {
   const [error, setError] = useState("");
 
   const logoSource = isDark
-    ? require("@/assets/images/logo-light.png")
-    : require("@/assets/images/logo-dark.png");
+    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
 
   const handleSendOtp = async () => {
     if (!phone) {

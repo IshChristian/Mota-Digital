@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import axios from 'axios';
-import { usersApi, algorithmApi, driverApi } from '../services/api';
+import { usersApi, algorithmApi, driverApi, authApi } from '../services/api';
 import {
   clearSensitiveSession,
   getSensitiveJson,
@@ -199,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    await authApi.logout().catch((error) => console.warn('Unable to revoke remote session', error));
     await unregisterPushNotifications().catch((error) => console.warn('Unable to unregister push token', error));
     await clearSensitiveSession();
     setToken(null);

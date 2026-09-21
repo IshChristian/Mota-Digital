@@ -28,6 +28,7 @@ export default function PassengerProfileScreen() {
     { icon: "shield" as const, label: "Safety", onPress: () => router.push('/(passenger)/profile/safety' as any) },
     { icon: "credit-card" as const, label: "Payment Methods", onPress: () => router.push('/(passenger)/profile/payment-methods' as any) },
     { icon: "bell" as const, label: "Notifications", onPress: () => router.push('/notifications' as any) },
+    { icon: "lock" as const, label: "Security & Account", onPress: () => router.push('/security' as any) },
     { icon: "help-circle" as const, label: "Help & Support", onPress: () => router.push('/(passenger)/profile/support' as any) },
     { icon: "info" as const, label: "About MOTA", onPress: () => router.push('/(passenger)/profile/about' as any) },
   ];

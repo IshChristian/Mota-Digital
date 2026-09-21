@@ -43,6 +43,8 @@ export const authApi = {
   setup2FA: () => api.post('/auth/2fa/setup'),
   verify2FA: (data: { userId: string; token: string }) => api.post('/auth/2fa/verify', data),
   logout: () => api.post('/auth/logout'),
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
 // ─── Admin (Registration Approvals) ────────────────────────────────────────
@@ -189,6 +191,11 @@ export const usersApi = {
   getMe: () => api.get('/users/me'),
   updateMe: (data: { firstName?: string; lastName?: string; phone?: string; emergencyContactName?: string; emergencyContactPhone?: string; preferredPayment?: 'CASH' | 'MOMO' | 'CARD' }) =>
     api.put('/users/me', data),
+  changePassword: (currentPassword: string, newPassword: string) => api.post('/users/me/change-password', { currentPassword, newPassword }),
+  exportMyData: () => api.get('/users/me/export'),
+  requestContactChange: (type: 'phone' | 'email', value: string) => api.post('/users/me/contact-change/request', { type, value }),
+  verifyContactChange: (otp: string) => api.post('/users/me/contact-change/verify', { otp }),
+  deleteAccount: (password: string) => api.delete('/users/account', { data: { password } }),
   /**
    * Upload avatar via backend multipart endpoint.
    * The backend handles storage and returns the updated user with profileImage URL.

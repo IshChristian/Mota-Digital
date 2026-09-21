@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ScrollView } from "react-native";
+import { Image, StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,7 +40,13 @@ export default function GuestMapScreen() {
       <View style={s.mapArea}>
         <View style={[s.mapOverlay, { paddingTop: insets.top + 16 }]}>
           <View style={s.header}>
-            <Text style={s.logoText}>MOTA</Text>
+            <Image
+              source={isDark
+                ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
+                : require("@/assets/images/official-mota-black-logo-removebg-preview.png")}
+              style={s.logoImage}
+              resizeMode="contain"
+            />
             <TouchableOpacity onPress={toggleTheme} style={s.menuBtn}>
               <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textPrimary} />
             </TouchableOpacity>
@@ -155,7 +161,7 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   mapArea: { flex: 1, backgroundColor: isDark ? "#1f2937" : "#e5e7eb" },
   mapOverlay: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 20 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  logoText: { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.textPrimary, letterSpacing: 1 },
+  logoImage: { width: 112, height: 34 },
   menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.backgroundCard, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.backgroundCard, borderRadius: 12, paddingHorizontal: 16, height: 54, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
   searchInput: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", color: colors.textPrimary },
