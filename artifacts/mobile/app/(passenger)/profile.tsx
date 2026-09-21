@@ -24,6 +24,7 @@ export default function PassengerProfileScreen() {
   const menuItems = [
     { icon: "credit-card" as const, label: "Wallet", onPress: () => router.push('/(passenger)/wallet' as any) },
     { icon: "user" as const, label: "Personal Information", onPress: () => router.push('/(passenger)/profile/personal-info' as any) },
+    { icon: "check-circle" as const, label: "Passenger Verification", onPress: () => router.push('/(passenger)/profile/kyc' as any) },
     { icon: "shield" as const, label: "Safety", onPress: () => router.push('/(passenger)/profile/safety' as any) },
     { icon: "credit-card" as const, label: "Payment Methods", onPress: () => router.push('/(passenger)/profile/payment-methods' as any) },
     { icon: "bell" as const, label: "Notifications", onPress: () => router.push('/notifications' as any) },
