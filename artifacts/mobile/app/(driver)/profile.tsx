@@ -209,6 +209,14 @@ export default function ProfileScreen() {
         {/* Driver Details */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Driver Details</Text>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/(driver)/finance" as any)}>
+            <View style={s.rowIcon}><Feather name="bar-chart-2" size={18} color={colors.primary} /></View>
+            <Text style={s.rowText}>Driver Finance</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/(driver)/kyc" as any)}>
+            <View style={s.rowIcon}><Feather name="shield" size={18} color={colors.primary} /></View>
+            <Text style={s.rowText}>Driver Verification</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
           <TouchableOpacity style={s.row} onPress={() => router.push("/profile/vehicle-info")}>
             <View style={s.rowIcon}>
               <Feather name="truck" size={18} color={colors.primary} />
