@@ -13,8 +13,8 @@ export default function WelcomeScreen() {
   const { colors, isDark } = useTheme();
 
   const logoSource = isDark
-    ? require("@/assets/images/logo-light.png")
-    : require("@/assets/images/logo-dark.png");
+    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
 
   const handleSelectRole = (role: "driver" | "passenger") => {
     router.push({

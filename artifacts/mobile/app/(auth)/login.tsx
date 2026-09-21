@@ -34,8 +34,8 @@ export default function LoginScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
 
   const logoSource = isDark
-    ? require("@/assets/images/logo-light.png")
-    : require("@/assets/images/logo-dark.png");
+    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
 
   const handleLogin = async () => {
     if (!identifier || !password) {
@@ -195,6 +195,10 @@ export default function LoginScreen() {
             ) : (
               <Text style={s.buttonText}>{t("login")}</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 12 }} onPress={() => router.push('/(auth)/forgot-password' as any)}>
+            <Text style={s.link}>Forgot password?</Text>
           </TouchableOpacity>
 
           <View style={s.footer}>

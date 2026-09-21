@@ -10,6 +10,7 @@ import {
   Share,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -142,7 +143,11 @@ export default function CardScreen() {
           <View style={[styles.cardGlow, { backgroundColor: tierColor }]} />
 
           <View style={styles.cardHeader}>
-            <Text style={styles.logo}>MOTA</Text>
+            <Image
+              source={require("@/assets/images/official-mota-white-logo-removebg-preview.png")}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
             <View style={[styles.tierBadge, { backgroundColor: tierColor + "33", borderColor: tierColor }]}>
               <Text style={[styles.tierBadgeText, { color: tierColor }]}>{tier.toUpperCase()}</Text>
             </View>
@@ -462,12 +467,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  logo: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-    letterSpacing: 4,
-  },
+  brandLogo: { width: 112, height: 38 },
   tierBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,

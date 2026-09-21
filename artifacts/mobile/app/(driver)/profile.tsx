@@ -217,6 +217,10 @@ export default function ProfileScreen() {
             <View style={s.rowIcon}><Feather name="shield" size={18} color={colors.primary} /></View>
             <Text style={s.rowText}>Driver Verification</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
+          <TouchableOpacity style={s.row} onPress={() => router.push("/security" as any)}>
+            <View style={s.rowIcon}><Feather name="lock" size={18} color={colors.primary} /></View>
+            <Text style={s.rowText}>Security & Account</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
           <TouchableOpacity style={s.row} onPress={() => router.push("/profile/vehicle-info")}>
             <View style={s.rowIcon}>
               <Feather name="truck" size={18} color={colors.primary} />
