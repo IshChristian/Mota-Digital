@@ -1,274 +1,349 @@
-import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Modal } from "react-native";
-import { useTheme } from "@/context/ThemeContext";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Metric, StatusPill } from "@/components/driver/DriverUI";
 
 type RideRequest = {
-  id: string;
-  pickup: {
-    address: string;
-    distanceKm?: number;
-  };
-  destination: {
-    address: string;
-    distanceKm?: number;
-  };
-  offeredFare: number;
-  expiresInSeconds?: number;
+  id?: string;
+  _id?: string;
+  pickup?: { address?: string; name?: string; distanceKm?: number } | string;
+  destination?:
+    | { address?: string; name?: string; distanceKm?: number }
+    | string;
+  offeredFare?: number;
+  fare?: number;
   passengers?: number;
   scheduledTime?: string;
   scheduledDate?: string;
+  estimatedDistanceKm?: number;
+  estimatedDurationMin?: number;
 };
 
 interface RideRequestModalProps {
   request: RideRequest | null;
-  onAccept: (id: string) => void;
-  onDecline: (id: string) => void;
+  onAccept: (id: string) => Promise<void> | void;
+  onDecline: (id: string) => Promise<void> | void;
 }
 
-export function RideRequestModal({ request, onAccept, onDecline }: RideRequestModalProps) {
-  const { colors, isDark } = useTheme();
-  if (!request) return null;
+function place(value: RideRequest["pickup"], fallback: string) {
+  if (typeof value === "string") return value;
+  return value?.name || value?.address || fallback;
+}
 
-  const pickupAddr = typeof request.pickup === 'string' ? request.pickup : (request.pickup?.address || 'Pickup Location');
-  const destAddr = typeof request.destination === 'string' ? request.destination : (request.destination?.address || 'Destination Location');
-  const pickupDist = request.pickup?.distanceKm ?? 0.5;
-  const tripDist = request.destination?.distanceKm ?? 3.2;
-  const passengersCount = request.passengers || 1;
-  const scheduled = request.scheduledTime ? `${request.scheduledDate || ''} ${request.scheduledTime}`.trim() : 'Immediate (Now)';
+export function RideRequestModal({
+  request,
+  onAccept,
+  onDecline,
+}: RideRequestModalProps) {
+  const { colors } = useTheme();
+  const [action, setAction] = useState<"accept" | "decline" | null>(null);
+
+  useEffect(() => setAction(null), [request]);
+
+  if (!request) return null;
+  const rideId = request.id || request._id;
+  const pickup = place(request.pickup, "Pickup location");
+  const destination = place(request.destination, "Destination");
+  const tripDistance =
+    request.estimatedDistanceKm ??
+    (typeof request.destination === "object"
+      ? request.destination?.distanceKm
+      : undefined);
+  const pickupDistance =
+    typeof request.pickup === "object" ? request.pickup?.distanceKm : undefined;
+  const scheduled = request.scheduledTime
+    ? `${request.scheduledDate || ""} ${request.scheduledTime}`.trim()
+    : "As soon as possible";
+
+  const submit = async (next: "accept" | "decline") => {
+    if (!rideId || action) return;
+    setAction(next);
+    try {
+      await (next === "accept" ? onAccept(rideId) : onDecline(rideId));
+    } finally {
+      setAction(null);
+    }
+  };
 
   return (
-    <Modal visible={!!request} transparent animationType="slide">
-      <View style={styles(colors, isDark).overlay}>
-        <View style={styles(colors, isDark).modalContent}>
-          <View style={styles(colors, isDark).header}>
-            <Feather name="bell" size={20} color="#E63946" />
-            <Text style={styles(colors, isDark).headerText}>NEW MOTA RIDE REQUEST</Text>
-          </View>
-
-          <View style={styles(colors, isDark).detailsContainer}>
-            <View style={styles(colors, isDark).detailRow}>
-              <View style={styles(colors, isDark).labelContainer}>
-                <Feather name="map-pin" size={14} color={colors.textSecondary} />
-                <Text style={styles(colors, isDark).labelText}>Passenger Location (Pickup)</Text>
+    <Modal visible transparent animationType="slide" statusBarTranslucent>
+      <View style={styles.overlay}>
+        <View
+          style={[styles.sheet, { backgroundColor: colors.backgroundCard }]}
+        >
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+          >
+            <View style={styles.titleRow}>
+              <View>
+                <StatusPill label="New ride request" tone="warning" />
+                <Text style={[styles.title, { color: colors.textPrimary }]}>
+                  Review before accepting
+                </Text>
               </View>
-              <Text style={styles(colors, isDark).valueText}>{pickupAddr}</Text>
-            </View>
-
-            <View style={styles(colors, isDark).detailRow}>
-              <View style={styles(colors, isDark).labelContainer}>
-                <Feather name="flag" size={14} color={colors.textSecondary} />
-                <Text style={styles(colors, isDark).labelText}>Destination (Going to)</Text>
-              </View>
-              <Text style={styles(colors, isDark).valueText}>{destAddr}</Text>
-            </View>
-            
-            <View style={styles(colors, isDark).divider} />
-
-            <View style={styles(colors, isDark).statsRow}>
-              <View style={styles(colors, isDark).statBox}>
-                <Feather name="users" size={14} color={colors.primary} style={{ marginBottom: 2 }} />
-                <Text style={styles(colors, isDark).statLabel}>Passengers</Text>
-                <Text style={styles(colors, isDark).statValue}>{passengersCount} Person(s)</Text>
-              </View>
-              <View style={styles(colors, isDark).statBox}>
-                <Feather name="clock" size={14} color={colors.primary} style={{ marginBottom: 2 }} />
-                <Text style={styles(colors, isDark).statLabel}>Requested Time</Text>
-                <Text style={styles(colors, isDark).statValue}>{scheduled}</Text>
+              <View
+                style={[
+                  styles.bell,
+                  { backgroundColor: `${colors.primary}18` },
+                ]}
+              >
+                <Feather name="bell" size={22} color={colors.primary} />
               </View>
             </View>
 
-            <View style={styles(colors, isDark).statsRow}>
-              <View style={styles(colors, isDark).statBox}>
-                <Text style={styles(colors, isDark).statLabel}>Pickup dist</Text>
-                <Text style={styles(colors, isDark).statValue}>{pickupDist.toFixed(1)} km</Text>
-              </View>
-              <View style={styles(colors, isDark).statBox}>
-                <Text style={styles(colors, isDark).statLabel}>Trip dist</Text>
-                <Text style={styles(colors, isDark).statValue}>{tripDist.toFixed(1)} km</Text>
+            <View
+              style={[
+                styles.routeCard,
+                { backgroundColor: colors.backgroundElevated },
+              ]}
+            >
+              <View style={styles.route}>
+                <View style={styles.rail}>
+                  <View
+                    style={[styles.dot, { backgroundColor: colors.primary }]}
+                  />
+                  <View
+                    style={[styles.line, { backgroundColor: colors.border }]}
+                  />
+                  <View
+                    style={[styles.dot, { backgroundColor: colors.success }]}
+                  />
+                </View>
+                <View style={styles.routeCopy}>
+                  <View>
+                    <Text
+                      style={[styles.label, { color: colors.textSecondary }]}
+                    >
+                      PICKUP
+                    </Text>
+                    <Text style={[styles.place, { color: colors.textPrimary }]}>
+                      {pickup}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text
+                      style={[styles.label, { color: colors.textSecondary }]}
+                    >
+                      DESTINATION
+                    </Text>
+                    <Text style={[styles.place, { color: colors.textPrimary }]}>
+                      {destination}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
 
-            <View style={styles(colors, isDark).offerBox}>
-              <Text style={styles(colors, isDark).offerLabel}>Total Ride Fare</Text>
-              <Text style={styles(colors, isDark).offerAmount}>
-                {(request.offeredFare || 0).toLocaleString()} RWF
+            <View style={styles.metrics}>
+              <Metric
+                label="To pickup"
+                value={
+                  pickupDistance === undefined
+                    ? "—"
+                    : `${pickupDistance.toFixed(1)} km`
+                }
+                icon="navigation"
+              />
+              <Metric
+                label="Trip"
+                value={
+                  tripDistance === undefined
+                    ? "—"
+                    : `${Number(tripDistance).toFixed(1)} km`
+                }
+                icon="map"
+              />
+              <Metric
+                label="Passengers"
+                value={String(request.passengers || 1)}
+                icon="users"
+              />
+            </View>
+
+            <View style={[styles.schedule, { borderColor: colors.border }]}>
+              <Feather name="clock" size={18} color={colors.primary} />
+              <View>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  REQUESTED TIME
+                </Text>
+                <Text
+                  style={[styles.scheduleValue, { color: colors.textPrimary }]}
+                >
+                  {scheduled}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.fareCard,
+                {
+                  backgroundColor: `${colors.success}16`,
+                  borderColor: `${colors.success}35`,
+                },
+              ]}
+            >
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>
+                Passenger offer
+              </Text>
+              <Text style={[styles.fare, { color: colors.success }]}>
+                {Number(
+                  request.offeredFare ?? request.fare ?? 0,
+                ).toLocaleString()}{" "}
+                RWF
               </Text>
             </View>
 
-            <View style={styles(colors, isDark).timerBox}>
-              <Text style={styles(colors, isDark).timerLabel}>This request stays available until it is accepted or explicitly cancelled.</Text>
-            </View>
-          </View>
-
-          <View style={styles(colors, isDark).actions}>
-            <TouchableOpacity 
-              style={[styles(colors, isDark).button, styles(colors, isDark).declineBtn]}
-              onPress={() => onDecline(request.id)}
-            >
-              <Text style={styles(colors, isDark).declineBtnText}>DECLINE</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles(colors, isDark).button, styles(colors, isDark).acceptBtn]}
-              onPress={() => onAccept(request.id)}
-            >
-              <Feather name="check-circle" size={18} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles(colors, isDark).acceptBtnText}>
-                PICK RIDE (ACCEPT)
+            {!rideId ? (
+              <Text style={[styles.error, { color: colors.error }]}>
+                This request is missing its ride identifier. Refresh requests
+                before continuing.
               </Text>
-            </TouchableOpacity>
-          </View>
+            ) : null}
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!rideId || action !== null}
+                onPress={() => void submit("decline")}
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: colors.backgroundElevated,
+                    opacity: !rideId || action ? 0.55 : 1,
+                  },
+                ]}
+              >
+                {action === "decline" ? (
+                  <ActivityIndicator color={colors.textPrimary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.secondaryText,
+                      { color: colors.textPrimary },
+                    ]}
+                  >
+                    Decline
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                disabled={!rideId || action !== null}
+                onPress={() => void submit("accept")}
+                style={[
+                  styles.button,
+                  styles.accept,
+                  {
+                    backgroundColor: colors.primary,
+                    opacity: !rideId || action ? 0.55 : 1,
+                  },
+                ]}
+              >
+                {action === "accept" ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="check" size={18} color="#fff" />
+                    <Text style={styles.acceptText}>Accept ride</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
   );
 }
 
-const styles = (colors: any, isDark: boolean) => StyleSheet.create({
+const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     justifyContent: "flex-end",
   },
-  modalContent: {
-    backgroundColor: colors.backgroundCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 20,
+  sheet: {
+    maxHeight: "91%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 10,
   },
-  header: {
+  handle: { width: 46, height: 5, borderRadius: 3, alignSelf: "center" },
+  content: { padding: 20, paddingBottom: 36, gap: 18 },
+  titleRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  title: { fontFamily: "Inter_700Bold", fontSize: 24, marginTop: 9 },
+  bell: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginBottom: 20,
   },
-  headerText: {
-    color: "#E63946",
+  routeCard: { borderRadius: 20, padding: 17 },
+  route: { flexDirection: "row", gap: 14 },
+  rail: { width: 12, alignItems: "center", paddingVertical: 5 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  line: { width: 2, flex: 1, minHeight: 42 },
+  routeCopy: { flex: 1, gap: 22 },
+  label: {
     fontFamily: "Inter_700Bold",
-    fontSize: 16,
-    letterSpacing: 1,
-  },
-  detailsContainer: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-  },
-  detailRow: {
-    marginBottom: 12,
-  },
-  labelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    fontSize: 10,
+    letterSpacing: 0.8,
     marginBottom: 4,
   },
-  labelText: {
-    color: colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-  },
-  valueText: {
-    color: colors.textPrimary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 16,
-    marginLeft: 20,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 16,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
-    padding: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  statLabel: {
-    color: colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontFamily: "Inter_700Bold",
-    fontSize: 14,
-  },
-  offerBox: {
-    backgroundColor: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.08)",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
+  place: { fontFamily: "Inter_600SemiBold", fontSize: 15, lineHeight: 21 },
+  metrics: { flexDirection: "row", gap: 12 },
+  schedule: {
     borderWidth: 1,
-    borderColor: isDark ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.3)",
-    marginBottom: 16,
-  },
-  offerLabel: {
-    color: colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  offerAmount: {
-    color: "#10B981",
-    fontFamily: "Inter_700Bold",
-    fontSize: 24,
-  },
-  timerBox: {
-    alignItems: "center",
-  },
-  timerLabel: {
-    color: colors.textSecondary,
-    fontFamily: "Inter_500Medium",
-    fontSize: 12,
-  },
-  timerText: {
-    color: colors.textPrimary,
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-    marginTop: 2,
-  },
-  actions: {
+    borderRadius: 16,
+    padding: 14,
     flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
+  scheduleValue: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  fareCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 17,
+    alignItems: "center",
+  },
+  fareLabel: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  fare: { fontFamily: "Inter_700Bold", fontSize: 27, marginTop: 4 },
+  error: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  actions: { flexDirection: "row", gap: 12 },
   button: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
+    minHeight: 54,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  declineBtn: {
-    backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-  },
-  declineBtnText: {
-    color: colors.textSecondary,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-  },
-  acceptBtn: {
-    backgroundColor: colors.primary,
-  },
-  acceptBtnText: {
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
+  accept: { flex: 1.5 },
+  secondaryText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  acceptText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
 });

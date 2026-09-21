@@ -1,277 +1,278 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
   StyleSheet,
   Text,
-  View,
-  FlatList,
   TouchableOpacity,
-  ActivityIndicator,
+  View,
 } from "react-native";
-import { useRouter as useExpoRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { driverApi } from "@/services/api";
-import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  DriverButton,
+  DriverCard,
+  DriverHeader,
+  DriverScreen,
+  EmptyState,
+  StatusPill,
+} from "@/components/driver/DriverUI";
 
-export default function RidesScreen() {
-  const t = useT();
-  const router = useExpoRouter();
-  const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
+function locationLabel(value: any, fallback: string) {
+  if (typeof value === "string" && value.trim()) return value;
+  return value?.name || value?.address || fallback;
+}
+
+export default function DriverRidesScreen() {
+  const router = useRouter();
+  const { colors } = useTheme();
   const [tab, setTab] = useState<"today" | "history">("today");
-
-  const s = styles(colors, isDark);
-
-  const { data, refetch, isLoading, isFetching } = useQuery({
-    queryKey: ["rides", tab],
+  const query = useQuery({
+    queryKey: ["driver-rides"],
     queryFn: async () => {
-      const res = await driverApi.getRides(1);
-      return res.data?.rides || [];
+      const response = await driverApi.getRides(1);
+      const payload =
+        response.data?.rides ?? response.data?.data ?? response.data;
+      return Array.isArray(payload) ? payload : [];
     },
+    retry: 2,
   });
 
-  const renderRide = ({ item }: { item: any }) => (
-    <View style={s.rideCard}>
-      <View style={s.rideHeader}>
-        <View style={s.badge}>
-          <Text style={s.badgeText}>{item.paymentMethod || "CASH"}</Text>
-        </View>
-        <Text style={s.rideDate}>
-          {new Date(item.createdAt || Date.now()).toLocaleDateString()}
-        </Text>
-      </View>
-
-      <View style={s.locations}>
-        <View style={s.locationItem}>
-          <Feather name="map-pin" size={16} color={colors.primary} />
-          <Text style={s.locationText} numberOfLines={1}>
-            {item.pickupLocation}
-          </Text>
-        </View>
-        <View style={s.connector} />
-        <View style={s.locationItem}>
-          <Feather name="navigation" size={16} color={colors.success} />
-          <Text style={s.locationText} numberOfLines={1}>
-            {item.dropoffLocation}
-          </Text>
-        </View>
-      </View>
-
-      <View style={s.rideFooter}>
-        <Text style={s.distance}>{item.distance || 0} km</Text>
-        <Text style={s.fare}>{(item.fare || 0).toLocaleString()} RWF</Text>
-      </View>
-    </View>
-  );
+  const rides = useMemo(() => {
+    const rows = query.data ?? [];
+    if (tab === "history") return rows;
+    const today = new Date();
+    return rows.filter((ride: any) => {
+      const date = new Date(ride.createdAt);
+      return (
+        date.getFullYear() === today.getFullYear() &&
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+      );
+    });
+  }, [query.data, tab]);
 
   return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
-      <View style={s.header}>
-        <Text style={s.title}>{t("rides")}</Text>
-        <TouchableOpacity
-          style={s.addButton}
-          onPress={() => router.push("/log-ride")}
-        >
-          <Feather name="plus" size={20} color="#fff" />
-          <Text style={s.addButtonText}>{t("log_ride")}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={s.tabs}>
-        <TouchableOpacity
-          style={[s.tab, tab === "today" && s.activeTab]}
-          onPress={() => setTab("today")}
-        >
-          <Text style={[s.tabText, { color: tab === "today" ? colors.textPrimary : colors.textSecondary }]}>
-            {t("today")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.tab, tab === "history" && s.activeTab]}
-          onPress={() => setTab("history")}
-        >
-          <Text style={[s.tabText, { color: tab === "history" ? colors.textPrimary : colors.textSecondary }]}>
-            {t("history")}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {isLoading ? (
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={data}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-          renderItem={renderRide}
-          contentContainerStyle={s.listContent}
-          refreshing={isFetching}
-          onRefresh={refetch}
-          ListEmptyComponent={
-            <View style={s.emptyState}>
-              <Feather name="map" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
-              <Text style={s.emptyTitle}>No rides found</Text>
-              <Text style={s.emptyText}>
-                You haven't logged any rides {tab === "today" ? "today" : "yet"}.
-              </Text>
+    <DriverScreen>
+      <FlatList
+        data={rides}
+        keyExtractor={(item: any, index) =>
+          String(item._id ?? item.id ?? `ride-${index}`)
+        }
+        contentContainerStyle={styles.content}
+        refreshing={query.isRefetching}
+        onRefresh={() => query.refetch()}
+        ListHeaderComponent={
+          <View style={styles.headerContent}>
+            <DriverHeader
+              back
+              title="Your rides"
+              subtitle="Review completed, cancelled, and active ride activity."
+            />
+            <View
+              style={[
+                styles.tabs,
+                { backgroundColor: colors.backgroundElevated },
+              ]}
+            >
+              {(["today", "history"] as const).map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: tab === value }}
+                  onPress={() => setTab(value)}
+                  style={[
+                    styles.tab,
+                    tab === value && { backgroundColor: colors.backgroundCard },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color:
+                          tab === value
+                            ? colors.textPrimary
+                            : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {value === "today" ? "Today" : "All history"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          }
-        />
-      )}
-    </View>
+            {query.isError ? (
+              <DriverCard>
+                <Text style={[styles.errorTitle, { color: colors.error }]}>
+                  Could not load rides
+                </Text>
+                <Text
+                  style={[styles.errorCopy, { color: colors.textSecondary }]}
+                >
+                  Pull down to retry.
+                </Text>
+              </DriverCard>
+            ) : null}
+          </View>
+        }
+        ListEmptyComponent={
+          query.isLoading ? (
+            <ActivityIndicator
+              style={styles.loader}
+              size="large"
+              color={colors.primary}
+            />
+          ) : (
+            <EmptyState
+              icon="map"
+              title={tab === "today" ? "No rides today" : "No ride history"}
+              message="Completed and cancelled rides will appear here with route and payment details."
+              action={
+                <DriverButton
+                  label="View nearby requests"
+                  icon="radio"
+                  onPress={() => router.push("/(driver)/requests")}
+                />
+              }
+            />
+          )
+        }
+        renderItem={({ item }: any) => {
+          const status = String(
+            item.rideStatus ?? item.status ?? "completed",
+          ).replaceAll("_", " ");
+          const statusTone =
+            status === "completed"
+              ? "success"
+              : status.includes("cancel")
+                ? "danger"
+                : "warning";
+          return (
+            <DriverCard style={styles.card}>
+              <View style={styles.cardTop}>
+                <StatusPill label={status} tone={statusTone as any} />
+                <Text style={[styles.date, { color: colors.textSecondary }]}>
+                  {new Date(item.createdAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </Text>
+              </View>
+              <View style={styles.route}>
+                <View style={styles.routeRail}>
+                  <View
+                    style={[styles.dot, { backgroundColor: colors.primary }]}
+                  />
+                  <View
+                    style={[styles.line, { backgroundColor: colors.border }]}
+                  />
+                  <View
+                    style={[styles.dot, { backgroundColor: colors.success }]}
+                  />
+                </View>
+                <View style={styles.routeCopy}>
+                  <Text
+                    style={[styles.location, { color: colors.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {locationLabel(
+                      item.pickupLocation ?? item.pickup,
+                      "Pickup location",
+                    )}
+                  </Text>
+                  <Text
+                    style={[styles.location, { color: colors.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {locationLabel(
+                      item.dropoffLocation ?? item.destination,
+                      "Destination",
+                    )}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.footer, { borderTopColor: colors.border }]}>
+                <View>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    DISTANCE
+                  </Text>
+                  <Text
+                    style={[styles.metaValue, { color: colors.textPrimary }]}
+                  >
+                    {Number(item.distance || 0).toFixed(1)} km
+                  </Text>
+                </View>
+                <View style={styles.fareBlock}>
+                  <Text
+                    style={[styles.metaLabel, { color: colors.textSecondary }]}
+                  >
+                    FARE
+                  </Text>
+                  <Text style={[styles.fare, { color: colors.textPrimary }]}>
+                    {Number(
+                      item.fare || item.offeredFare || 0,
+                    ).toLocaleString()}{" "}
+                    RWF
+                  </Text>
+                </View>
+              </View>
+            </DriverCard>
+          );
+        }}
+      />
+    </DriverScreen>
   );
 }
 
-const styles = (colors: any, isDark: boolean) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 16,
-    },
-    title: {
-      fontSize: 28,
-      fontFamily: "Inter_700Bold",
-      color: colors.textPrimary,
-    },
-    addButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.primary,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 20,
-      gap: 8,
-    },
-    addButtonText: {
-      color: "#fff",
-      fontFamily: "Inter_600SemiBold",
-      fontSize: 14,
-    },
-    tabs: {
-      flexDirection: "row",
-      paddingHorizontal: 16,
-      marginBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    tab: {
-      paddingVertical: 12,
-      marginRight: 24,
-      borderBottomWidth: 2,
-      borderBottomColor: "transparent",
-    },
-    activeTab: {
-      borderBottomColor: colors.primary,
-    },
-    tabText: {
-      fontSize: 16,
-      fontFamily: "Inter_500Medium",
-    },
-    listContent: {
-      padding: 16,
-      paddingBottom: 100,
-    },
-    rideCard: {
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      backgroundColor: colors.backgroundCard,
-      borderColor: colors.border,
-    },
-    rideHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 16,
-    },
-    badge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)",
-    },
-    badgeText: {
-      fontSize: 10,
-      fontFamily: "Inter_600SemiBold",
-      letterSpacing: 1,
-      color: colors.textPrimary,
-    },
-    rideDate: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      color: colors.textSecondary,
-    },
-    locations: {
-      marginBottom: 16,
-      paddingLeft: 4,
-    },
-    locationItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    locationText: {
-      fontSize: 16,
-      fontFamily: "Inter_500Medium",
-      flex: 1,
-      color: colors.textPrimary,
-    },
-    connector: {
-      width: 2,
-      height: 16,
-      marginLeft: 7,
-      marginVertical: 4,
-      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
-    },
-    rideFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)",
-    },
-    distance: {
-      fontSize: 14,
-      fontFamily: "Inter_500Medium",
-      color: colors.textSecondary,
-    },
-    fare: {
-      color: colors.primary,
-      fontSize: 18,
-      fontFamily: "Inter_700Bold",
-    },
-    center: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    emptyState: {
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 60,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontFamily: "Inter_600SemiBold",
-      marginBottom: 8,
-      color: colors.textPrimary,
-    },
-    emptyText: {
-      fontSize: 14,
-      fontFamily: "Inter_400Regular",
-      color: colors.textSecondary,
-    },
-  });
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 40 },
+  headerContent: { gap: 18, marginBottom: 14 },
+  tabs: { flexDirection: "row", borderRadius: 16, padding: 4 },
+  tab: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  card: { gap: 17, marginBottom: 12 },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  date: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  route: { flexDirection: "row", gap: 13 },
+  routeRail: { width: 12, alignItems: "center", paddingVertical: 5 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  line: { width: 2, flex: 1, minHeight: 36 },
+  routeCopy: { flex: 1, gap: 24 },
+  location: { fontFamily: "Inter_600SemiBold", fontSize: 14, lineHeight: 19 },
+  footer: {
+    borderTopWidth: 1,
+    paddingTop: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  metaLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 9,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  metaValue: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  fareBlock: { alignItems: "flex-end" },
+  fare: { fontFamily: "Inter_700Bold", fontSize: 18 },
+  loader: { marginTop: 60 },
+  errorTitle: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  errorCopy: { marginTop: 5 },
+});
