@@ -2,7 +2,14 @@ import { BlurView } from "expo-blur";
 import { Tabs, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, View, Text, Alert, TouchableOpacity } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  View,
+  Text,
+  Alert,
+  TouchableOpacity,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EventSource from "react-native-sse";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
@@ -22,8 +29,12 @@ export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const { token, user } = useAuth();
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
-  const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "off">("granted");
-  const requestSound = useAudioPlayer('https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav');
+  const [locationStatus, setLocationStatus] = useState<
+    "granted" | "denied" | "off"
+  >("granted");
+  const requestSound = useAudioPlayer(
+    "https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav",
+  );
 
   // Play loud notification sound when incoming request arrives
   const playLoudNotificationSound = async () => {
@@ -31,7 +42,7 @@ export default function TabLayout() {
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: false,
-        interruptionMode: 'duckOthers',
+        interruptionMode: "duckOthers",
       });
       requestSound.volume = 1;
       await requestSound.seekTo(0);
@@ -47,40 +58,42 @@ export default function TabLayout() {
     (async () => {
       try {
         let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setLocationStatus('denied');
+        if (status !== "granted") {
+          setLocationStatus("denied");
           Alert.alert(
             "GPS Permission Required",
-            "Please allow GPS location access to receive nearby passenger ride requests."
+            "Please allow GPS location access to receive nearby passenger ride requests.",
           );
           return;
         }
 
         let isServicesEnabled = await Location.hasServicesEnabledAsync();
         if (!isServicesEnabled) {
-          setLocationStatus('off');
+          setLocationStatus("off");
           Alert.alert(
             "GPS Services Disabled",
-            "Please turn on location services on your device to receive ride requests."
+            "Please turn on location services on your device to receive ride requests.",
           );
         } else {
-          setLocationStatus('granted');
+          setLocationStatus("granted");
         }
 
         sub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, distanceInterval: 10 },
           (loc) => {
-            setLocationStatus('granted');
-            try {
-              driverApi.updateLocation({
+            setLocationStatus("granted");
+            void driverApi
+              .updateLocation({
                 latitude: loc.coords.latitude,
                 longitude: loc.coords.longitude,
-              });
-            } catch (e) {}
-          }
+              })
+              .catch((error) =>
+                console.warn("Unable to update driver location", error),
+              );
+          },
         );
       } catch (err) {
-        setLocationStatus('off');
+        setLocationStatus("off");
       }
     })();
 
@@ -93,9 +106,9 @@ export default function TabLayout() {
     if (!token) return;
 
     // Use SSE for real-time ride requests
-    const url = `${API_BASE_URL.replace('/api', '')}/realtime/driver-events`;
+    const url = `${API_BASE_URL.replace("/api", "")}/realtime/driver-events`;
     const es = new EventSource(url, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     // @ts-ignore
@@ -127,13 +140,32 @@ export default function TabLayout() {
       console.error("Failed to accept ride", e);
       try {
         const current = (await ridesApi.getRideStatus(id)).data;
-        if (current?.driverId && ['accepted','approaching','arrived','start_requested','in_progress','stop_requested','awaiting_payment'].includes(current.rideStatus)) {
+        if (
+          current?.driverId &&
+          [
+            "accepted",
+            "approaching",
+            "arrived",
+            "start_requested",
+            "in_progress",
+            "stop_requested",
+            "awaiting_payment",
+          ].includes(current.rideStatus)
+        ) {
           setIncomingRequest(null);
-          router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
+          router.push({
+            pathname: "/active-ride",
+            params: { rideId: id },
+          } as any);
           return;
         }
-      } catch { /* Use the API message below. */ }
-      alert(e?.response?.data?.message || "Unable to accept this ride. Refresh to see its current timeline.");
+      } catch {
+        /* Use the API message below. */
+      }
+      alert(
+        e?.response?.data?.message ||
+          "Unable to accept this ride. Refresh to see its current timeline.",
+      );
       setIncomingRequest(null);
     }
   };
@@ -152,20 +184,34 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1 }}>
       {locationStatus !== "granted" && (
-        <View style={{
-          backgroundColor: '#F59E0B',
-          paddingTop: safeAreaInsets.top + 6,
-          paddingBottom: 8,
-          paddingHorizontal: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 999
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <Feather name="alert-triangle" size={18} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#fff', fontSize: 12, fontFamily: 'Inter_600SemiBold', flex: 1 }}>
-              {locationStatus === 'denied'
+        <View
+          style={{
+            backgroundColor: "#F59E0B",
+            paddingTop: safeAreaInsets.top + 6,
+            paddingBottom: 8,
+            paddingHorizontal: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            zIndex: 999,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+            <Feather
+              name="alert-triangle"
+              size={18}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 12,
+                fontFamily: "Inter_600SemiBold",
+                flex: 1,
+              }}
+            >
+              {locationStatus === "denied"
                 ? "GPS permission denied. Enable location permissions to receive rides."
                 : "GPS Location is turned off. Turn on location for real-time ride matching."}
             </Text>
@@ -173,85 +219,83 @@ export default function TabLayout() {
         </View>
       )}
       <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.tabBarBg,
-          borderTopWidth: 1,
-          borderTopColor: colors.tabBarBorder,
-          elevation: 0,
-          paddingBottom: safeAreaInsets.bottom,
-          ...(isWeb ? { height: 80 } : {}),
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={90}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.tabBarBg }]}
-            />
-          ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t("dashboard"),
-          tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+        screenOptions={{
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
+          headerShown: false,
+          tabBarStyle: {
+            position: "absolute",
+            backgroundColor: isIOS ? "transparent" : colors.tabBarBg,
+            borderTopWidth: 1,
+            borderTopColor: colors.tabBarBorder,
+            elevation: 0,
+            paddingBottom: safeAreaInsets.bottom,
+            ...(isWeb ? { height: 80 } : {}),
+          },
+          tabBarBackground: () =>
+            isIOS ? (
+              <BlurView
+                intensity={90}
+                tint={isDark ? "dark" : "light"}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: colors.tabBarBg },
+                ]}
+              />
+            ),
         }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: t("dashboard"),
+            tabBarIcon: ({ color }) => (
+              <Feather name="home" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="requests"
+          options={{
+            title: "Requests",
+            tabBarIcon: ({ color }) => (
+              <Feather name="radio" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            title: t("wallet"),
+            tabBarIcon: ({ color }) => (
+              <Feather name="credit-card" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: t("profile"),
+            tabBarIcon: ({ color }) => (
+              <Feather name="user" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen name="finance" options={{ href: null }} />
+        <Tabs.Screen name="kyc" options={{ href: null }} />
+        <Tabs.Screen name="rides" options={{ href: null }} />
+        <Tabs.Screen name="savings" options={{ href: null }} />
+      </Tabs>
+
+      <RideRequestModal
+        request={incomingRequest}
+        onAccept={handleAcceptRide}
+        onDecline={handleDeclineRide}
       />
-      <Tabs.Screen
-        name="requests"
-        options={{
-          title: "Requests",
-          tabBarIcon: ({ color }) => <Feather name="radio" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="rides"
-        options={{
-          title: t("rides"),
-          href: "/log-ride",
-          tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="wallet"
-        options={{
-          title: t("wallet"),
-          tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="savings"
-        options={{
-          title: "Savings",
-          tabBarIcon: ({ color }) => <Feather name="pocket" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: t("profile"),
-          tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen name="finance" options={{ href: null }} />
-      <Tabs.Screen name="kyc" options={{ href: null }} />
-    </Tabs>
-    
-    <RideRequestModal
-      request={incomingRequest}
-      onAccept={handleAcceptRide}
-      onDecline={handleDeclineRide}
-    />
     </View>
   );
 }

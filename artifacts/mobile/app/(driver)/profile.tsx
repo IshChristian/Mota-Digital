@@ -20,6 +20,7 @@ import { useT, useI18n } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { usersApi } from "@/services/api";
 import { AppAlert } from "@/components/AppAlert";
+import { DriverHeader } from "@/components/driver/DriverUI";
 
 export default function ProfileScreen() {
   const { user, logout, login, token } = useAuth();
@@ -51,7 +52,7 @@ export default function ProfileScreen() {
     onConfirm?: () => void,
     onCancel?: () => void,
     confirmText?: string,
-    cancelText?: string
+    cancelText?: string,
   ) => {
     setAlert({
       visible: true,
@@ -79,19 +80,24 @@ export default function ProfileScreen() {
       logout,
       undefined,
       "Logout",
-      "Cancel"
+      "Cancel",
     );
   };
 
   const handleAvatarChange = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        showAlert("warning", "Permission needed", "Please allow access to your photo library.");
+        showAlert(
+          "warning",
+          "Permission needed",
+          "Please allow access to your photo library.",
+        );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -105,12 +111,23 @@ export default function ProfileScreen() {
       if (user && token) {
         await login(token, {
           ...user,
-          profileImage: updated.profileImage || (updated as any).user?.profileImage || asset.uri,
+          profileImage:
+            updated.profileImage ||
+            (updated as any).user?.profileImage ||
+            asset.uri,
         });
       }
-      showAlert("success", "Photo Updated", "Your profile photo has been updated.");
+      showAlert(
+        "success",
+        "Photo Updated",
+        "Your profile photo has been updated.",
+      );
     } catch (err: any) {
-      showAlert("error", "Upload Failed", err.message || "Could not upload profile photo. Please try again.");
+      showAlert(
+        "error",
+        "Upload Failed",
+        err.message || "Could not upload profile photo. Please try again.",
+      );
     } finally {
       setAvatarUploading(false);
     }
@@ -127,15 +144,29 @@ export default function ProfileScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top, paddingBottom: 100 }]}
+        contentContainerStyle={[
+          s.scroll,
+          { paddingTop: insets.top, paddingBottom: 100 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={s.header}>
-          <Text style={s.title}>{t("profile")}</Text>
-          <TouchableOpacity onPress={toggleTheme} style={s.themeBtn}>
-            <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <DriverHeader
+          title={t("profile")}
+          subtitle="Account, vehicle, verification, and app preferences."
+          action={
+            <TouchableOpacity
+              accessibilityLabel="Change appearance"
+              onPress={toggleTheme}
+              style={s.themeBtn}
+            >
+              <Feather
+                name={isDark ? "sun" : "moon"}
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          }
+        />
 
         {/* Avatar */}
         <View style={s.profileCard}>
@@ -145,7 +176,8 @@ export default function ProfileScreen() {
             ) : (
               <View style={s.avatarPlaceholder}>
                 <Text style={s.avatarText}>
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                  {user?.firstName?.[0]}
+                  {user?.lastName?.[0]}
                 </Text>
               </View>
             )}
@@ -162,22 +194,33 @@ export default function ProfileScreen() {
               )}
             </TouchableOpacity>
           </View>
-          <Text style={s.name}>{user?.firstName} {user?.lastName}</Text>
+          <Text style={s.name}>
+            {user?.firstName} {user?.lastName}
+          </Text>
           <Text style={s.phone}>{user?.phone}</Text>
           <View style={s.badge}>
-            <Text style={s.badgeText}>{user?.role?.toUpperCase() || "DRIVER"}</Text>
+            <Text style={s.badgeText}>
+              {user?.role?.toUpperCase() || "DRIVER"}
+            </Text>
           </View>
         </View>
 
         {/* Account */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Account</Text>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/personal-info")}>
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/profile/personal-info")}
+          >
             <View style={s.rowIcon}>
               <Feather name="user" size={18} color={colors.primary} />
             </View>
             <Text style={s.rowText}>Personal Information</Text>
-            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity style={s.row} onPress={() => setLangModal(true)}>
@@ -191,49 +234,107 @@ export default function ProfileScreen() {
                 {langOptions.find((l) => l.code === language)?.label}
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity style={s.row} onPress={toggleTheme}>
             <View style={s.rowIcon}>
-              <Feather name={isDark ? "moon" : "sun"} size={18} color={colors.primary} />
+              <Feather
+                name={isDark ? "moon" : "sun"}
+                size={18}
+                color={colors.primary}
+              />
             </View>
             <View style={s.rowBody}>
               <Text style={s.rowText}>Appearance</Text>
-              <Text style={s.rowSub}>{isDark ? "Dark Mode" : "Light Mode"}</Text>
+              <Text style={s.rowSub}>
+                {isDark ? "Dark Mode" : "Light Mode"}
+              </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
         {/* Driver Details */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Driver Details</Text>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/(driver)/finance" as any)}>
-            <View style={s.rowIcon}><Feather name="bar-chart-2" size={18} color={colors.primary} /></View>
-            <Text style={s.rowText}>Driver Finance</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/(driver)/finance" as any)}
+          >
+            <View style={s.rowIcon}>
+              <Feather name="bar-chart-2" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Driver Finance</Text>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/(driver)/kyc" as any)}>
-            <View style={s.rowIcon}><Feather name="shield" size={18} color={colors.primary} /></View>
-            <Text style={s.rowText}>Driver Verification</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/(driver)/kyc" as any)}
+          >
+            <View style={s.rowIcon}>
+              <Feather name="shield" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Driver Verification</Text>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/security" as any)}>
-            <View style={s.rowIcon}><Feather name="lock" size={18} color={colors.primary} /></View>
-            <Text style={s.rowText}>Security & Account</Text><Feather name="chevron-right" size={18} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/security" as any)}
+          >
+            <View style={s.rowIcon}>
+              <Feather name="lock" size={18} color={colors.primary} />
+            </View>
+            <Text style={s.rowText}>Security & Account</Text>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/vehicle-info")}>
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/profile/vehicle-info")}
+          >
             <View style={s.rowIcon}>
               <Feather name="truck" size={18} color={colors.primary} />
             </View>
             <Text style={s.rowText}>Vehicle Information</Text>
-            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push("/profile/documents")}>
+          <TouchableOpacity
+            style={s.row}
+            onPress={() => router.push("/profile/documents")}
+          >
             <View style={s.rowIcon}>
               <Feather name="file-text" size={18} color={colors.primary} />
             </View>
             <Text style={s.rowText}>Documents & Permits</Text>
-            <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
@@ -246,7 +347,12 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Language Modal */}
-      <Modal visible={langModal} transparent animationType="slide" onRequestClose={() => setLangModal(false)}>
+      <Modal
+        visible={langModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLangModal(false)}
+      >
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />
@@ -255,11 +361,23 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 key={opt.code}
                 style={[s.langRow, language === opt.code && s.langRowActive]}
-                onPress={() => { setLanguage(opt.code); setLangModal(false); }}
+                onPress={() => {
+                  setLanguage(opt.code);
+                  setLangModal(false);
+                }}
               >
                 <Text style={s.langFlag}>{opt.flag}</Text>
-                <Text style={[s.langLabel, language === opt.code && s.langLabelActive]}>{opt.label}</Text>
-                {language === opt.code && <Feather name="check" size={18} color={colors.primary} />}
+                <Text
+                  style={[
+                    s.langLabel,
+                    language === opt.code && s.langLabelActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {language === opt.code && (
+                  <Feather name="check" size={18} color={colors.primary} />
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -284,10 +402,25 @@ export default function ProfileScreen() {
 const styles = (colors: any) =>
   StyleSheet.create({
     scroll: { paddingHorizontal: 16 },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 16 },
-    title: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 16,
+    },
+    title: {
+      fontSize: 28,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
     themeBtn: { padding: 8 },
-    profileCard: { alignItems: "center", paddingVertical: 28, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 },
+    profileCard: {
+      alignItems: "center",
+      paddingVertical: 28,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      marginBottom: 8,
+    },
     avatarWrap: { position: "relative", marginBottom: 14 },
     avatarImg: { width: 88, height: 88, borderRadius: 44 },
     avatarPlaceholder: {
@@ -312,12 +445,39 @@ const styles = (colors: any) =>
       borderWidth: 2,
       borderColor: colors.background,
     },
-    name: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 4 },
-    phone: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginBottom: 10 },
-    badge: { backgroundColor: colors.backgroundElevated, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-    badgeText: { color: colors.textPrimary, fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1 },
+    name: {
+      fontSize: 22,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    phone: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginBottom: 10,
+    },
+    badge: {
+      backgroundColor: colors.backgroundElevated,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 20,
+    },
+    badgeText: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 1,
+    },
     section: { paddingTop: 20, marginBottom: 4 },
-    sectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.textTertiary, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 },
+    sectionTitle: {
+      fontSize: 12,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 1.2,
+      marginBottom: 12,
+    },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -336,8 +496,18 @@ const styles = (colors: any) =>
       marginRight: 14,
     },
     rowBody: { flex: 1 },
-    rowText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: colors.textPrimary },
-    rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginTop: 2 },
+    rowText: {
+      flex: 1,
+      fontSize: 15,
+      fontFamily: "Inter_500Medium",
+      color: colors.textPrimary,
+    },
+    rowSub: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
     logoutBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -348,10 +518,24 @@ const styles = (colors: any) =>
       borderRadius: 12,
       gap: 8,
     },
-    logoutText: { color: colors.error, fontSize: 15, fontFamily: "Inter_600SemiBold" },
-    version: { textAlign: "center", color: colors.textTertiary, fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 20 },
+    logoutText: {
+      color: colors.error,
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+    },
+    version: {
+      textAlign: "center",
+      color: colors.textTertiary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 11,
+      marginTop: 20,
+    },
     // Language modal
-    modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: "flex-end",
+    },
     modalSheet: {
       backgroundColor: colors.backgroundCard,
       borderTopLeftRadius: 24,
@@ -359,8 +543,20 @@ const styles = (colors: any) =>
       padding: 24,
       paddingBottom: 40,
     },
-    modalHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
-    modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 20 },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: 20,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+      marginBottom: 20,
+    },
     langRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -370,8 +566,16 @@ const styles = (colors: any) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-    langRowActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}10` },
+    langRowActive: {
+      borderColor: colors.primary,
+      backgroundColor: `${colors.primary}10`,
+    },
     langFlag: { fontSize: 24, marginRight: 14 },
-    langLabel: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", color: colors.textPrimary },
+    langLabel: {
+      flex: 1,
+      fontSize: 16,
+      fontFamily: "Inter_500Medium",
+      color: colors.textPrimary,
+    },
     langLabelActive: { color: colors.primary, fontFamily: "Inter_600SemiBold" },
   });

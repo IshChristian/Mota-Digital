@@ -6,6 +6,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Image,
 } from "react-native";
 import { useRouter as useExpoRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,7 +32,8 @@ export default function DashboardScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  const { riskScore, migrationStage, fetchRiskScore, fetchMigrationStage } = useFinanceStore();
+  const { riskScore, migrationStage, fetchRiskScore, fetchMigrationStage } =
+    useFinanceStore();
 
   useEffect(() => {
     fetchRiskScore();
@@ -94,7 +96,7 @@ export default function DashboardScreen() {
   const streakDays = dashData?.streak ?? 0;
   const walletBalance = walletData?.balance ?? dashData?.wallet ?? 0;
   const todayNet = walletData?.today?.net ?? dashData?.daily_earnings ?? 0;
-  
+
   const trophies = dashData?.trophies || [];
   const featuresUnlocked = dashData?.features_unlocked || [];
   const cycleNumber = dashData?.cycle_number ?? 0;
@@ -102,8 +104,7 @@ export default function DashboardScreen() {
   const referrals = dashData?.referrals ?? 0;
   const target = dashData?.target ?? 20;
 
-  const tierColor =
-    (Colors.tier as any)[currentTier] || Colors.tier.bronze;
+  const tierColor = (Colors.tier as any)[currentTier] || Colors.tier.bronze;
 
   const getRiskColor = (grade: string) => {
     if (grade === "A" || grade === "B") return "#10B981"; // Green
@@ -116,8 +117,15 @@ export default function DashboardScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background, paddingHorizontal: 16 }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 100 }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingHorizontal: 16,
+      }}
+      contentContainerStyle={{
+        paddingTop: insets.top + 16,
+        paddingBottom: 100,
+      }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -130,16 +138,37 @@ export default function DashboardScreen() {
       {/* Header */}
       <View style={s.header}>
         <View>
+          <Image
+            source={
+              isDark
+                ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
+                : require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+            }
+            style={s.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={s.greeting}>{getGreeting()},</Text>
           <Text style={s.name}>{user?.firstName || "Driver"}!</Text>
         </View>
         <View style={s.headerActions}>
           {riskScore && (
             <TouchableOpacity
-              style={[s.iconButton, { borderColor: getRiskColor(riskScore.grade) }]}
-              onPress={() => alert(`Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`)}
+              style={[
+                s.iconButton,
+                { borderColor: getRiskColor(riskScore.grade) },
+              ]}
+              onPress={() =>
+                alert(
+                  `Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`,
+                )
+              }
             >
-              <Text style={{ fontFamily: "Inter_700Bold", color: getRiskColor(riskScore.grade) }}>
+              <Text
+                style={{
+                  fontFamily: "Inter_700Bold",
+                  color: getRiskColor(riskScore.grade),
+                }}
+              >
                 {riskScore.grade}
               </Text>
             </TouchableOpacity>
@@ -164,15 +193,25 @@ export default function DashboardScreen() {
       <View style={s.availabilityCard}>
         <View style={s.availabilityHeader}>
           <View style={s.statusIndicatorRow}>
-            <View style={[s.statusDot, { backgroundColor: isOnline ? "#10B981" : "#6B7280" }]} />
+            <View
+              style={[
+                s.statusDot,
+                { backgroundColor: isOnline ? "#10B981" : "#6B7280" },
+              ]}
+            />
             <Text style={s.statusText}>{isOnline ? "ONLINE" : "OFFLINE"}</Text>
           </View>
         </View>
         <Text style={s.availabilityMessage}>
-          {isOnline ? "You're available for rides." : "You won't receive ride requests."}
+          {isOnline
+            ? "You're available for rides."
+            : "You won't receive ride requests."}
         </Text>
         <TouchableOpacity
-          style={[s.toggleBtn, { backgroundColor: isOnline ? "#EF4444" : "#10B981" }]}
+          style={[
+            s.toggleBtn,
+            { backgroundColor: isOnline ? "#EF4444" : "#10B981" },
+          ]}
           onPress={toggleAvailability}
           disabled={toggling}
         >
@@ -186,7 +225,8 @@ export default function DashboardScreen() {
         <View style={s.migrationBanner}>
           <Feather name="star" size={20} color="#FFD700" />
           <Text style={s.migrationText}>
-            Pay for 5 more rides digitally to unlock the Keep Me in Bank savings account!
+            Pay for 5 more rides digitally to unlock the Keep Me in Bank savings
+            account!
           </Text>
         </View>
       )}
@@ -220,8 +260,14 @@ export default function DashboardScreen() {
           </View>
           <View style={s.walletRight}>
             <Text style={s.earningsLabel}>Today's Balance</Text>
-            <Text style={[s.earningsAmount, { color: todayNet >= 0 ? '#10B981' : '#E63946' }]}>
-              {todayNet > 0 ? '+' : ''}{todayNet.toLocaleString()} RWF
+            <Text
+              style={[
+                s.earningsAmount,
+                { color: todayNet >= 0 ? "#10B981" : "#E63946" },
+              ]}
+            >
+              {todayNet > 0 ? "+" : ""}
+              {todayNet.toLocaleString()} RWF
             </Text>
           </View>
         </View>
@@ -234,11 +280,57 @@ export default function DashboardScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.quickActionsContent}
         >
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/log-ride")}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/(driver)/rides" as any)}
+          >
+            <View
+              style={[s.actionIcon, { backgroundColor: `${colors.primary}18` }]}
+            >
+              <Feather name="map" size={24} color={colors.primary} />
+            </View>
+            <Text style={s.actionText}>Ride history</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/(driver)/finance" as any)}
+          >
+            <View
+              style={[s.actionIcon, { backgroundColor: `${colors.success}18` }]}
+            >
+              <Feather name="trending-up" size={24} color={colors.success} />
+            </View>
+            <Text style={s.actionText}>Finance</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/(driver)/savings" as any)}
+          >
             <View
               style={[
                 s.actionIcon,
-                { backgroundColor: isDark ? "rgba(230,57,70,0.18)" : "rgba(230,57,70,0.12)" },
+                { backgroundColor: "rgba(244,162,97,0.16)" },
+              ]}
+            >
+              <Feather name="pocket" size={24} color={Colors.accent} />
+            </View>
+            <Text style={s.actionText}>Savings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/log-ride")}
+          >
+            <View
+              style={[
+                s.actionIcon,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(230,57,70,0.18)"
+                    : "rgba(230,57,70,0.12)",
+                },
               ]}
             >
               <Feather name="plus-circle" size={24} color={colors.primary} />
@@ -246,11 +338,18 @@ export default function DashboardScreen() {
             <Text style={s.actionText}>{t("log_ride")}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/send-money")}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/send-money")}
+          >
             <View
               style={[
                 s.actionIcon,
-                { backgroundColor: isDark ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.12)" },
+                {
+                  backgroundColor: isDark
+                    ? "rgba(16,185,129,0.18)"
+                    : "rgba(16,185,129,0.12)",
+                },
               ]}
             >
               <Feather name="send" size={24} color={colors.success} />
@@ -258,11 +357,18 @@ export default function DashboardScreen() {
             <Text style={s.actionText}>Send</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/leaderboard")}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/leaderboard")}
+          >
             <View
               style={[
                 s.actionIcon,
-                { backgroundColor: isDark ? "rgba(244,162,97,0.18)" : "rgba(244,162,97,0.12)" },
+                {
+                  backgroundColor: isDark
+                    ? "rgba(244,162,97,0.18)"
+                    : "rgba(244,162,97,0.12)",
+                },
               ]}
             >
               <Feather name="bar-chart-2" size={24} color={Colors.accent} />
@@ -270,11 +376,18 @@ export default function DashboardScreen() {
             <Text style={s.actionText}>{t("leaderboard")}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/loans")}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push("/loans")}
+          >
             <View
               style={[
                 s.actionIcon,
-                { backgroundColor: isDark ? "rgba(29,53,87,0.8)" : "rgba(29,53,87,0.12)" },
+                {
+                  backgroundColor: isDark
+                    ? "rgba(29,53,87,0.8)"
+                    : "rgba(29,53,87,0.12)",
+                },
               ]}
             >
               <Feather name="briefcase" size={24} color="#81c3d7" />
@@ -284,11 +397,18 @@ export default function DashboardScreen() {
 
           {/* Fuel Vouchers — Tier 3+ only */}
           {["gold", "platinum", "gorilla"].includes(currentTier) && (
-            <TouchableOpacity style={s.actionBtn} onPress={() => router.push("/fuel-vouchers" as any)}>
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => router.push("/fuel-vouchers" as any)}
+            >
               <View
                 style={[
                   s.actionIcon,
-                  { backgroundColor: isDark ? "rgba(255,215,0,0.18)" : "rgba(255,215,0,0.12)" },
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255,215,0,0.18)"
+                      : "rgba(255,215,0,0.12)",
+                  },
                 ]}
               >
                 <Feather name="zap" size={24} color="#FFD700" />
@@ -302,10 +422,14 @@ export default function DashboardScreen() {
       {/* Stats Grid */}
       <View style={s.statsGrid}>
         <View style={s.statCard}>
-          <Feather name="target" size={20} color={colors.primary} style={s.statIcon} />
+          <Feather
+            name="target"
+            size={20}
+            color={colors.primary}
+            style={s.statIcon}
+          />
           <Text style={s.statValue}>
-            {dailyRides}{" "}
-            <Text style={s.statSubValue}>/ {target}</Text>
+            {dailyRides} <Text style={s.statSubValue}>/ {target}</Text>
           </Text>
           <Text style={s.statLabel}>{t("rides_today")}</Text>
           <View style={s.progressTrack}>
@@ -313,10 +437,7 @@ export default function DashboardScreen() {
               style={[
                 s.progressFill,
                 {
-                  width: `${Math.min(
-                    (dailyRides / target) * 100,
-                    100
-                  )}%`,
+                  width: `${Math.min((dailyRides / target) * 100, 100)}%`,
                 },
               ]}
             />
@@ -324,16 +445,25 @@ export default function DashboardScreen() {
         </View>
 
         <View style={s.statCard}>
-          <Feather name="zap" size={20} color={Colors.accent} style={s.statIcon} />
+          <Feather
+            name="zap"
+            size={20}
+            color={Colors.accent}
+            style={s.statIcon}
+          />
           <Text style={s.statValue}>
-            {streakDays}{" "}
-            <Text style={s.statSubValue}>days</Text>
+            {streakDays} <Text style={s.statSubValue}>days</Text>
           </Text>
           <Text style={s.statLabel}>{t("streak")}</Text>
         </View>
 
         <View style={s.statCard}>
-          <Feather name="calendar" size={20} color={colors.success} style={s.statIcon} />
+          <Feather
+            name="calendar"
+            size={20}
+            color={colors.success}
+            style={s.statIcon}
+          />
           <Text style={s.statValue}>{monthlyRides}</Text>
           <Text style={s.statLabel}>{t("monthly_rides")}</Text>
         </View>
@@ -386,6 +516,7 @@ const styles = (colors: any, isDark: boolean) =>
       alignItems: "center",
       marginBottom: 24,
     },
+    brandLogo: { width: 104, height: 30, marginBottom: 12 },
     greeting: {
       fontSize: 14,
       fontFamily: "Inter_500Medium",

@@ -20,6 +20,7 @@ import { walletApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
+import { DriverHeader } from "@/components/driver/DriverUI";
 
 type ModalType = "cash_in" | "cash_out" | null;
 
@@ -36,7 +37,12 @@ export default function WalletScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const { data: balanceData, isLoading: balLoading, refetch, isFetching } = useQuery({
+  const {
+    data: balanceData,
+    isLoading: balLoading,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ["wallet_balance"],
     queryFn: async () => {
       const res = await walletApi.getBalance();
@@ -78,15 +84,24 @@ export default function WalletScreen() {
     try {
       if (modalType === "cash_in") {
         await walletApi.cashIn({ amount: amt, phone });
-        Alert.alert("Cash In Initiated", "You will receive a MoMo push notification to confirm the payment.");
+        Alert.alert(
+          "Cash In Initiated",
+          "You will receive a MoMo push notification to confirm the payment.",
+        );
       } else {
         await walletApi.cashOut({ amount: amt });
-        Alert.alert("Withdrawal Submitted", "Your withdrawal request has been submitted and is pending admin approval.");
+        Alert.alert(
+          "Withdrawal Submitted",
+          "Your withdrawal request has been submitted and is pending admin approval.",
+        );
       }
       closeModal();
       queryClient.invalidateQueries({ queryKey: ["wallet_balance"] });
     } catch (err: any) {
-      setSubmitError(err.response?.data?.message || "Something went wrong. Please try again.");
+      setSubmitError(
+        err.response?.data?.message ||
+          "Something went wrong. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -94,20 +109,37 @@ export default function WalletScreen() {
 
   const renderTx = ({ item }: { item: any }) => {
     const isCredit = item.type === "cash_in" || item.type === "earning";
-    const icon = item.type === "ride" ? "car" : isCredit ? "arrow-down-left" : "arrow-up-right";
+    const icon =
+      item.type === "ride"
+        ? "car"
+        : isCredit
+          ? "arrow-down-left"
+          : "arrow-up-right";
     const amtColor = isCredit ? colors.success : colors.error;
 
     return (
       <View style={s.txCard}>
-        <View style={[s.txIcon, { backgroundColor: isCredit ? `${colors.success}18` : `${colors.error}10` }]}>
+        <View
+          style={[
+            s.txIcon,
+            {
+              backgroundColor: isCredit
+                ? `${colors.success}18`
+                : `${colors.error}10`,
+            },
+          ]}
+        >
           <Feather name={icon as any} size={20} color={amtColor} />
         </View>
         <View style={s.txInfo}>
           <Text style={s.txTitle}>{item.description || item.type}</Text>
-          <Text style={s.txDate}>{new Date(item.createdAt || Date.now()).toLocaleDateString()}</Text>
+          <Text style={s.txDate}>
+            {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+          </Text>
         </View>
         <Text style={[s.txAmount, { color: amtColor }]}>
-          {isCredit ? "+" : "-"}{Math.abs(item.amount || 0).toLocaleString()}
+          {isCredit ? "+" : "-"}
+          {Math.abs(item.amount || 0).toLocaleString()}
         </Text>
       </View>
     );
@@ -118,7 +150,10 @@ export default function WalletScreen() {
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
       <View style={s.header}>
-        <Text style={s.title}>{t("wallet")}</Text>
+        <DriverHeader
+          title={t("wallet")}
+          subtitle="Manage earnings, deposits, withdrawals, and transaction activity."
+        />
       </View>
 
       <FlatList
@@ -138,21 +173,26 @@ export default function WalletScreen() {
                 <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
               ) : (
                 <>
-                  <Text style={s.balanceAmount}>{balance.toLocaleString()} RWF</Text>
-                  
+                  <Text style={s.balanceAmount}>
+                    {balance.toLocaleString()} RWF
+                  </Text>
+
                   {today && (
                     <View style={s.todayStatsRow}>
                       <View style={s.todayStat}>
                         <Text style={s.todayStatLabel}>Today's Income</Text>
-                        <Text style={[s.todayStatValue, { color: colors.success }]}>
+                        <Text
+                          style={[s.todayStatValue, { color: colors.success }]}
+                        >
                           +{today.income?.toLocaleString()} RWF
                         </Text>
                       </View>
                       <View style={s.todayStatDivider} />
                       <View style={s.todayStat}>
                         <Text style={s.todayStatLabel}>Today's Net</Text>
-                        <Text style={[s.todayStatValue, { color: '#fff' }]}>
-                          {today.net > 0 ? '+' : ''}{today.net?.toLocaleString()} RWF
+                        <Text style={[s.todayStatValue, { color: "#fff" }]}>
+                          {today.net > 0 ? "+" : ""}
+                          {today.net?.toLocaleString()} RWF
                         </Text>
                       </View>
                     </View>
@@ -161,14 +201,20 @@ export default function WalletScreen() {
               )}
 
               <View style={s.actions}>
-                <TouchableOpacity style={s.actionBtn} onPress={() => openModal("cash_in")}>
+                <TouchableOpacity
+                  style={s.actionBtn}
+                  onPress={() => openModal("cash_in")}
+                >
                   <View style={s.iconCircle}>
                     <Feather name="download" size={18} color="#fff" />
                   </View>
                   <Text style={s.actionText}>Cash In</Text>
                 </TouchableOpacity>
                 <View style={s.divider} />
-                <TouchableOpacity style={s.actionBtn} onPress={() => openModal("cash_out")}>
+                <TouchableOpacity
+                  style={s.actionBtn}
+                  onPress={() => openModal("cash_out")}
+                >
                   <View style={s.iconCircle}>
                     <Feather name="upload" size={18} color="#fff" />
                   </View>
@@ -183,7 +229,12 @@ export default function WalletScreen() {
         ListEmptyComponent={
           !isFetching ? (
             <View style={s.emptyState}>
-              <Feather name="file-text" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+              <Feather
+                name="file-text"
+                size={48}
+                color={colors.textSecondary}
+                style={{ marginBottom: 16 }}
+              />
               <Text style={s.emptyTitle}>No transactions yet</Text>
             </View>
           ) : null
@@ -191,15 +242,24 @@ export default function WalletScreen() {
       />
 
       {/* Cash In / Cash Out Modal */}
-      <Modal visible={!!modalType} transparent animationType="slide" onRequestClose={closeModal}>
+      <Modal
+        visible={!!modalType}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
         <View style={s.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <View style={s.modalSheet}>
               <View style={s.modalHandle} />
 
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>
-                  {modalType === "cash_in" ? "💰 Cash In via MoMo" : "📤 Request Withdrawal"}
+                  {modalType === "cash_in"
+                    ? "💰 Cash In via MoMo"
+                    : "📤 Request Withdrawal"}
                 </Text>
                 <TouchableOpacity onPress={closeModal}>
                   <Feather name="x" size={24} color={colors.textSecondary} />
@@ -216,7 +276,12 @@ export default function WalletScreen() {
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>MoMo Phone Number</Text>
                   <View style={s.inputRow}>
-                    <Feather name="phone" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                    <Feather
+                      name="phone"
+                      size={16}
+                      color={colors.textSecondary}
+                      style={{ marginRight: 8 }}
+                    />
                     <TextInput
                       style={s.modalInput}
                       placeholder="+250788123456"
@@ -249,10 +314,18 @@ export default function WalletScreen() {
                 {[1000, 2000, 5000, 10000].map((a) => (
                   <TouchableOpacity
                     key={a}
-                    style={[s.quickAmtBtn, amount === String(a) && s.quickAmtActive]}
+                    style={[
+                      s.quickAmtBtn,
+                      amount === String(a) && s.quickAmtActive,
+                    ]}
                     onPress={() => setAmount(String(a))}
                   >
-                    <Text style={[s.quickAmtText, amount === String(a) && s.quickAmtTextActive]}>
+                    <Text
+                      style={[
+                        s.quickAmtText,
+                        amount === String(a) && s.quickAmtTextActive,
+                      ]}
+                    >
                       {(a / 1000).toFixed(0)}K
                     </Text>
                   </TouchableOpacity>
@@ -266,12 +339,18 @@ export default function WalletScreen() {
                 </View>
               ) : null}
 
-              <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={submitting}>
+              <TouchableOpacity
+                style={s.submitBtn}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
                 {submitting ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={s.submitText}>
-                    {modalType === "cash_in" ? "Initiate Cash In" : "Submit Withdrawal"}
+                    {modalType === "cash_in"
+                      ? "Initiate Cash In"
+                      : "Submit Withdrawal"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -287,7 +366,11 @@ const styles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: 16, paddingVertical: 16 },
-    title: { fontSize: 28, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    title: {
+      fontSize: 28,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
     listContent: { paddingHorizontal: 16, paddingBottom: 100 },
     balanceCard: {
       backgroundColor: colors.secondary,
@@ -295,13 +378,39 @@ const styles = (colors: any) =>
       padding: 24,
       marginBottom: 28,
     },
-    balanceLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)", marginBottom: 6 },
-    balanceAmount: { fontSize: 36, fontFamily: "Inter_700Bold", color: "#fff", marginBottom: 16 },
-    todayStatsRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(0,0,0,0.15)", borderRadius: 12, padding: 12, marginBottom: 24 },
+    balanceLabel: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: "rgba(255,255,255,0.7)",
+      marginBottom: 6,
+    },
+    balanceAmount: {
+      fontSize: 36,
+      fontFamily: "Inter_700Bold",
+      color: "#fff",
+      marginBottom: 16,
+    },
+    todayStatsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.15)",
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 24,
+    },
     todayStat: { flex: 1, alignItems: "center" },
-    todayStatLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)", marginBottom: 4 },
+    todayStatLabel: {
+      fontSize: 11,
+      fontFamily: "Inter_500Medium",
+      color: "rgba(255,255,255,0.7)",
+      marginBottom: 4,
+    },
     todayStatValue: { fontSize: 15, fontFamily: "Inter_700Bold" },
-    todayStatDivider: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.2)" },
+    todayStatDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: "rgba(255,255,255,0.2)",
+    },
     actions: { flexDirection: "row", alignItems: "center" },
     actionBtn: {
       flex: 1,
@@ -320,16 +429,52 @@ const styles = (colors: any) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    actionText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 },
-    sectionTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: colors.textPrimary, marginBottom: 16 },
-    txCard: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-    txIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", marginRight: 14 },
+    actionText: {
+      color: "#fff",
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 14,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    txCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    txIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+    },
     txInfo: { flex: 1 },
-    txTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.textPrimary, marginBottom: 3, textTransform: "capitalize" },
-    txDate: { fontSize: 12, fontFamily: "Inter_400Regular", color: colors.textSecondary },
+    txTitle: {
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+      marginBottom: 3,
+      textTransform: "capitalize",
+    },
+    txDate: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+    },
     txAmount: { fontSize: 16, fontFamily: "Inter_700Bold" },
     emptyState: { alignItems: "center", paddingVertical: 48 },
-    emptyTitle: { fontSize: 15, fontFamily: "Inter_500Medium", color: colors.textSecondary },
+    emptyTitle: {
+      fontSize: 15,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+    },
     // Modal
     modalOverlay: {
       flex: 1,
@@ -357,10 +502,25 @@ const styles = (colors: any) =>
       justifyContent: "space-between",
       marginBottom: 12,
     },
-    modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.textPrimary },
-    modalDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginBottom: 20, lineHeight: 20 },
+    modalTitle: {
+      fontSize: 18,
+      fontFamily: "Inter_700Bold",
+      color: colors.textPrimary,
+    },
+    modalDesc: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 20,
+    },
     inputGroup: { marginBottom: 16 },
-    inputLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.textSecondary, marginBottom: 8 },
+    inputLabel: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
     inputRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -370,7 +530,12 @@ const styles = (colors: any) =>
       borderWidth: 1,
       borderColor: colors.inputBorder,
     },
-    currencyLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.textSecondary, marginRight: 8 },
+    currencyLabel: {
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textSecondary,
+      marginRight: 8,
+    },
     modalInput: {
       flex: 1,
       padding: 14,
@@ -388,11 +553,37 @@ const styles = (colors: any) =>
       alignItems: "center",
       backgroundColor: colors.backgroundElevated,
     },
-    quickAmtActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}18` },
-    quickAmtText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.textSecondary },
+    quickAmtActive: {
+      borderColor: colors.primary,
+      backgroundColor: `${colors.primary}18`,
+    },
+    quickAmtText: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textSecondary,
+    },
     quickAmtTextActive: { color: colors.primary },
-    errorRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
-    errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.error },
-    submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: "center" },
-    submitText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+    errorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 12,
+    },
+    errorText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      color: colors.error,
+    },
+    submitBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+    },
+    submitText: {
+      color: "#fff",
+      fontSize: 16,
+      fontFamily: "Inter_600SemiBold",
+    },
   });
