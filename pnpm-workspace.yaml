@@ -27,11 +27,7 @@
 # ============================================================================
 minimumReleaseAge: 1440
 
-packages:
-  - artifacts/*
-  - lib/*
-  - lib/integrations/*
-  - scripts
+packages: []
 
 catalog:
   '@tailwindcss/vite': ^4.1.14
