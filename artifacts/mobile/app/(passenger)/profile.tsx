@@ -56,8 +56,18 @@ export default function PassengerProfileScreen() {
     },
     {
       icon: "bell" as const,
-      label: "Notifications",
-      onPress: () => router.push("/notifications" as any),
+      label: "Notification Settings",
+      onPress: () => router.push("/notification-settings" as any),
+    },
+    {
+      icon: "alert-circle" as const,
+      label: "Ride Disputes & Refunds",
+      onPress: () => router.push("/ride-disputes" as any),
+    },
+    {
+      icon: "smartphone" as const,
+      label: "Active Sessions",
+      onPress: () => router.push("/sessions" as any),
     },
     {
       icon: "lock" as const,
