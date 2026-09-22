@@ -275,11 +275,8 @@ export default function DashboardScreen() {
 
       {/* Quick Actions */}
       <View style={s.quickActionsWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.quickActionsContent}
-        >
+        <Text style={s.quickActionsTitle}>Driver services</Text>
+        <View style={s.quickActionsContent}>
           <TouchableOpacity
             style={s.actionBtn}
             onPress={() => router.push("/(driver)/rides" as any)}
@@ -416,7 +413,7 @@ export default function DashboardScreen() {
               <Text style={s.actionText}>Fuel</Text>
             </TouchableOpacity>
           )}
-        </ScrollView>
+        </View>
       </View>
 
       {/* Stats Grid */}
@@ -672,16 +669,33 @@ const styles = (colors: any, isDark: boolean) =>
     },
     quickActionsWrapper: {
       marginBottom: 24,
-      marginHorizontal: -16,
+      padding: 16,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.backgroundCard,
+    },
+    quickActionsTitle: {
+      color: colors.textPrimary,
+      fontFamily: "Inter_700Bold",
+      fontSize: 17,
+      marginBottom: 16,
     },
     quickActionsContent: {
-      paddingHorizontal: 16,
       flexDirection: "row",
-      gap: 20,
+      flexWrap: "wrap",
+      gap: 12,
     },
     actionBtn: {
       alignItems: "center",
-      width: 76,
+      justifyContent: "center",
+      width: "30%",
+      minWidth: 88,
+      minHeight: 106,
+      paddingHorizontal: 6,
+      paddingVertical: 10,
+      borderRadius: 16,
+      backgroundColor: colors.backgroundElevated,
     },
     actionIcon: {
       width: 56,

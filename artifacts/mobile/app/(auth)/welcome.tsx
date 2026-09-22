@@ -1,5 +1,12 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Image,
+  Dimensions,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
@@ -26,7 +33,12 @@ export default function WelcomeScreen() {
   const s = styles(colors, isDark);
 
   return (
-    <View style={[s.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+    <View
+      style={[
+        s.container,
+        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
+      ]}
+    >
       <View style={s.header}>
         <Image source={logoSource} style={s.logo} resizeMode="contain" />
         <Text style={s.tagline}>Move. Earn. Grow.</Text>
@@ -46,7 +58,9 @@ export default function WelcomeScreen() {
           </View>
           <View style={s.optionTextContent}>
             <Text style={s.optionTitle}>Rider / Passenger</Text>
-            <Text style={s.optionDesc}>Get fast, safe rides with fair price negotiation.</Text>
+            <Text style={s.optionDesc}>
+              Get fast, safe rides with fair price negotiation.
+            </Text>
           </View>
           <Feather name="arrow-right" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -62,17 +76,38 @@ export default function WelcomeScreen() {
           </View>
           <View style={s.optionTextContent}>
             <Text style={s.optionTitle}>Moto Driver</Text>
-            <Text style={s.optionDesc}>Earn more, manage loans, get fuel vouchers.</Text>
+            <Text style={s.optionDesc}>
+              Earn more, manage loans, get fuel vouchers.
+            </Text>
           </View>
           <Feather name="arrow-right" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>Already have an account? </Text>
-        <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-          <Text style={s.loginLink}>Log In</Text>
-        </TouchableOpacity>
+        <View style={{ alignItems: "center", gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/(auth)/onboarding" as any)}
+          >
+            <Text style={s.loginLink}>See how MOTA works</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: "row" }}>
+            <Text style={s.footerText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
+              <Text style={s.loginLink}>Log In</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: "row", gap: 18 }}>
+            <TouchableOpacity
+              onPress={() => router.push("/info/privacy" as any)}
+            >
+              <Text style={s.footerText}>Privacy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/info/terms" as any)}>
+              <Text style={s.footerText}>Terms</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
