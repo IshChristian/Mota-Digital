@@ -336,6 +336,29 @@ export default function ProfileScreen() {
               color={colors.textSecondary}
             />
           </TouchableOpacity>
+          {[
+            ["search", "Search MOTA", "/search"],
+            ["help-circle", "Help Center", "/info/help"],
+            ["phone", "Contact MOTA", "/info/contact"],
+            ["shield", "Privacy Policy", "/info/privacy"],
+            ["file-text", "Terms of Service", "/info/terms"],
+          ].map(([icon, label, path]) => (
+            <TouchableOpacity
+              key={label}
+              style={s.row}
+              onPress={() => router.push(path as any)}
+            >
+              <View style={s.rowIcon}>
+                <Feather name={icon as any} size={18} color={colors.primary} />
+              </View>
+              <Text style={s.rowText}>{label}</Text>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ))}
         </View>
 
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
