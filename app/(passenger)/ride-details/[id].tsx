@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { ridesApi } from '@/services/api';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
+import { PassengerHeader } from '@/components/passenger/PassengerUI';
 
 const cancellable = ['requested', 'searching', 'accepted', 'approaching', 'arrived'];
 
@@ -36,7 +37,7 @@ export default function PassengerRideDetailsScreen() {
 
   const locationName = (value: any, fallback: string) => value?.name || value?.address || fallback;
   return <View style={[styles.page, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-    <View style={styles.header}><TouchableOpacity onPress={() => router.back()}><Feather name="arrow-left" size={24} color={colors.textPrimary} /></TouchableOpacity><Text style={[styles.title, { color: colors.textPrimary }]}>Ride details</Text><View style={{ width: 24 }} /></View>
+    <View style={{ paddingHorizontal: 16 }}><PassengerHeader title="Ride details" subtitle="Route, driver, fare, and feedback" /></View>
     <ScrollView contentContainerStyle={styles.content}>
       {pickupCoordinate && <View style={styles.map}><OpenStreetMapView center={pickupCoordinate} destination={destinationCoordinate} route={destinationCoordinate ? [pickupCoordinate, destinationCoordinate] : []} drivers={driver?.lastLocation ? [{ latitude: driver.lastLocation.latitude, longitude: driver.lastLocation.longitude, label: 'Driver' }] : []} /></View>}
       <View style={[styles.card, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>

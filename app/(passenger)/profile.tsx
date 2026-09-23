@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "expo-router";
+import { PassengerCard, PassengerHeader, PassengerMenuRow } from "@/components/passenger/PassengerUI";
 
 export default function PassengerProfileScreen() {
   const router = useRouter();
@@ -108,22 +109,14 @@ export default function PassengerProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Top Header */}
-      <View style={[s.topNav, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={s.navTitle}>Profile</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
       <ScrollView
         style={s.container}
-        contentContainerStyle={{ paddingBottom: 120, paddingTop: 20 }}
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: insets.top + 12 }}
         showsVerticalScrollIndicator={false}
       >
+        <PassengerHeader title="Profile" subtitle="Account, safety, payments, and support" />
         {/* Profile Header */}
-        <View style={s.profileHeader}>
+        <PassengerCard style={s.profileHeader}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>
               {(user?.firstName?.[0] || "M").toUpperCase()}
@@ -133,67 +126,18 @@ export default function PassengerProfileScreen() {
             {user?.firstName} {user?.lastName}
           </Text>
           <Text style={s.phone}>{user?.phone || user?.email}</Text>
-        </View>
+        </PassengerCard>
 
-        {/* Dark Mode Toggle */}
-        <TouchableOpacity style={s.menuItem} onPress={toggleTheme}>
-          <View style={s.menuLeft}>
-            <View style={s.menuIconBox}>
-              <Feather
-                name={isDark ? "sun" : "moon"}
-                size={18}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={s.menuText}>
-              {isDark ? "Light Mode" : "Dark Mode"}
-            </Text>
-          </View>
-          <Feather
-            name="chevron-right"
-            size={20}
-            color={colors.textSecondary}
-          />
-        </TouchableOpacity>
+        <PassengerCard style={{ paddingVertical: 0 }}>
+          <PassengerMenuRow icon={isDark ? "sun" : "moon"} label={isDark ? "Light mode" : "Dark mode"} detail="Change how MOTA looks" onPress={toggleTheme} />
 
         {/* Menu Items */}
         {menuItems.map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            style={s.menuItem}
-            onPress={item.onPress}
-          >
-            <View style={s.menuLeft}>
-              <View style={s.menuIconBox}>
-                <Feather name={item.icon} size={18} color={colors.primary} />
-              </View>
-              <Text style={s.menuText}>{item.label}</Text>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
+          <PassengerMenuRow key={item.label} icon={item.icon} label={item.label} onPress={item.onPress} />
         ))}
 
-        {/* Logout */}
-        <TouchableOpacity
-          style={[s.menuItem, s.logoutItem]}
-          onPress={handleLogout}
-        >
-          <View style={s.menuLeft}>
-            <View
-              style={[
-                s.menuIconBox,
-                { backgroundColor: "rgba(239,68,68,0.1)" },
-              ]}
-            >
-              <Feather name="log-out" size={18} color="#EF4444" />
-            </View>
-            <Text style={[s.menuText, { color: "#EF4444" }]}>Logout</Text>
-          </View>
-        </TouchableOpacity>
+          <PassengerMenuRow icon="log-out" label="Logout" detail="Sign out from this device" onPress={handleLogout} danger />
+        </PassengerCard>
       </ScrollView>
     </View>
   );
@@ -221,7 +165,7 @@ const styles = (colors: any, isDark: boolean) =>
       backgroundColor: colors.background,
       paddingHorizontal: 16,
     },
-    profileHeader: { alignItems: "center", marginBottom: 32, paddingTop: 16 },
+    profileHeader: { alignItems: "center", marginVertical: 20, paddingVertical: 22 },
     avatar: {
       width: 72,
       height: 72,

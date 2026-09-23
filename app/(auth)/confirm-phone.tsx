@@ -18,6 +18,8 @@ import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 export default function ConfirmPhoneScreen() {
   const router = useRouter();
@@ -35,7 +37,8 @@ export default function ConfirmPhoneScreen() {
     : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
 
   const handleSendOtp = async () => {
-    if (!phone) {
+    const normalizedPhone = normalizeRwandaPhone(phone);
+    if (!normalizedPhone) {
       setError("Please enter a valid phone number");
       return;
     }
@@ -43,13 +46,13 @@ export default function ConfirmPhoneScreen() {
     setError("");
     try {
       // Call resend OTP to ensure it actually triggers a new SMS if prompted
-      await authApi.resendOtp({ phone });
+      await authApi.resendOtp({ phone: normalizedPhone });
       
       router.push({
         pathname: "/(auth)/otp",
         params: {
           userId: params.userId,
-          phone,
+          phone: normalizedPhone,
           fromRegister: params.fromRegister,
           email: params.email
         },
@@ -60,7 +63,7 @@ export default function ConfirmPhoneScreen() {
       if (errMsg.includes("already verified") || errMsg.includes("already been verified")) {
         // Cache the verified status and go back to login
         await AsyncStorage.setItem(
-          `verification_cache_${phone}`,
+          `verification_cache_${normalizedPhone}`,
           JSON.stringify({ isVerified: true, updatedAt: new Date().toISOString() })
         );
         router.replace("/(auth)/login");
@@ -100,15 +103,7 @@ export default function ConfirmPhoneScreen() {
 
           <View style={s.inputGroup}>
             <Text style={s.label}>Phone Number</Text>
-            <TextInput
-              style={s.input}
-              placeholder="+250..."
-              placeholderTextColor={colors.textTertiary}
-              value={phone}
-              onChangeText={setPhone}
-              autoCapitalize="none"
-              keyboardType="phone-pad"
-            />
+            <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Phone number to verify" />
           </View>
 
           <TouchableOpacity

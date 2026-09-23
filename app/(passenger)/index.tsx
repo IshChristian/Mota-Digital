@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, FlatList, ScrollView, Modal } from "react-native";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Animated, Dimensions, PanResponder, StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, FlatList, ScrollView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const SHEET_COLLAPSED_OFFSET = Math.min(260, Dimensions.get("window").height * 0.3);
 
 type RideState = "idle" | "estimating" | "negotiating" | "searching" | "accepted";
 
@@ -83,6 +84,44 @@ export default function PassengerHomeScreen() {
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [confirmingStop, setConfirmingStop] = useState(false);
+  const sheetOffset = useRef(new Animated.Value(SHEET_COLLAPSED_OFFSET)).current;
+  const sheetOffsetValue = useRef(SHEET_COLLAPSED_OFFSET);
+  const sheetGestureStart = useRef(SHEET_COLLAPSED_OFFSET);
+
+  useEffect(() => {
+    const listener = sheetOffset.addListener(({ value }) => { sheetOffsetValue.current = value; });
+    return () => sheetOffset.removeListener(listener);
+  }, [sheetOffset]);
+
+  const snapSheet = (expanded: boolean) => {
+    Animated.spring(sheetOffset, {
+      toValue: expanded ? 0 : SHEET_COLLAPSED_OFFSET,
+      useNativeDriver: true,
+      damping: 22,
+      stiffness: 190,
+      mass: 0.8,
+    }).start();
+  };
+
+  const sheetPanResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 6,
+    onPanResponderGrant: () => {
+      sheetOffset.stopAnimation((value) => {
+        sheetOffsetValue.current = value;
+        sheetGestureStart.current = value;
+      });
+    },
+    onPanResponderMove: (_event, gesture) => {
+      const next = Math.max(0, Math.min(SHEET_COLLAPSED_OFFSET, sheetGestureStart.current + gesture.dy));
+      sheetOffset.setValue(next);
+    },
+    onPanResponderRelease: (_event, gesture) => snapSheet(gesture.vy < -0.35 || sheetOffsetValue.current < SHEET_COLLAPSED_OFFSET / 2),
+    onPanResponderTerminate: () => snapSheet(sheetOffsetValue.current < SHEET_COLLAPSED_OFFSET / 2),
+  }), [sheetOffset]);
+
+  useEffect(() => {
+    if (destinationLoc) snapSheet(true);
+  }, [destinationLoc?.latitude, destinationLoc?.longitude]);
 
   useEffect(() => {
     if (!destinationLoc) { setRouteCoordinates([]); return; }
@@ -465,8 +504,8 @@ export default function PassengerHomeScreen() {
       ) : (
         <View style={[s.topOverlay, { top: insets.top + 16, flexDirection: 'column', gap: 8 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <TouchableOpacity style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
-              <Text style={{fontSize: 20}}>👨🏽</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open passenger profile" style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
+              <Image source={isDark ? require("@/assets/images/mota-icon-white.png") : require("@/assets/images/mota-icon-black.png")} resizeMode="contain" style={s.dashboardLogo} />
             </TouchableOpacity>
             <View style={s.locationTopBox}>
               <Feather name="navigation" size={14} color={colors.primary} />
@@ -506,12 +545,15 @@ export default function PassengerHomeScreen() {
       )}
 
       {/* 3. Bottom Sheet */}
-      <View style={s.bottomSheetWrapper}>
+      <Animated.View style={[s.bottomSheetWrapper, { transform: [{ translateY: sheetOffset }] }]}>
         <LinearGradient 
           colors={[colors.primary, isDark ? '#7f1d1d' : '#991b1b']} 
           style={[s.bottomSheetGradient, { paddingBottom: Math.max(insets.bottom, 24) }]}
         >
-          <View style={s.sheetHandle} />
+          <View accessible accessibilityRole="adjustable" accessibilityLabel="Ride request panel. Swipe up to expand or down to minimize." style={s.sheetHandleArea} {...sheetPanResponder.panHandlers}>
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetHint}>Swipe up for ride options · down to view more map</Text>
+          </View>
 
           {rideState === "idle" && (
             <View style={s.idleState}>
@@ -790,7 +832,7 @@ export default function PassengerHomeScreen() {
             </View>
           )}
         </LinearGradient>
-      </View>
+      </Animated.View>
       <Modal transparent visible={cancelModalVisible} animationType="fade" onRequestClose={() => setCancelModalVisible(false)}>
         <View style={s.modalBackdrop}><View style={s.cancelModal}>
           <Text style={s.cardTitle}>{serverRideStatus === 'in_progress' ? 'Cancel and report ride' : 'Cancel ride request'}</Text>
@@ -848,7 +890,8 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   // Top Overlay (Idle)
   topOverlay: { position: 'absolute', left: 20, right: 20, zIndex: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  profilePic: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  profilePic: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.backgroundCard, alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  dashboardLogo: { width: 34, height: 34 },
   locationTopBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   locationTopLabel: { fontSize: 10, fontFamily: 'Inter_500Medium', color: '#6B7280' },
   locationTopText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#111827' },
@@ -866,9 +909,11 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   destMarkerInner: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#111827', borderWidth: 4, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, elevation: 4 },
 
   // Bottom Sheet
-  bottomSheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  bottomSheetGradient: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 16, paddingHorizontal: 20 },
-  sheetHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 2, alignSelf: "center", marginBottom: 24 },
+  bottomSheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '84%', zIndex: 40 },
+  bottomSheetGradient: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 8, paddingHorizontal: 20 },
+  sheetHandleArea: { minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingTop: 5 },
+  sheetHandle: { width: 46, height: 5, backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 3 },
+  sheetHint: { color: 'rgba(255,255,255,0.82)', fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 7, marginBottom: 6 },
   
   idleState: { paddingBottom: 10 },
   greetingText: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#fff', marginBottom: 20 },

@@ -1,2 +1,35 @@
-import { useEffect,useState } from 'react';import{Alert,StyleSheet,Text,TextInput,TouchableOpacity}from'react-native';import{useAuth}from'@/context/AuthContext';import{useTheme}from'@/context/ThemeContext';import{usersApi}from'@/services/api';import{PassengerSettingsScreen}from'@/components/PassengerSettingsScreen';
-export default function Safety(){const{user,refreshUser}=useAuth()as any;const{colors}=useTheme();const[name,setName]=useState('');const[phone,setPhone]=useState('');const[saving,setSaving]=useState(false);useEffect(()=>{setName(user?.emergencyContactName||'');setPhone(user?.emergencyContactPhone||'')},[user]);const save=async()=>{if(!name.trim()||!phone.trim())return Alert.alert('Required','Add an emergency contact name and phone.');setSaving(true);try{await usersApi.updateMe({emergencyContactName:name.trim(),emergencyContactPhone:phone.trim()});await refreshUser?.();Alert.alert('Saved','Emergency contact updated.')}catch(e:any){Alert.alert('Unable to save',e?.response?.data?.message||'Please try again.')}finally{setSaving(false)}};return <PassengerSettingsScreen title="Safety"><Text style={{color:colors.textSecondary}}>This contact can be used by support during an active ride emergency.</Text><TextInput style={[s.input,{color:colors.textPrimary,borderColor:colors.border}]} value={name} onChangeText={setName} placeholder="Emergency contact name" placeholderTextColor={colors.textSecondary}/><TextInput style={[s.input,{color:colors.textPrimary,borderColor:colors.border}]} value={phone} onChangeText={setPhone} placeholder="Emergency contact phone" keyboardType="phone-pad" placeholderTextColor={colors.textSecondary}/><TouchableOpacity style={[s.button,{backgroundColor:colors.primary}]} disabled={saving} onPress={save}><Text style={s.buttonText}>{saving?'Saving…':'Save safety contact'}</Text></TouchableOpacity></PassengerSettingsScreen>};const s=StyleSheet.create({input:{borderWidth:1,borderRadius:12,padding:14},button:{padding:15,borderRadius:12,alignItems:'center'},buttonText:{color:'#fff',fontFamily:'Inter_700Bold'}});
+import { useEffect, useState } from "react";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
+import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
+import { usersApi } from "@/services/api";
+import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
+
+export default function Safety() {
+  const { user, refreshUser } = useAuth() as any;
+  const { colors } = useTheme();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setName(user?.emergencyContactName || ""); setPhone(user?.emergencyContactPhone || ""); }, [user]);
+  const save = async () => {
+    const normalizedPhone = normalizeRwandaPhone(phone);
+    if (!name.trim() || !normalizedPhone) return Alert.alert("Required", "Add a contact name and a valid Rwanda phone number.");
+    setSaving(true);
+    try {
+      await usersApi.updateMe({ emergencyContactName: name.trim(), emergencyContactPhone: normalizedPhone });
+      await refreshUser?.();
+      Alert.alert("Saved", "Emergency contact updated.");
+    } catch (error: any) { Alert.alert("Unable to save", error?.response?.data?.message || "Please try again."); }
+    finally { setSaving(false); }
+  };
+  return <PassengerSettingsScreen title="Safety">
+    <Text style={{ color: colors.textSecondary }}>This contact can be used by support during an active ride emergency.</Text>
+    <TextInput style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Emergency contact name" placeholderTextColor={colors.textSecondary} />
+    <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Emergency contact phone number" />
+    <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} disabled={saving} onPress={save}><Text style={styles.buttonText}>{saving ? "Saving…" : "Save safety contact"}</Text></TouchableOpacity>
+  </PassengerSettingsScreen>;
+}
+const styles = StyleSheet.create({ input: { borderWidth: 1, borderRadius: 14, padding: 15 }, button: { padding: 16, borderRadius: 14, alignItems: "center" }, buttonText: { color: "#fff", fontFamily: "Inter_700Bold" } });
