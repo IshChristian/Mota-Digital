@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { kycApi, uploadsApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { DriverHeader } from "@/components/driver/DriverUI";
 
 type Kind = "driver" | "passenger";
@@ -140,13 +141,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.emergencyContactName || ""}
             onChangeText={(v) => set("emergencyContactName", v)}
           />
-          <TextInput
-            style={s.input}
-            placeholder="Emergency contact phone (optional)"
-            placeholderTextColor={colors.textSecondary}
-            value={form.emergencyContactPhone || ""}
-            onChangeText={(v) => set("emergencyContactPhone", v)}
-          />
+          <RwandaPhoneInput value={form.emergencyContactPhone || ""} onChangeText={(v) => set("emergencyContactPhone", v)} accessibilityLabel="Emergency contact phone number" />
         </>
       ) : (
         <>

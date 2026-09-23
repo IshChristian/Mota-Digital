@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 import { useAuth } from "@/context/AuthContext";
 import { usersApi } from "@/services/api";
 import { isPassengerRole } from "@/constants/roles";
@@ -121,7 +123,7 @@ export default function CreateProfileScreen() {
     try {
       const response = await usersApi.updateMe({
         emergencyContactName: passengerData.emergencyContactName,
-        emergencyContactPhone: passengerData.emergencyContactPhone,
+        emergencyContactPhone: normalizeRwandaPhone(passengerData.emergencyContactPhone),
         preferredPayment: passengerData.preferredPayment as "CASH" | "MOMO" | "CARD",
       });
       await updateUser(response.data?.data || { ...passengerData, passengerProfileCompleted: true });
@@ -269,14 +271,7 @@ export default function CreateProfileScreen() {
 
           <View style={s.inputGroup}>
             <Text style={s.label}>Emergency Contact Phone</Text>
-            <TextInput
-              style={s.input}
-              placeholder="e.g. 0788123456"
-              placeholderTextColor={colors.textTertiary}
-              value={passengerData.emergencyContactPhone}
-              onChangeText={(v) => updatePassenger("emergencyContactPhone", v)}
-              keyboardType="phone-pad"
-            />
+            <RwandaPhoneInput value={passengerData.emergencyContactPhone} onChangeText={(v) => updatePassenger("emergencyContactPhone", v)} accessibilityLabel="Emergency contact phone number" />
           </View>
 
           <View style={s.inputGroup}>

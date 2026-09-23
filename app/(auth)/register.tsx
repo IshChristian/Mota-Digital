@@ -16,6 +16,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 export default function RegisterScreen() {
   const { selectedRole } = useLocalSearchParams<{ selectedRole?: string }>();
@@ -51,18 +53,15 @@ export default function RegisterScreen() {
     update("phone", raw);
   };
 
-  // Get the phone for submission: if starts with 07, prepend +250
-  const getSubmitPhone = () => {
-    const raw = formData.phone.trim();
-    if (raw.startsWith("+250")) return raw;
-    if (raw.startsWith("07")) return "+250" + raw.slice(1);
-    if (raw.startsWith("7")) return "+2507" + raw.slice(1);
-    return raw;
-  };
+  const getSubmitPhone = () => normalizeRwandaPhone(formData.phone);
 
   const handleRegister = async () => {
     if (!formData.firstName || !formData.lastName || !formData.phone || !formData.password || !formData.nationalId) {
       setError("Please fill all required fields");
+      return;
+    }
+    if (!getSubmitPhone()) {
+      setError("Enter a valid Rwanda phone number starting with 07 or 7.");
       return;
     }
     setLoading(true);
@@ -143,17 +142,8 @@ export default function RegisterScreen() {
           <Text style={s.label}>
             Phone Number <Text style={{ color: colors.primary }}>*</Text>
           </Text>
-          <Text style={s.hint}>Start with 07... or +250...</Text>
-          <View style={s.phoneRow}>
-            <TextInput
-              style={[s.input, { flex: 1 }]}
-              placeholder="0788 123 456"
-              placeholderTextColor={colors.textTertiary}
-              value={formData.phone}
-              onChangeText={handlePhoneChange}
-              keyboardType="phone-pad"
-            />
-          </View>
+          <Text style={s.hint}>Enter 07… or 7…; MOTA securely formats it as +250.</Text>
+          <RwandaPhoneInput value={formData.phone} onChangeText={handlePhoneChange} accessibilityLabel="Registration phone number" />
         </View>
 
         <InputField

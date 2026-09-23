@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
 import { ridesApi } from "@/services/api";
 import { useRouter } from "expo-router";
+import { PassengerHeader } from "@/components/passenger/PassengerUI";
 
 type RideHistoryItem = {
   id?: string;
@@ -115,7 +116,7 @@ export default function PassengerRidesScreen() {
 
   return (
     <View style={[s.container, { paddingTop: insets.top + 16 }]}>
-      <Text style={s.title}>My Rides</Text>
+      <View style={{ paddingHorizontal: 16 }}><PassengerHeader title="My rides" subtitle="Track requests, completed trips, and cancellations" /></View>
 
       <View style={s.tabBar}>
         {tabs.map((tab) => (

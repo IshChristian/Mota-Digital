@@ -19,6 +19,8 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { transferApi, walletApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 import Colors from "@/constants/colors";
 
 export default function SendMoneyScreen() {
@@ -50,7 +52,7 @@ export default function SendMoneyScreen() {
   const balance = balanceData?.balance ?? 0;
 
   const handleContinue = () => {
-    if (!phone || phone.length < 10) {
+    if (!normalizeRwandaPhone(phone)) {
       Alert.alert("Invalid Phone", "Please enter a valid phone number.");
       return;
     }
@@ -70,7 +72,7 @@ export default function SendMoneyScreen() {
     setLoading(true);
     try {
       const payload = {
-        phone: phone.startsWith("+") ? phone : `+250${phone.replace(/^0/, "")}`,
+        phone: normalizeRwandaPhone(phone),
         amount: parseFloat(amount),
         description: description || undefined,
       };
@@ -234,17 +236,7 @@ export default function SendMoneyScreen() {
 
         <View style={s.inputGroup}>
           <Text style={s.label}>Recipient Phone Number</Text>
-          <View style={s.inputRow}>
-            <Feather name="phone" size={18} color={colors.textSecondary} />
-            <TextInput
-              style={s.input}
-              placeholder="+250788123456"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-          </View>
+          <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Recipient phone number" />
         </View>
 
         <View style={s.inputGroup}>

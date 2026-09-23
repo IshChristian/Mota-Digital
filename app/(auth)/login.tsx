@@ -19,9 +19,12 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 export default function LoginScreen() {
   const [identifier, setIdentifier] = useState("");
+  const [identifierType, setIdentifierType] = useState<"phone" | "email">("phone");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,20 +41,21 @@ export default function LoginScreen() {
     : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
 
   const handleLogin = async () => {
-    if (!identifier || !password) {
+    const loginIdentifier = identifierType === "phone" ? normalizeRwandaPhone(identifier) : identifier.trim().toLowerCase();
+    if (!loginIdentifier || !password) {
       setError("Please fill all fields");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      const res = await authApi.login({ identifier, password });
+      const res = await authApi.login({ identifier: loginIdentifier, password });
       const { token, user } = res.data || {};
       if (token && user) {
         await login(token, user);
         // Cache verification status for future login attempts
         await AsyncStorage.setItem(
-          `verification_cache_${identifier}`,
+          `verification_cache_${loginIdentifier}`,
           JSON.stringify({
             isVerified: user.isVerified,
             isEmailVerified: user.isEmailVerified,
@@ -76,7 +80,7 @@ export default function LoginScreen() {
           await login(errData.token, errData.user);
           // Cache verification data
           await AsyncStorage.setItem(
-            `verification_cache_${identifier}`,
+            `verification_cache_${loginIdentifier}`,
             JSON.stringify({
               isVerified: errData.user.isVerified,
               isEmailVerified: errData.user.isEmailVerified,
@@ -95,7 +99,7 @@ export default function LoginScreen() {
         // Check cached verification data to avoid sending a verified user to confirm-phone
         let cachedVerification: any = null;
         try {
-          const cached = await AsyncStorage.getItem(`verification_cache_${identifier}`);
+          const cached = await AsyncStorage.getItem(`verification_cache_${loginIdentifier}`);
           if (cached) cachedVerification = JSON.parse(cached);
         } catch {}
 
@@ -116,7 +120,7 @@ export default function LoginScreen() {
           router.push({
             pathname: "/(auth)/confirm-phone",
             params: {
-              phone: errData.phone || identifier,
+              phone: errData.phone || loginIdentifier,
               userId: errData.userId,
             },
           });
@@ -153,16 +157,18 @@ export default function LoginScreen() {
           {error ? <Text style={s.errorText}>{error}</Text> : null}
 
           <View style={s.inputGroup}>
-            <Text style={s.label}>Phone or Email</Text>
-            <TextInput
-              style={s.input}
-              placeholder="e.g. +250..."
-              placeholderTextColor={colors.textTertiary}
-              value={identifier}
-              onChangeText={setIdentifier}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
+            <View style={s.loginTypeRow}>
+              {(["phone", "email"] as const).map((type) => (
+                <TouchableOpacity key={type} onPress={() => { setIdentifierType(type); setIdentifier(""); }} style={[s.loginType, identifierType === type && { backgroundColor: colors.primary }]}>
+                  <Text style={[s.loginTypeText, { color: identifierType === type ? "#fff" : colors.textSecondary }]}>{type === "phone" ? "Phone" : "Email"}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {identifierType === "phone" ? (
+              <RwandaPhoneInput value={identifier} onChangeText={setIdentifier} accessibilityLabel="Login phone number" />
+            ) : (
+              <TextInput style={s.input} placeholder="you@example.com" placeholderTextColor={colors.textTertiary} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+            )}
           </View>
 
           <View style={s.inputGroup}>
@@ -244,6 +250,9 @@ const styles = (colors: any) =>
     inputGroup: {
       marginBottom: 20,
     },
+    loginTypeRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+    loginType: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.backgroundElevated },
+    loginTypeText: { fontSize: 13, fontFamily: "Inter_600SemiBold", textTransform: "capitalize" },
     label: {
       fontSize: 14,
       fontFamily: "Inter_500Medium",

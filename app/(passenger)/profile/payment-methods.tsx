@@ -12,6 +12,8 @@ import { Feather } from "@expo/vector-icons";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 type Method = {
   _id: string;
@@ -45,12 +47,14 @@ export default function PaymentMethods() {
     void load();
   }, [load]);
   const add = async () => {
+    const normalizedPhone = normalizeRwandaPhone(phone);
+    if (!normalizedPhone) return Alert.alert("Invalid phone", "Enter a Rwanda number starting with 07 or 7.");
     setBusy(true);
     try {
       const r = await productionApi.addPaymentMethod({
         type: "momo",
         label: "Mobile Money",
-        phone: phone.trim(),
+        phone: normalizedPhone,
       });
       setPendingId(r.data.data._id);
       Alert.alert(
@@ -107,14 +111,7 @@ export default function PaymentMethods() {
         </>
       ) : (
         <>
-          <TextInput
-            style={input}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="Mobile Money phone"
-            placeholderTextColor={colors.textSecondary}
-          />
+          <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Mobile Money phone number" />
           <TouchableOpacity
             disabled={busy || !phone.trim()}
             onPress={add}

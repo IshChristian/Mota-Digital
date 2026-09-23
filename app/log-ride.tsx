@@ -21,6 +21,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { driverApi, algorithmApi, getStoredToken, API_BASE_URL, transferApi, paymentApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 type Ride = {
   _id?: string;
@@ -135,13 +137,17 @@ export default function LogRideScreen() {
       alert("Please enter the fare amount");
       return;
     }
+    if (!normalizeRwandaPhone(passengerPhone)) {
+      alert("Enter a valid Rwanda passenger phone number starting with 07 or 7");
+      return;
+    }
     setSubmitting(true);
     setPaymentWaiting(false);
     setPaymentSuccess(false);
     try {
       const res = await driverApi.logRide({
         fare: Number(fare),
-        passengerPhone: passengerPhone,
+        passengerPhone: normalizeRwandaPhone(passengerPhone),
         distance: 0,
         pickupLocation: "",
         dropoffLocation: "",
@@ -404,14 +410,7 @@ export default function LogRideScreen() {
 
                 {/* Passenger Phone */}
                 <Text style={[s.label, { marginTop: 20 }]}>Passenger Phone Number</Text>
-                <TextInput
-                  style={s.input}
-                  placeholder="078..."
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="phone-pad"
-                  value={passengerPhone}
-                  onChangeText={setPassengerPhone}
-                />
+                <RwandaPhoneInput value={passengerPhone} onChangeText={setPassengerPhone} accessibilityLabel="Passenger phone number" />
 
                 {/* Payment Method — MoMo only */}
                 <Text style={[s.label, { marginTop: 20 }]}>{t("payment_method")}</Text>

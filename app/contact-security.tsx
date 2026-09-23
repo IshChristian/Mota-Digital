@@ -9,6 +9,8 @@ import {
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { usersApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 export default function ContactSecurity() {
   const { colors } = useTheme();
@@ -20,7 +22,9 @@ export default function ContactSecurity() {
   const request = async () => {
     setBusy(true);
     try {
-      const r = await usersApi.requestContactChange(type, value.trim());
+      const destination = type === "phone" ? normalizeRwandaPhone(value) : value.trim().toLowerCase();
+      if (!destination) return Alert.alert("Invalid phone", "Enter a Rwanda number starting with 07 or 7.");
+      const r = await usersApi.requestContactChange(type, destination);
       setSent(true);
       Alert.alert("Code sent", r.data.message);
     } catch (e: any) {
@@ -61,7 +65,7 @@ export default function ContactSecurity() {
       >
         <Text style={{ color: colors.textPrimary }}>Changing: {type}</Text>
       </TouchableOpacity>
-      <TextInput
+      {type === "phone" ? <RwandaPhoneInput value={value} onChangeText={setValue} accessibilityLabel="New verified phone number" /> : <TextInput
         autoCapitalize="none"
         keyboardType={type === "email" ? "email-address" : "phone-pad"}
         value={value}
@@ -72,7 +76,7 @@ export default function ContactSecurity() {
           s.input,
           { color: colors.textPrimary, borderColor: colors.border },
         ]}
-      />
+      />}
       {sent ? (
         <TextInput
           keyboardType="number-pad"

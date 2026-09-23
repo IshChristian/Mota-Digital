@@ -24,6 +24,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 import { DriverHeader } from "@/components/driver/DriverUI";
 
 type ModalType = "cash_in" | "cash_out" | null;
@@ -81,8 +83,8 @@ export default function WalletScreen() {
       setSubmitError("Please enter a valid amount");
       return;
     }
-    if (modalType === "cash_in" && !phone) {
-      setSubmitError("Please enter your phone number");
+    if (modalType === "cash_in" && !normalizeRwandaPhone(phone)) {
+      setSubmitError("Enter a valid Rwanda phone number starting with 07 or 7");
       return;
     }
 
@@ -92,7 +94,7 @@ export default function WalletScreen() {
     try {
       if (modalType === "cash_in") {
         await walletApi.cashIn(
-          { amount: amt, phone },
+          { amount: amt, phone: normalizeRwandaPhone(phone) },
           createIdempotencyKey("wallet-cash-in"),
         );
         Alert.alert(
@@ -293,22 +295,7 @@ export default function WalletScreen() {
               {modalType === "cash_in" ? (
                 <View style={s.inputGroup}>
                   <Text style={s.inputLabel}>MoMo Phone Number</Text>
-                  <View style={s.inputRow}>
-                    <Feather
-                      name="phone"
-                      size={16}
-                      color={colors.textSecondary}
-                      style={{ marginRight: 8 }}
-                    />
-                    <TextInput
-                      style={s.modalInput}
-                      placeholder="+250788123456"
-                      placeholderTextColor={colors.textTertiary}
-                      value={phone}
-                      onChangeText={setPhone}
-                      keyboardType="phone-pad"
-                    />
-                  </View>
+                  <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Mobile Money phone number" />
                 </View>
               ) : null}
 
