@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import axios from 'axios';
-import { usersApi, algorithmApi, driverApi, authApi } from '../services/api';
+import { usersApi, algorithmApi, driverApi, authApi, getApiErrorMessage } from '../services/api';
 import {
   clearSensitiveSession,
   getSensitiveJson,
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setRiderStatus(null);
               setHasDriverProfile(false);
             } else {
-              console.warn('Unable to refresh session; keeping secure cached state', apiErr);
+              console.warn(`Unable to refresh session; using secure cached state. ${getApiErrorMessage(apiErr)}`);
             }
           }
         }
