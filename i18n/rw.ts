@@ -41,5 +41,16 @@ export default {
   error: "Hari ibitagenda neza",
   target: "Intego",
   today: "Uyu munsi",
-  distance: "Intera (km)"
+  distance: "Intera (km)",
+  ride: {
+    greeting: "Muraho, {{name}}!", passenger: "Umugenzi", open_profile: "Fungura umwirondoro w'umugenzi",
+    choose_vehicle_help: "Hitamo ikinyabiziga, hanyuma uhitemo aho ujya ku ikarita cyangwa ushakishe.", clear: "Siba", clear_form: "Siba amakuru yose y'urugendo",
+    cars: "Imodoka", car_help: "Zorohereza amatsinda n'imizigo", motors: "Moto", motor_help: "Urugendo rwihuse rw'umugenzi umwe",
+    destination_label: "Urashaka kujya he?", destination_help: "Shakisha ahantu cyangwa ukande aho ujya ku ikarita.", destination_placeholder: "Shakisha aho ujya", search: "Shakisha", confirm_location: "Emeza aho ujya",
+    details: "Ibisobanuro by'urugendo", details_help: "Inzira, abantu, igiciro, gahunda n'igitekerezo", pickup: "Aho ufatirwa", destination: "Aho ujya", price: "Igiciro",
+    driver: "Umushoferi", passenger_info: "Umugenzi", phone: "Telefone", plate: "Pulaki", vehicle: "Ikinyabiziga", requested: "Igihe wasabiye", scheduled: "Igihe cyateganyijwe",
+    distance: "Intera", duration: "Igihe giteganyijwe", passengers: "Abagenzi", payment: "Kwishyura", not_assigned: "Nta mushofere urahabwa", phone_after_accept: "Telefone iboneka nyuma yo kwemera urugendo",
+    cancel_request: "Hagarika ubusabe", updating: "Birahindurwa…", rate: "Tanga amanota", feedback_optional: "Igitekerezo (si ngombwa)", submit_feedback: "Ohereza igitekerezo", saving: "Birabikwa…",
+    thank_you: "Murakoze", feedback_saved: "Igitekerezo cyawe cyabitswe.", unable_feedback: "Ntibyashoboye kubika amanota", try_again: "Ongera ugerageze.", decline: "Hakana", accept: "Emera", working: "Birakorwa…"
+  }
 };
