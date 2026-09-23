@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useT } from '@/context/I18nContext';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const SHEET_COLLAPSED_OFFSET = Math.min(260, Dimensions.get("window").height * 0.3);
@@ -37,6 +38,7 @@ export default function PassengerHomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  const t = useT();
 
   const [rideState, setRideState] = useState<RideState>("idle");
   const [destination, setDestination] = useState("");
@@ -301,6 +303,27 @@ export default function PassengerHomeScreen() {
     }
   };
 
+  const clearRideRequest = () => {
+    setRideState("idle");
+    setDestination("");
+    setDestinationLoc(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setVehicleType(null);
+    setPassengers(1);
+    setBackupDrivers(3);
+    setOffer(3000);
+    setDistanceKm(0);
+    setEtaMin(0);
+    setIsScheduled(false);
+    setScheduledDate("");
+    setScheduledTime("");
+    setScheduledAt(new Date(Date.now() + 60 * 60 * 1000));
+    setRouteCoordinates([]);
+    setMapError(null);
+    snapSheet(false);
+  };
+
   const handleRequestRide = async () => {
     if (!destinationLoc) {
       Alert.alert('Destination required', 'Select a destination before requesting a ride.');
@@ -504,8 +527,8 @@ export default function PassengerHomeScreen() {
       ) : (
         <View style={[s.topOverlay, { top: insets.top + 16, flexDirection: 'column', gap: 8 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open passenger profile" style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
-              <Image source={isDark ? require("@/assets/images/mota-icon-white.png") : require("@/assets/images/mota-icon-black.png")} resizeMode="contain" style={s.dashboardLogo} />
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.open_profile")} style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
+              {user?.avatarUrl ? <Image source={{ uri: user.avatarUrl }} resizeMode="cover" style={s.profileAvatar} /> : <Text style={s.profileInitial}>{(user?.firstName?.[0] || "P").toUpperCase()}</Text>}
             </TouchableOpacity>
             <View style={s.locationTopBox}>
               <Feather name="navigation" size={14} color={colors.primary} />
@@ -557,7 +580,10 @@ export default function PassengerHomeScreen() {
 
           {rideState === "idle" && (
             <View style={s.idleState}>
-              <Text style={s.greetingText}>Hello there, {user?.firstName || 'Passenger'}! 👋</Text>
+              <View style={s.formHeading}>
+                <View style={{ flex: 1 }}><Text style={s.greetingText}>{t("ride.greeting", { name: user?.firstName || t("ride.passenger") })}</Text><Text style={s.guideText}>{t("ride.choose_vehicle_help")}</Text></View>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.clear_form")} onPress={clearRideRequest} style={s.clearButton}><Feather name="rotate-ccw" size={16} color="#fff" /><Text style={s.clearButtonText}>{t("ride.clear")}</Text></TouchableOpacity>
+              </View>
               
               <View style={s.vehicleCardsRow}>
                 <TouchableOpacity 
@@ -565,26 +591,28 @@ export default function PassengerHomeScreen() {
                   onPress={() => setVehicleType("car")}
                 >
                    <Text style={{fontSize:40, marginBottom: 8}}>🚗</Text>
-                   <Text style={s.vcTitle}>Cars</Text>
-                   <Text style={s.vcSub}>Ride with favorite car</Text>
+                   <Text style={s.vcTitle}>{t("ride.cars")}</Text>
+                   <Text style={s.vcSub}>{t("ride.car_help")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}15` }]} 
                   onPress={() => setVehicleType("motor")}
                 >
                    <Text style={{fontSize:40, marginBottom: 8}}>🏍️</Text>
-                   <Text style={s.vcTitle}>Motors</Text>
-                   <Text style={s.vcSub}>Ride with favorite motor</Text>
+                   <Text style={s.vcTitle}>{t("ride.motors")}</Text>
+                   <Text style={s.vcSub}>{t("ride.motor_help")}</Text>
                 </TouchableOpacity>
               </View>
 
               {vehicleType !== null && (
                 <View style={[s.searchBarContainer, { zIndex: 99 }]}>
+                  <Text style={s.fieldLabel}>{t("ride.destination_label")}</Text>
+                  <Text style={s.fieldHelp}>{t("ride.destination_help")}</Text>
                   <View style={s.searchBarInputBox}>
                     <Feather name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
                     <TextInput 
                       style={[s.searchInput, { flex: 1 }]}
-                      placeholder="Where are you going?"
+                      placeholder={t("ride.destination_placeholder")}
                       placeholderTextColor="#9CA3AF"
                       value={searchQuery}
                       onChangeText={(text) => setSearchQuery(text)}
@@ -595,7 +623,7 @@ export default function PassengerHomeScreen() {
                       <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                       <TouchableOpacity onPress={() => handleSearch(searchQuery)} style={s.searchBtn}>
-                        <Text style={s.searchBtnText}>Search</Text>
+                        <Text style={s.searchBtnText}>{t("ride.search")}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -624,7 +652,7 @@ export default function PassengerHomeScreen() {
                   {destinationLoc && searchResults.length === 0 && searchQuery.length > 0 && (
                     <TouchableOpacity style={[s.primaryBtn, { marginTop: 16 }]} onPress={() => setRideState("estimating")}>
                       <Feather name="check-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={s.primaryBtnText}>Confirm Location</Text>
+                      <Text style={s.primaryBtnText}>{t("ride.confirm_location")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -891,7 +919,8 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   // Top Overlay (Idle)
   topOverlay: { position: 'absolute', left: 20, right: 20, zIndex: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   profilePic: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.backgroundCard, alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  dashboardLogo: { width: 34, height: 34 },
+  profileAvatar: { width: 48, height: 48, borderRadius: 16 },
+  profileInitial: { color: colors.primary, fontSize: 19, fontFamily: 'Inter_700Bold' },
   locationTopBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   locationTopLabel: { fontSize: 10, fontFamily: 'Inter_500Medium', color: '#6B7280' },
   locationTopText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#111827' },
@@ -916,7 +945,13 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   sheetHint: { color: 'rgba(255,255,255,0.82)', fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 7, marginBottom: 6 },
   
   idleState: { paddingBottom: 10 },
-  greetingText: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#fff', marginBottom: 20 },
+  formHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 18 },
+  greetingText: { fontSize: 23, fontFamily: 'Inter_700Bold', color: '#fff' },
+  guideText: { color: 'rgba(255,255,255,.82)', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4 },
+  clearButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,.45)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 },
+  clearButtonText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 },
+  fieldLabel: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14, marginBottom: 3 },
+  fieldHelp: { color: 'rgba(255,255,255,.78)', fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 9 },
   vehicleCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   vehicleCard: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
   vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },

@@ -41,5 +41,16 @@ export default {
   error: "Une erreur est survenue",
   target: "Cible",
   today: "Aujourd'hui",
-  distance: "Distance (km)"
+  distance: "Distance (km)",
+  ride: {
+    greeting: "Bonjour, {{name}} !", passenger: "Passager", open_profile: "Ouvrir le profil passager",
+    choose_vehicle_help: "Choisissez un véhicule, puis sélectionnez la destination sur la carte ou par recherche.", clear: "Effacer", clear_form: "Effacer tout le formulaire de trajet",
+    cars: "Voitures", car_help: "Confort pour groupes et bagages", motors: "Motos", motor_help: "Trajet rapide pour un passager",
+    destination_label: "Où souhaitez-vous aller ?", destination_help: "Recherchez un lieu ou touchez la destination exacte sur la carte.", destination_placeholder: "Rechercher une destination", search: "Rechercher", confirm_location: "Confirmer la destination",
+    details: "Détails du trajet", details_help: "Itinéraire, personnes, tarif, horaire et avis", pickup: "Départ", destination: "Destination", price: "Prix",
+    driver: "Chauffeur", passenger_info: "Passager", phone: "Téléphone", plate: "Plaque", vehicle: "Véhicule", requested: "Demandé", scheduled: "Programmé",
+    distance: "Distance", duration: "Durée estimée", passengers: "Passagers", payment: "Paiement", not_assigned: "Non attribué", phone_after_accept: "Le téléphone est disponible après acceptation du trajet",
+    cancel_request: "Annuler la demande", updating: "Mise à jour…", rate: "Évaluer ce trajet", feedback_optional: "Avis (facultatif)", submit_feedback: "Envoyer l'avis", saving: "Enregistrement…",
+    thank_you: "Merci", feedback_saved: "Votre avis a été enregistré.", unable_feedback: "Impossible d'enregistrer la note", try_again: "Veuillez réessayer.", decline: "Refuser", accept: "Accepter", working: "Traitement…"
+  }
 };
