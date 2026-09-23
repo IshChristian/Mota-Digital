@@ -2,12 +2,28 @@ import axios from "axios";
 import { getStoredToken, removeStoredToken } from "./secureStorage";
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  "https://mota-be-v1-0-0-1.onrender.com/api";
+  (process.env.EXPO_PUBLIC_API_BASE_URL ||
+    "https://mota-be-v1-0-0-1.onrender.com/api").replace(/\/+$/, "");
 
 export { getStoredToken, removeStoredToken } from "./secureStorage";
 
-const api = axios.create({ baseURL: API_BASE_URL, timeout: 15000 });
+const api = axios.create({ baseURL: API_BASE_URL, timeout: 30000 });
+
+export const isNetworkError = (error: unknown) =>
+  axios.isAxiosError(error) && !error.response;
+
+export const getApiErrorMessage = (error: unknown) => {
+  if (isNetworkError(error)) {
+    return `Cannot reach MOTA services at ${API_BASE_URL}. Check internet access and retry.`;
+  }
+  if (axios.isAxiosError(error)) {
+    return error.response?.data?.message || error.message || "Request failed.";
+  }
+  return error instanceof Error ? error.message : "Request failed.";
+};
+
+export const createIdempotencyKey = (operation: string) =>
+  `${operation.slice(0, 3)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 api.interceptors.request.use(async (config) => {
   const token = await getStoredToken();
@@ -18,6 +34,18 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const config = error.config as
+      | (typeof error.config & { _networkRetryCount?: number })
+      | undefined;
+    const method = config?.method?.toLowerCase();
+    const retryCount = config?._networkRetryCount || 0;
+    // Retry only read-only requests. Financial POST requests are never retried
+    // automatically and rely on their Idempotency-Key instead.
+    if (!error.response && config && ["get", "head"].includes(method || "") && retryCount < 2) {
+      config._networkRetryCount = retryCount + 1;
+      await new Promise((resolve) => setTimeout(resolve, 750 * config._networkRetryCount!));
+      return api.request(config);
+    }
     if (error.response?.status === 401) {
       await removeStoredToken();
     }
@@ -193,9 +221,15 @@ export const fineRequestsApi = {
 export const walletApi = {
   getBalance: () => api.get("/wallet/balance"),
   getTransactions: (page = 1) => api.get(`/wallet/transactions?page=${page}`),
-  cashIn: (data: { amount: number; phone: string }) =>
-    api.post("/wallet/cash-in", data),
-  cashOut: (data: { amount: number }) => api.post("/wallet/cash-out", data),
+  getWithdrawals: () => api.get("/wallet/withdrawals"),
+  cashIn: (data: { amount: number; phone: string }, idempotencyKey: string) =>
+    api.post("/wallet/cash-in", data, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  cashOut: (data: { amount: number }, idempotencyKey: string) =>
+    api.post("/wallet/cash-out", data, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
 };
 
 // Loans

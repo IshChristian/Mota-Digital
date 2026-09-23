@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { financeApi } from '@/services/api';
+import { financeApi, getApiErrorMessage } from '@/services/api';
 
 interface FinanceState {
   riskScore: any;
@@ -24,7 +24,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       const res = await financeApi.getRiskScore();
       set({ riskScore: res.data });
     } catch (error) {
-      console.error('Failed to fetch risk score', error);
+      console.warn(`Risk score unavailable: ${getApiErrorMessage(error)}`);
     }
   },
   
@@ -33,7 +33,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       const res = await financeApi.getSavingsStatus();
       set({ savingsStatus: res.data });
     } catch (error) {
-      console.error('Failed to fetch savings status', error);
+      console.warn(`Savings status unavailable: ${getApiErrorMessage(error)}`);
     }
   },
 
@@ -42,7 +42,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       const res = await financeApi.getMigrationStage();
       set({ migrationStage: res.data });
     } catch (error) {
-      console.error('Failed to fetch migration stage', error);
+      console.warn(`Migration stage unavailable: ${getApiErrorMessage(error)}`);
     }
   },
 
@@ -51,7 +51,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       const res = await financeApi.getEligibility();
       set({ eligibility: res.data });
     } catch (error) {
-      console.error('Failed to fetch eligibility', error);
+      console.warn(`Eligibility unavailable: ${getApiErrorMessage(error)}`);
     }
   }
 }));

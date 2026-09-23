@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -16,7 +16,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { walletApi } from "@/services/api";
+import {
+  createIdempotencyKey,
+  getApiErrorMessage,
+  walletApi,
+} from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -36,6 +40,7 @@ export default function WalletScreen() {
   const [phone, setPhone] = useState(user?.phone || "");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const submissionLock = useRef(false);
 
   const {
     data: balanceData,
@@ -52,6 +57,7 @@ export default function WalletScreen() {
   });
 
   const balance = balanceData?.balance ?? 0;
+  const heldBalance = balanceData?.heldBalance ?? 0;
   const today = balanceData?.today;
   const recentTransactions = balanceData?.recentTransactions || [];
 
@@ -69,6 +75,7 @@ export default function WalletScreen() {
   };
 
   const handleSubmit = async () => {
+    if (submissionLock.current) return;
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) {
       setSubmitError("Please enter a valid amount");
@@ -79,30 +86,36 @@ export default function WalletScreen() {
       return;
     }
 
+    submissionLock.current = true;
     setSubmitting(true);
     setSubmitError("");
     try {
       if (modalType === "cash_in") {
-        await walletApi.cashIn({ amount: amt, phone });
+        await walletApi.cashIn(
+          { amount: amt, phone },
+          createIdempotencyKey("wallet-cash-in"),
+        );
         Alert.alert(
           "Cash In Initiated",
           "You will receive a MoMo push notification to confirm the payment.",
         );
       } else {
-        await walletApi.cashOut({ amount: amt });
+        const response = await walletApi.cashOut(
+          { amount: amt },
+          createIdempotencyKey("wallet-cash-out"),
+        );
+        const result = response.data?.data;
         Alert.alert(
-          "Withdrawal Submitted",
-          "Your withdrawal request has been submitted and is pending admin approval.",
+          result?.status === "queued" ? "Withdrawal Queued" : "Payout Pending",
+          response.data?.message || "Your withdrawal has been reserved for settlement.",
         );
       }
       closeModal();
       queryClient.invalidateQueries({ queryKey: ["wallet_balance"] });
     } catch (err: any) {
-      setSubmitError(
-        err.response?.data?.message ||
-          "Something went wrong. Please try again.",
-      );
+      setSubmitError(getApiErrorMessage(err));
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
@@ -176,6 +189,11 @@ export default function WalletScreen() {
                   <Text style={s.balanceAmount}>
                     {balance.toLocaleString()} RWF
                   </Text>
+                  {heldBalance > 0 ? (
+                    <Text style={s.heldBalance}>
+                      {heldBalance.toLocaleString()} RWF reserved for pending withdrawals
+                    </Text>
+                  ) : null}
 
                   {today && (
                     <View style={s.todayStatsRow}>
@@ -269,7 +287,7 @@ export default function WalletScreen() {
               <Text style={s.modalDesc}>
                 {modalType === "cash_in"
                   ? "Add money to your MOTA wallet via MTN MoMo. You'll receive a push notification to confirm."
-                  : "Request a withdrawal from your MOTA wallet. Pending admin approval."}
+                  : "Amounts below 10,000 RWF remain reserved and queued until your pending withdrawals reach Paypack's 10,000 RWF payout minimum."}
               </Text>
 
               {modalType === "cash_in" ? (
@@ -389,6 +407,12 @@ const styles = (colors: any) =>
       fontFamily: "Inter_700Bold",
       color: "#fff",
       marginBottom: 16,
+    },
+    heldBalance: {
+      color: "rgba(255,255,255,0.8)",
+      fontFamily: "Inter_500Medium",
+      fontSize: 12,
+      marginBottom: 12,
     },
     todayStatsRow: {
       flexDirection: "row",
