@@ -54,7 +54,7 @@ export function DriverHeader({
   subtitle,
   action,
   showLogo = true,
-  back = false,
+  back = true,
 }: {
   title: string;
   subtitle?: string;
@@ -74,7 +74,7 @@ export function DriverHeader({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace("/(driver)" as any)}
           style={[
             styles.backButton,
             {
