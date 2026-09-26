@@ -17,6 +17,15 @@ EXPO_PUBLIC_SUPPORT_PHONE=+250XXXXXXXXX
 
 # Optional: defaults to support@mota.rw when omitted
 EXPO_PUBLIC_SUPPORT_EMAIL=support@mota.rw
+
+# Required before public release: exact registered entity shown in legal documents
+EXPO_PUBLIC_LEGAL_COMPANY_NAME=Your Registered Company Name Ltd
+
+# Required before public release: registered business address
+EXPO_PUBLIC_LEGAL_ADDRESS=Street, City, Country
+
+# Required before public release: monitored privacy and data-rights inbox
+EXPO_PUBLIC_PRIVACY_EMAIL=privacy@example.com
 ```
 
 ## Variable reference
@@ -28,6 +37,9 @@ EXPO_PUBLIC_SUPPORT_EMAIL=support@mota.rw
 | `EXPO_PUBLIC_OSRM_URL` | No | OpenStreetMap/OSRM route calculations | Public OSRM server |
 | `EXPO_PUBLIC_SUPPORT_PHONE` | Production | Call-support action | None; calling is disabled |
 | `EXPO_PUBLIC_SUPPORT_EMAIL` | No | Email-support action | `support@mota.rw` |
+| `EXPO_PUBLIC_LEGAL_COMPANY_NAME` | Production | Data-controller and contracting entity displayed in legal documents | `MOTA operating company` |
+| `EXPO_PUBLIC_LEGAL_ADDRESS` | Production | Registered address displayed in legal documents | Support referral text |
+| `EXPO_PUBLIC_PRIVACY_EMAIL` | Production | Privacy and data-rights requests | Support email |
 
 ## Google Maps configuration
 

@@ -340,8 +340,9 @@ export default function ProfileScreen() {
             ["search", "Search MOTA", "/search"],
             ["help-circle", "Help Center", "/info/help"],
             ["phone", "Contact MOTA", "/info/contact"],
+            ["book-open", "Legal & Safety Center", "/info/legal"],
             ["shield", "Privacy Policy", "/info/privacy"],
-            ["file-text", "Terms of Service", "/info/terms"],
+            ["file-text", "Driver Partner Agreement", "/info/driver-terms"],
           ].map(([icon, label, path]) => (
             <TouchableOpacity
               key={label}
