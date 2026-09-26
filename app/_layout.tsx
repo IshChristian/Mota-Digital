@@ -134,7 +134,7 @@ function RootLayoutNav() {
 function WelcomeLoading() {
   const { colors, isDark } = useTheme();
   return <View accessibilityLabel="Loading MOTA" style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-    <Image source={isDark ? require("@/assets/images/official-mota-white-logo-removebg-preview.png") : require("@/assets/images/official-mota-black-logo-removebg-preview.png")} resizeMode="contain" style={{ width: 220, height: 100 }} />
+    <Image source={isDark ? require("@/assets/images/official-mota-black-logo-removebg-preview.png") : require("@/assets/images/official-mota-white-logo-removebg-preview.png")} resizeMode="contain" style={{ width: 220, height: 100 }} />
   </View>;
 }
 
