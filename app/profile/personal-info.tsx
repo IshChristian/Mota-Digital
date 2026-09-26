@@ -110,7 +110,7 @@ export default function PersonalInfoScreen() {
       if (user && token) {
         await login(token, {
           ...user,
-          profileImage: updated.profileImage || (updated as any).user?.profileImage || asset.uri,
+          avatarUrl: updated.avatarUrl,
         });
       }
       setAlert({ visible: true, type: "success", title: "Success", message: "Your profile photo has been updated." });
@@ -194,8 +194,8 @@ export default function PersonalInfoScreen() {
           <View style={s.avatarSection}>
             <TouchableOpacity onPress={handleAvatarChange} disabled={uploadingAvatar}>
               <View style={s.avatar}>
-                {src?.profileImage ? (
-                  <Image source={{ uri: src.profileImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                {user?.avatarUrl || src?.avatarUrl || src?.profileImage ? (
+                  <Image source={{ uri: user?.avatarUrl || src?.avatarUrl || src?.profileImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
                 ) : (
                   <Text style={s.avatarText}>
                     {form.firstName?.[0]}{form.lastName?.[0]}

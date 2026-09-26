@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,19 +6,39 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "expo-router";
 import { PassengerCard, PassengerHeader, PassengerMenuRow } from "@/components/passenger/PassengerUI";
+import { usersApi, getApiErrorMessage } from "@/services/api";
 
 export default function PassengerProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photo = user?.avatarUrl || user?.profileImage;
+
+  const changePhoto = async () => {
+    if (photoBusy) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") return Alert.alert("Photo permission", "Allow access to select a profile photo.");
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (result.canceled) return;
+    setPhotoBusy(true);
+    try {
+      const updated = await usersApi.uploadAvatar(result.assets[0].uri);
+      await updateUser({ avatarUrl: updated.avatarUrl });
+      Alert.alert("Photo updated", "Your profile photo is ready.");
+    } catch (error) { Alert.alert("Photo upload failed", getApiErrorMessage(error)); }
+    finally { setPhotoBusy(false); }
+  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure?", [
@@ -114,14 +134,13 @@ export default function PassengerProfileScreen() {
         contentContainerStyle={{ paddingBottom: 120, paddingTop: insets.top + 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <PassengerHeader title="Profile" subtitle="Account, safety, payments, and support" />
+        <PassengerHeader title="Account" subtitle="Safety, payments, and support" action={photo ? <Image source={{ uri: photo }} style={{ width: 42, height: 42, borderRadius: 21 }} /> : <Feather name="user" size={24} color={colors.primary} />} />
         {/* Profile Header */}
         <PassengerCard style={s.profileHeader}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>
-              {(user?.firstName?.[0] || "M").toUpperCase()}
-            </Text>
-          </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change profile photo" disabled={photoBusy} onPress={() => void changePhoto()} style={s.avatar}>
+            {photo ? <Image source={{ uri: photo }} style={{ width: 72, height: 72, borderRadius: 36 }} /> : <Feather name="user" size={30} color="#fff" />}
+          </TouchableOpacity>
+          <Text style={s.phone}>{photoBusy ? "Uploading photo…" : "Tap photo to change"}</Text>
           <Text style={s.name}>
             {user?.firstName} {user?.lastName}
           </Text>

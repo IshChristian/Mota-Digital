@@ -5,16 +5,20 @@ import { agentApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
-type Driver = { _id: string; firstName: string; lastName: string; phone: string; registrationStatus?: string; isActive?: boolean };
+type Driver = { _id: string; firstName: string; lastName: string; phone: string; registrationStatus?: string; registrationPaid?: boolean; isActive?: boolean; isVerified?: boolean; kyc?: { status: string; remarks?: string } | null };
+type Request = { _id: string; driverId: string; subject: string; status: string; resolution?: string; createdAt: string };
+const assistance = { profile_update: "Profile update", kyc_help: "KYC assistance", fee_help: "Fee assistance", account_access: "Account access" } as const;
 export default function AgentDrivers() {
   const { colors } = useTheme();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", nationalId: "" });
   const [request, setRequest] = useState<Record<string, string>>({});
+  const [kind, setKind] = useState<Record<string, keyof typeof assistance>>({});
+  const [history, setHistory] = useState<Request[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    try { const response = await agentApi.drivers(); setDrivers(response.data.drivers || []); }
+    try { const [response, requests] = await Promise.all([agentApi.drivers(), agentApi.updateRequests()]); setDrivers(response.data.drivers || []); setHistory(requests.data.data || []); }
     catch (e) { setMessage(getApiErrorMessage(e)); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -28,7 +32,7 @@ export default function AgentDrivers() {
   const sendRequest = async (id: string) => {
     if ((request[id] || "").trim().length < 10) { setMessage("Describe the requested change in at least 10 characters."); return; }
     setBusy(true);
-    try { await agentApi.requestDriverUpdate(id, request[id]); setRequest((current) => ({ ...current, [id]: "" })); setMessage("Update request sent for administrator review."); }
+    try { await agentApi.requestDriverUpdate(id, request[id], kind[id] || "profile_update"); setRequest((current) => ({ ...current, [id]: "" })); setMessage("Assistance request sent for administrator review."); await load(); }
     catch (e) { setMessage(getApiErrorMessage(e)); } finally { setBusy(false); }
   };
   const inputStyle = { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundCard, color: colors.textPrimary, borderRadius: 12, padding: 13 };
@@ -42,8 +46,13 @@ export default function AgentDrivers() {
     {drivers.length === 0 ? <Text style={{ color: colors.textSecondary }}>No drivers registered yet.</Text> : drivers.map((driver) => <View key={driver._id} style={{ backgroundColor: colors.backgroundCard, borderRadius: 16, padding: 16, gap: 9 }}>
       <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{driver.firstName} {driver.lastName}</Text>
       <Text style={{ color: colors.textSecondary }}>{driver.phone} · {driver.registrationStatus || (driver.isActive ? "Active" : "Pending review")}</Text>
+      <Text style={{ color: colors.textSecondary }}>Phone: {driver.isVerified ? "verified" : "verification needed"} · KYC: {driver.kyc?.status || "not submitted"}</Text>
+      {driver.kyc?.remarks ? <Text style={{ color: colors.textSecondary }}>Review note: {driver.kyc.remarks}</Text> : null}
+      <Text style={{ color: colors.textPrimary, fontWeight: "600" }}>Ask the admin to help with</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(Object.entries(assistance) as [keyof typeof assistance, string][]).map(([value, label]) => <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: (kind[driver._id] || "profile_update") === value }} onPress={() => setKind((current) => ({ ...current, [driver._id]: value }))} style={{ borderColor: (kind[driver._id] || "profile_update") === value ? colors.primary : colors.border, borderWidth: 1, padding: 9, borderRadius: 10 }}><Text style={{ color: colors.textPrimary }}>{label}</Text></TouchableOpacity>)}</View>
       <TextInput accessibilityLabel={`Requested update for ${driver.firstName}`} multiline placeholder="Describe a change for administrator review" placeholderTextColor={colors.textSecondary} style={inputStyle} value={request[driver._id] || ""} onChangeText={(value) => setRequest((current) => ({ ...current, [driver._id]: value }))} />
-      <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => void sendRequest(driver._id)}><Text style={{ color: colors.primary, fontWeight: "700" }}>Request update</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => void sendRequest(driver._id)}><Text style={{ color: colors.primary, fontWeight: "700" }}>Send to admin</Text></TouchableOpacity>
+      {history.filter((item) => String(item.driverId) === driver._id).slice(0, 5).map((item) => <View key={item._id} style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}><Text style={{ color: colors.textPrimary }}>{item.subject} · {item.status}</Text>{item.resolution ? <Text style={{ color: colors.textSecondary }}>{item.resolution}</Text> : null}</View>)}
     </View>)}
   </ScrollView>;
 }

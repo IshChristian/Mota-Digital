@@ -528,7 +528,7 @@ export default function PassengerHomeScreen() {
         <View style={[s.topOverlay, { top: insets.top + 16, flexDirection: 'column', gap: 8 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.open_profile")} style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
-              {user?.profileImage || user?.avatarUrl ? <Image source={{ uri: user.profileImage || user.avatarUrl }} resizeMode="cover" style={s.profileAvatar} /> : <Text style={s.profileInitial}>{(user?.firstName?.[0] || "P").toUpperCase()}</Text>}
+              {user?.avatarUrl || user?.profileImage ? <Image source={{ uri: user.avatarUrl || user.profileImage }} resizeMode="cover" style={s.profileAvatar} /> : <Feather name="user" size={22} color={colors.primary} />}
             </TouchableOpacity>
             <View style={s.locationTopBox}>
               <Feather name="navigation" size={14} color={colors.primary} />
