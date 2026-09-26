@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MOTA Driver App",
+    "name": "MOTA",
     "slug": "mota",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,9 +14,21 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tiangroupinnovation.mota",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MOTA uses your location to find nearby rides, show drivers and passengers on the map, and track an active ride.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.tiangroupinnovation.mota",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "POST_NOTIFICATIONS"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/mota-icon-black.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
     "web": {
       "favicon": "./assets/images/mota-icon-white.png"
     },

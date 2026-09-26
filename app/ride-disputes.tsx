@@ -7,7 +7,7 @@ import { productionApi } from "@/services/api";
 export default function RideDisputes() {
   const { colors } = useTheme();
   const [items, setItems] = useState<any[]>([]);
-  const [rideId, setRideId] = useState("");
+  const [plateNumber, setPlateNumber] = useState("");
   const [description, setDescription] = useState("");
   const load = useCallback(
     () =>
@@ -23,19 +23,28 @@ export default function RideDisputes() {
     void load();
   }, [load]);
   const submit = async () => {
+    const normalizedPlate = plateNumber.trim().toUpperCase().replace(/\s+/g, " ");
+    if (!normalizedPlate) {
+      Alert.alert("Plate required", "Enter the verified plate number shown on the driver or vehicle.");
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert("Details required", "Explain what happened so support can review the correct ride.");
+      return;
+    }
     try {
-      await productionApi.createDispute(rideId.trim(), {
+      await productionApi.createDisputeByPlate(normalizedPlate, {
         category: "other",
         description: description.trim(),
         requestRefund: true,
       });
-      setRideId("");
+      setPlateNumber("");
       setDescription("");
       await load();
     } catch (e: any) {
       Alert.alert(
         "Not submitted",
-        e?.response?.data?.message || "Check the ride and try again.",
+        e?.response?.data?.message || "Check the plate number and try again.",
       );
     }
   };
@@ -50,10 +59,13 @@ export default function RideDisputes() {
     <PassengerSettingsScreen title="Ride disputes & refunds">
       <TextInput
         style={input}
-        value={rideId}
-        onChangeText={setRideId}
-        placeholder="Ride ID"
+        value={plateNumber}
+        onChangeText={(value) => setPlateNumber(value.toUpperCase())}
+        placeholder="Driver plate number (for example RAE 123 A)"
         placeholderTextColor={colors.textSecondary}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        accessibilityLabel="Driver plate number"
       />
       <TextInput
         style={input}
