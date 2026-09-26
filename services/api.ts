@@ -276,9 +276,9 @@ export const usersApi = {
     api.delete("/users/account", { data: { password } }),
   /**
    * Upload avatar via backend multipart endpoint.
-   * The backend handles storage and returns the updated user with profileImage URL.
+   * The backend handles storage and returns the updated user with avatarUrl.
    */
-  uploadAvatar: async (uri: string): Promise<{ profileImage: string }> => {
+  uploadAvatar: async (uri: string): Promise<{ avatarUrl: string }> => {
     const filename = uri.split("/").pop() || "avatar.jpg";
     const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
     const mimeType = `image/${ext === "jpg" ? "jpeg" : ext}`;
@@ -301,8 +301,9 @@ export const usersApi = {
       throw new Error(err || "Avatar upload failed");
     }
     const data = await response.json();
-    // Backend may return { user: { profileImage } } or { profileImage }
-    return data?.user || data;
+    const updated = data?.data || data?.user || data;
+    if (!updated?.avatarUrl) throw new Error("The upload succeeded but no profile photo was returned.");
+    return updated;
   },
 };
 
@@ -460,8 +461,9 @@ export const releaseApi = {
 export const agentApi = {
   stats: () => api.get("/agent/stats"),
   drivers: () => api.get("/agent/drivers", { params: { limit: 100 } }),
+  updateRequests: () => api.get("/agent/update-requests"),
   registerDriver: (data: { firstName: string; lastName: string; phone: string; nationalId: string }) => api.post("/agent/register-driver", data),
-  requestDriverUpdate: (id: string, description: string) => api.post(`/agent/drivers/${id}/update-request`, { description }),
+  requestDriverUpdate: (id: string, description: string, kind: "profile_update" | "kyc_help" | "fee_help" | "account_access") => api.post(`/agent/drivers/${id}/update-request`, { description, kind }),
 };
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
