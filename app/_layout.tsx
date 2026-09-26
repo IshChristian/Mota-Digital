@@ -39,7 +39,6 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
       ["info", "system"].includes(segments[0]) ||
-      segments[0] === "search" ||
       segments[0] === "+not-found";
     const isPassenger = isPassengerRole(user?.role);
 
