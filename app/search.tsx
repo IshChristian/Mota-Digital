@@ -13,10 +13,12 @@ import { useRouter } from "expo-router";
 import { searchApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { EmptyState } from "@/components/driver/DriverUI";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SearchScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,7 +113,13 @@ export default function SearchScreen() {
           ) : null
         }
         renderItem={({ item }) => (
-          <View
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.type || "result"}: ${item.title || "Result"}`}
+            onPress={() => {
+              if (item.type === "transaction") router.push(user?.role === "driver" ? "/(driver)/wallet" as any : "/(passenger)/wallet" as any);
+              else if (item.type === "ride") router.push(user?.role === "driver" ? "/(driver)/rides" as any : { pathname: "/(passenger)/ride-details/[id]", params: { id: String(item.id) } } as any);
+            }}
             style={[
               styles.result,
               {
@@ -134,7 +142,7 @@ export default function SearchScreen() {
                 item.status ??
                 ""}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
