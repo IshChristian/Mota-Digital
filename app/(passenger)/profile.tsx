@@ -96,6 +96,11 @@ export default function PassengerProfileScreen() {
       onPress: () => router.push("/info/about" as any),
     },
     {
+      icon: "book-open" as const,
+      label: "Legal & Safety Center",
+      onPress: () => router.push("/info/legal" as any),
+    },
+    {
       icon: "shield" as const,
       label: "Privacy Policy",
       onPress: () => router.push("/info/privacy" as any),
@@ -103,7 +108,7 @@ export default function PassengerProfileScreen() {
     {
       icon: "file-text" as const,
       label: "Terms of Service",
-      onPress: () => router.push("/info/terms" as any),
+      onPress: () => router.push("/info/passenger-terms" as any),
     },
   ];
 
