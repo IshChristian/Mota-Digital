@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { Image, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,6 +22,7 @@ import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { isPassengerRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
+import { ReleaseNotice } from "@/components/ReleaseNotice";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,7 +39,6 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
       ["info", "system"].includes(segments[0]) ||
-      segments[0] === "search" ||
       segments[0] === "+not-found";
     const isPassenger = isPassengerRole(user?.role);
 
@@ -118,15 +119,23 @@ function RootLayoutNav() {
     }
   }, [isAuthenticated, isLoading, segments, user, hasDriverProfile]);
 
-  if (isLoading) return null;
+  if (isLoading) return <WelcomeLoading />;
 
   return (
     <>
       <PushNotificationManager />
+      <ReleaseNotice />
       <ThemedStack />
       <PrivacyConsentBanner />
     </>
   );
+}
+
+function WelcomeLoading() {
+  const { colors, isDark } = useTheme();
+  return <View accessibilityLabel="Loading MOTA" style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+    <Image source={isDark ? require("@/assets/images/official-mota-white-logo-removebg-preview.png") : require("@/assets/images/official-mota-black-logo-removebg-preview.png")} resizeMode="contain" style={{ width: 220, height: 100 }} />
+  </View>;
 }
 
 function ThemedStack() {

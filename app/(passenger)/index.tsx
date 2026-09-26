@@ -528,7 +528,7 @@ export default function PassengerHomeScreen() {
         <View style={[s.topOverlay, { top: insets.top + 16, flexDirection: 'column', gap: 8 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.open_profile")} style={s.profilePic} onPress={() => router.push("/(passenger)/profile")}>
-              {user?.avatarUrl ? <Image source={{ uri: user.avatarUrl }} resizeMode="cover" style={s.profileAvatar} /> : <Text style={s.profileInitial}>{(user?.firstName?.[0] || "P").toUpperCase()}</Text>}
+              {user?.profileImage || user?.avatarUrl ? <Image source={{ uri: user.profileImage || user.avatarUrl }} resizeMode="cover" style={s.profileAvatar} /> : <Text style={s.profileInitial}>{(user?.firstName?.[0] || "P").toUpperCase()}</Text>}
             </TouchableOpacity>
             <View style={s.locationTopBox}>
               <Feather name="navigation" size={14} color={colors.primary} />
@@ -631,8 +631,10 @@ export default function PassengerHomeScreen() {
                   {searchResults.length > 0 && (
                     <ScrollView 
                       style={s.dropdownList} 
-                      keyboardShouldPersistTaps="handled" 
+                      keyboardShouldPersistTaps="always"
                       nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator
+                      onStartShouldSetResponder={() => true}
                     >
                       {searchResults.map((item, idx) => (
                         <TouchableOpacity key={idx} style={s.dropdownItem} onPress={() => handleSelectPlace(item)}>
@@ -962,7 +964,7 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   searchInput: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", color: '#111827' },
   searchBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, marginLeft: 8 },
   searchBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
-  dropdownList: { backgroundColor: '#fff', borderRadius: 16, marginTop: 8, paddingVertical: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, elevation: 6, maxHeight: 280 },
+  dropdownList: { backgroundColor: '#fff', borderRadius: 16, marginTop: 8, paddingVertical: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, elevation: 6, maxHeight: Math.min(420, Dimensions.get('window').height * 0.45) },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   dropdownIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   dropdownTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#111827' },

@@ -453,6 +453,17 @@ export const searchApi = {
     api.get(`/search/users?q=${encodeURIComponent(q)}`),
 };
 
+export const releaseApi = {
+  getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
+};
+
+export const agentApi = {
+  stats: () => api.get("/agent/stats"),
+  drivers: () => api.get("/agent/drivers", { params: { limit: 100 } }),
+  registerDriver: (data: { firstName: string; lastName: string; phone: string; nationalId: string }) => api.post("/agent/register-driver", data),
+  requestDriverUpdate: (id: string, description: string) => api.post(`/agent/drivers/${id}/update-request`, { description }),
+};
+
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {
   /** Upload a new file (requires FormData) */

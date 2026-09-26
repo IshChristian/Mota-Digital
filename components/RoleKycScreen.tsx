@@ -166,6 +166,22 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.plateNumber || ""}
             onChangeText={(v) => set("plateNumber", v)}
           />
+          <Text style={s.section}>Vehicle type</Text>
+          <View style={s.choices}>
+            {(["car", "moto"] as const).map((value) => (
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.vehicleType === value }} style={[s.choice, form.vehicleType === value && { borderColor: colors.primary }]} onPress={() => set("vehicleType", value)}>
+                <Text style={s.docTitle}>{value === "car" ? "Car" : "Moto"}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={s.section}>Power type</Text>
+          <View style={s.choices}>
+            {(["electric", "diesel", "petrol"] as const).map((value) => (
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.powertrain === value }} style={[s.choice, form.powertrain === value && { borderColor: colors.primary }]} onPress={() => set("powertrain", value)}>
+                <Text style={s.docTitle}>{value[0].toUpperCase() + value.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TextInput
             style={s.input}
             placeholder="Cooperative name (optional)"
@@ -173,6 +189,14 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.cooperativeName || ""}
             onChangeText={(v) => set("cooperativeName", v)}
           />
+          {([
+            ["drivingLicenseExpiresAt", "Driving licence expiry"],
+            ["transportPermitExpiresAt", "Transport permit expiry"],
+            ["insuranceExpiresAt", "Insurance expiry"],
+            ["vehicleRegistrationExpiresAt", "Vehicle registration expiry"],
+          ] as const).map(([key, label]) => (
+            <TextInput key={key} style={s.input} accessibilityLabel={label} placeholder={`${label} (YYYY-MM-DD)`} placeholderTextColor={colors.textSecondary} value={form[key] ? form[key].slice(0, 10) : ""} onChangeText={(v) => set(key, v)} />
+          ))}
         </>
       )}
       <Text style={s.section}>Required documents</Text>
@@ -256,6 +280,8 @@ const styles = (c: any) =>
       marginBottom: 10,
       backgroundColor: c.backgroundCard,
     },
+    choices: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+    choice: { borderWidth: 1, borderColor: c.border, backgroundColor: c.backgroundCard, borderRadius: 12, padding: 12 },
     doc: {
       flexDirection: "row",
       gap: 12,

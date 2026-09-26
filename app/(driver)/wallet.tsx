@@ -41,6 +41,7 @@ export default function WalletScreen() {
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState(user?.phone || "");
   const [submitting, setSubmitting] = useState(false);
+  const [manualRefresh, setManualRefresh] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const submissionLock = useRef(false);
 
@@ -59,6 +60,10 @@ export default function WalletScreen() {
   });
 
   const balance = balanceData?.balance ?? 0;
+  const refreshManually = async () => {
+    setManualRefresh(true);
+    try { await refetch(); } finally { setManualRefresh(false); }
+  };
   const heldBalance = balanceData?.heldBalance ?? 0;
   const today = balanceData?.today;
   const recentTransactions = balanceData?.recentTransactions || [];
@@ -176,8 +181,8 @@ export default function WalletScreen() {
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         renderItem={renderTx}
         contentContainerStyle={s.listContent}
-        refreshing={isFetching}
-        onRefresh={refetch}
+        refreshing={manualRefresh}
+        onRefresh={refreshManually}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>

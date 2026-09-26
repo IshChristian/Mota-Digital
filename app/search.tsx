@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,32 +13,43 @@ import { useRouter } from "expo-router";
 import { searchApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { EmptyState } from "@/components/driver/DriverUI";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SearchScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestId = useRef(0);
 
-  const search = async () => {
-    if (query.trim().length < 2) return;
+  const search = async (term: string) => {
+    const id = ++requestId.current;
+    if (term.trim().length < 2) { setResults([]); setLoading(false); return; }
     setLoading(true);
     setError("");
     try {
-      const response = await searchApi.searchAll(query.trim());
+      const response = await searchApi.searchAll(term.trim());
+      if (id !== requestId.current) return;
       const payload =
         response.data?.data ?? response.data?.results ?? response.data;
       setResults(Array.isArray(payload) ? payload : []);
     } catch (e: any) {
+      if (id !== requestId.current) return;
       setError(
         e?.response?.data?.message || "Search is temporarily unavailable.",
       );
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => void search(query), 300);
+    return () => { clearTimeout(timer); requestId.current++; };
+  }, [query]);
 
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>
@@ -68,15 +79,15 @@ export default function SearchScreen() {
           returnKeyType="search"
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={search}
-          placeholder="Search rides, users, or support content"
+          onSubmitEditing={() => void search(query)}
+          placeholder="Search your rides and transactions"
           placeholderTextColor={colors.textTertiary}
           style={[styles.input, { color: colors.textPrimary }]}
         />
         {loading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
-          <TouchableOpacity onPress={search}>
+          <TouchableOpacity accessibilityLabel="Search" onPress={() => void search(query)}>
             <Feather name="arrow-right" size={22} color={colors.primary} />
           </TouchableOpacity>
         )}
@@ -102,7 +113,13 @@ export default function SearchScreen() {
           ) : null
         }
         renderItem={({ item }) => (
-          <View
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.type || "result"}: ${item.title || "Result"}`}
+            onPress={() => {
+              if (item.type === "transaction") router.push(user?.role === "driver" ? "/(driver)/wallet" as any : "/(passenger)/wallet" as any);
+              else if (item.type === "ride") router.push(user?.role === "driver" ? "/(driver)/rides" as any : { pathname: "/(passenger)/ride-details/[id]", params: { id: String(item.id) } } as any);
+            }}
             style={[
               styles.result,
               {
@@ -125,7 +142,7 @@ export default function SearchScreen() {
                 item.status ??
                 ""}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
