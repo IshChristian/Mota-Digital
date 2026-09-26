@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -21,24 +21,33 @@ export default function SearchScreen() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestId = useRef(0);
 
-  const search = async () => {
-    if (query.trim().length < 2) return;
+  const search = async (term: string) => {
+    const id = ++requestId.current;
+    if (term.trim().length < 2) { setResults([]); setLoading(false); return; }
     setLoading(true);
     setError("");
     try {
-      const response = await searchApi.searchAll(query.trim());
+      const response = await searchApi.searchAll(term.trim());
+      if (id !== requestId.current) return;
       const payload =
         response.data?.data ?? response.data?.results ?? response.data;
       setResults(Array.isArray(payload) ? payload : []);
     } catch (e: any) {
+      if (id !== requestId.current) return;
       setError(
         e?.response?.data?.message || "Search is temporarily unavailable.",
       );
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => void search(query), 300);
+    return () => { clearTimeout(timer); requestId.current++; };
+  }, [query]);
 
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>
@@ -68,15 +77,15 @@ export default function SearchScreen() {
           returnKeyType="search"
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={search}
-          placeholder="Search rides, users, or support content"
+          onSubmitEditing={() => void search(query)}
+          placeholder="Search your rides and transactions"
           placeholderTextColor={colors.textTertiary}
           style={[styles.input, { color: colors.textPrimary }]}
         />
         {loading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
-          <TouchableOpacity onPress={search}>
+          <TouchableOpacity accessibilityLabel="Search" onPress={() => void search(query)}>
             <Feather name="arrow-right" size={22} color={colors.primary} />
           </TouchableOpacity>
         )}
