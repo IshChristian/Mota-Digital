@@ -21,7 +21,7 @@ import QRCode from "react-native-qrcode-svg";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { walletApi, algorithmApi } from "@/services/api";
+import { walletApi, algorithmApi, driverApi } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -77,47 +77,61 @@ export default function CardScreen() {
     staleTime: 60000,
   });
 
+  const { data: driverProfile, isLoading: profileLoading } = useQuery({
+    queryKey: ["driver_profile"],
+    queryFn: async () => {
+      const res = await driverApi.getProfile();
+      return res.data?.data || res.data;
+    },
+    staleTime: 60000,
+  });
+
   const balance = balanceData?.balance ?? 0;
   const tier = (algoData?.current_tier || user?.tier || "bronze").toLowerCase();
   const tierColor = TIER_ACCENT[tier] || Colors.tier.bronze;
   const gradientColors = TIER_GRADIENTS[tier] || TIER_GRADIENTS.bronze;
 
   const driverName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "DRIVER";
-  const last4 = user?.id ? user.id.slice(-4).toUpperCase() : "0000";
+  const plateNumber = String(driverProfile?.plateNumber || "").trim().toUpperCase();
+  const displayPlate = plateNumber || "PLATE PENDING";
 
   const qrData = JSON.stringify({
-    driverId: user?.id,
+    plateNumber,
     phone: user?.phone,
     name: driverName,
     tier,
   });
 
-  const copyId = async () => {
+  const copyPlateNumber = async () => {
+    if (!plateNumber) {
+      Alert.alert("Plate unavailable", "Your verified plate number is not available yet.");
+      return;
+    }
     try {
       if (Platform.OS === "web") {
         if (typeof navigator !== "undefined" && navigator.clipboard) {
-          await navigator.clipboard.writeText(user?.id || "");
+          await navigator.clipboard.writeText(plateNumber);
         }
       } else {
         const Clipboard = await import("expo-clipboard");
-        await Clipboard.setStringAsync(user?.id || "");
+        await Clipboard.setStringAsync(plateNumber);
       }
-      Alert.alert("Copied", "Driver ID copied to clipboard");
+      Alert.alert("Copied", "Plate number copied to clipboard");
     } catch {
-      Alert.alert("Error", "Could not copy ID");
+      Alert.alert("Error", "Could not copy plate number");
     }
   };
 
   const shareCard = async () => {
     try {
       await Share.share({
-        message: `MOTA Driver Membership\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nID: ${user?.id || ""}`,
+        message: `MOTA Driver Membership\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nPlate: ${displayPlate}`,
         title: "My MOTA Membership",
       });
     } catch {}
   };
 
-  const isLoading = balLoading || algoLoading;
+  const isLoading = balLoading || algoLoading || profileLoading;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -154,7 +168,7 @@ export default function CardScreen() {
           </View>
 
           <View style={styles.cardBody}>
-            <Text style={styles.cardNumber}>MEMBER ID •••• {last4}</Text>
+            <Text style={styles.cardNumber}>PLATE • {displayPlate}</Text>
           </View>
 
           <View style={styles.cardFooter}>
@@ -196,9 +210,9 @@ export default function CardScreen() {
 
         {/* Quick Actions Row */}
         <View style={s(colors, isDark).quickRow}>
-          <TouchableOpacity style={s(colors, isDark).quickAction} onPress={copyId}>
+          <TouchableOpacity style={s(colors, isDark).quickAction} onPress={copyPlateNumber}>
             <Feather name="copy" size={18} color={colors.textSecondary} />
-            <Text style={s(colors, isDark).quickActionText}>Copy ID</Text>
+            <Text style={s(colors, isDark).quickActionText}>Copy Plate</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -229,7 +243,7 @@ export default function CardScreen() {
               backgroundColor="#fff"
             />
           </View>
-          <Text style={[styles.driverId, { color: colors.textSecondary }]}>ID: {user?.id?.slice(0, 12)}...</Text>
+          <Text style={[styles.driverId, { color: colors.textSecondary }]}>Plate: {displayPlate}</Text>
         </View>
 
         <View style={{ height: 40 }} />
