@@ -339,6 +339,8 @@ export const productionApi = {
   disputes: () => api.get("/production/disputes"),
   createDispute: (rideId: string, data: Record<string, unknown>) =>
     api.post(`/production/rides/${rideId}/disputes`, data),
+  createDisputeByPlate: (plateNumber: string, data: Record<string, unknown>) =>
+    api.post("/production/disputes/by-plate", { ...data, plateNumber }),
   replyDispute: (id: string, message: string) =>
     api.post(`/production/disputes/${id}/replies`, { message }),
   notificationPreferences: () =>
