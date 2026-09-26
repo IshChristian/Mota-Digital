@@ -22,5 +22,12 @@ export default function AgentHome() {
       <Text style={{ color: colors.textSecondary }}>{stats?.pendingReferrals ?? "—"} pending referrals</Text>
     </View>
     <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/(agent)/drivers" as any)} style={{ backgroundColor: colors.primary, padding: 18, borderRadius: 14 }}><Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Manage my drivers</Text></TouchableOpacity>
+    <Text style={{ color: colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Agent responsibilities</Text>
+    {[
+      ["Register drivers", "Submit their basic details. Drivers verify their phone and admins approve registration."],
+      ["Follow verification", "See account and KYC review status for drivers you registered."],
+      ["Request account help", "Send profile, document, or account access changes to the admin and track the result."],
+      ["Request fee help", "Send a payment assistance case for admin review. A request does not move money."],
+    ].map(([title, description]) => <View key={title} style={{ backgroundColor: colors.backgroundCard, padding: 16, borderRadius: 14, gap: 4 }}><Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{title}</Text><Text style={{ color: colors.textSecondary }}>{description}</Text></View>)}
   </ScrollView>;
 }
