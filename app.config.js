@@ -3,6 +3,11 @@ export default ({ config }) => ({
 
   name: "Mota",
 
+  plugins: [
+    ...(config.plugins || []),
+    "@react-native-community/datetimepicker",
+  ],
+
   android: {
     ...config.android,
 
