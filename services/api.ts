@@ -453,6 +453,10 @@ export const searchApi = {
     api.get(`/search/users?q=${encodeURIComponent(q)}`),
 };
 
+export const releaseApi = {
+  getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
+};
+
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {
   /** Upload a new file (requires FormData) */
