@@ -141,8 +141,8 @@ export default function DashboardScreen() {
           <Image
             source={
               isDark
-                ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-                : require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+                ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+                : require("@/assets/images/official-mota-white-logo-removebg-preview.png")
             }
             style={s.brandLogo}
             resizeMode="contain"

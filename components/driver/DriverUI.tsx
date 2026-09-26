@@ -65,8 +65,8 @@ export function DriverHeader({
   const { colors, isDark } = useTheme();
   const router = useRouter();
   const logo = isDark
-    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
+    ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-white-logo-removebg-preview.png");
 
   return (
     <View style={styles.header}>

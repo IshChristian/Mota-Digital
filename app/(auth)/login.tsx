@@ -37,8 +37,8 @@ export default function LoginScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
 
   const logoSource = isDark
-    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
+    ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-white-logo-removebg-preview.png");
 
   const handleLogin = async () => {
     const loginIdentifier = identifierType === "phone" ? normalizeRwandaPhone(identifier) : identifier.trim().toLowerCase();
