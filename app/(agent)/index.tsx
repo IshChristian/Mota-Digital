@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-import { useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { RefreshControl, ScrollView, Text, View, TouchableOpacity } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
 import { agentApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -11,8 +11,14 @@ export default function AgentHome() {
   const router = useRouter();
   const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState("");
-  useEffect(() => { agentApi.stats().then((response) => setStats(response.data)).catch((e) => setError(getApiErrorMessage(e))); }, []);
-  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 24, paddingTop: 60, gap: 18 }}>
+  const [refreshing, setRefreshing] = useState(false);
+  const load = useCallback(async () => {
+    try { const response = await agentApi.stats(); setStats(response.data); setError(""); }
+    catch (e) { setError(getApiErrorMessage(e)); }
+  }, []);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const refresh = async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } };
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 24, paddingTop: 60, gap: 18 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}>
     <Text style={{ color: colors.textPrimary, fontSize: 28, fontWeight: "700" }}>Welcome, {user?.firstName || "Agent"}</Text>
     <Text style={{ color: colors.textSecondary }}>Manage registrations and request driver account changes.</Text>
     {error ? <Text style={{ color: colors.error }}>{error}</Text> : null}
