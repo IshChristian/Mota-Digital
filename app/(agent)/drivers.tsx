@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { agentApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
@@ -16,12 +16,16 @@ export default function AgentDrivers() {
   const [kind, setKind] = useState<Record<string, keyof typeof assistance>>({});
   const [history, setHistory] = useState<Request[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    try { const [response, requests] = await Promise.all([agentApi.drivers(), agentApi.updateRequests()]); setDrivers(response.data.drivers || []); setHistory(requests.data.data || []); }
+    try { const [response, requests] = await Promise.all([agentApi.drivers(), agentApi.updateRequests()]); setDrivers(response.data.drivers || []); setHistory(requests.data.data || []); setMessage(""); }
     catch (e) { setMessage(getApiErrorMessage(e)); }
+    finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const refresh = async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } };
   const register = async () => {
     const phone = normalizeRwandaPhone(form.phone);
     if (!phone || !form.firstName.trim() || !form.lastName.trim() || !form.nationalId.trim()) { setMessage("Enter a name, valid phone number and national ID."); return; }
@@ -36,14 +40,14 @@ export default function AgentDrivers() {
     catch (e) { setMessage(getApiErrorMessage(e)); } finally { setBusy(false); }
   };
   const inputStyle = { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundCard, color: colors.textPrimary, borderRadius: 12, padding: 13 };
-  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, paddingTop: 55, paddingBottom: 110, gap: 12 }} keyboardShouldPersistTaps="handled">
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, paddingTop: 55, paddingBottom: 110, gap: 12 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}>
     <Text style={{ color: colors.textPrimary, fontSize: 26, fontWeight: "700" }}>My drivers</Text>
     {message ? <Text accessibilityRole="alert" style={{ color: colors.textPrimary }}>{message}</Text> : null}
     <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "600" }}>Start a registration</Text>
     {(["firstName", "lastName", "phone", "nationalId"] as const).map((key) => <TextInput key={key} accessibilityLabel={key} placeholder={key === "nationalId" ? "National ID" : key === "phone" ? "Phone number" : key === "firstName" ? "First name" : "Last name"} placeholderTextColor={colors.textSecondary} style={inputStyle} value={form[key]} onChangeText={(value) => setForm((current) => ({ ...current, [key]: value }))} />)}
     <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => Alert.alert("Submit registration", "The driver must verify their phone and complete administrator review before driving.", [{ text: "Cancel", style: "cancel" }, { text: "Submit", onPress: () => void register() }])} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 15 }}><Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>Register driver</Text></TouchableOpacity>
     <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "600", marginTop: 18 }}>Registered drivers</Text>
-    {drivers.length === 0 ? <Text style={{ color: colors.textSecondary }}>No drivers registered yet.</Text> : drivers.map((driver) => <View key={driver._id} style={{ backgroundColor: colors.backgroundCard, borderRadius: 16, padding: 16, gap: 9 }}>
+    {loading ? <Text style={{ color: colors.textSecondary }}>Loading drivers…</Text> : drivers.length === 0 && !message ? <Text style={{ color: colors.textSecondary }}>No drivers registered yet.</Text> : drivers.map((driver) => <View key={driver._id} style={{ backgroundColor: colors.backgroundCard, borderRadius: 16, padding: 16, gap: 9 }}>
       <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{driver.firstName} {driver.lastName}</Text>
       <Text style={{ color: colors.textSecondary }}>{driver.phone} · {driver.registrationStatus || (driver.isActive ? "Active" : "Pending review")}</Text>
       <Text style={{ color: colors.textSecondary }}>Phone: {driver.isVerified ? "verified" : "verification needed"} · KYC: {driver.kyc?.status || "not submitted"}</Text>
