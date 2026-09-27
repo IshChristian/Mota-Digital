@@ -5,13 +5,14 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi } from "@/services/api";
+import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi, productionApi } from "@/services/api";
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useT } from '@/context/I18nContext';
+import { formatPlace } from '@/utils/formatPlace';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const SHEET_COLLAPSED_OFFSET = Math.min(260, Dimensions.get("window").height * 0.3);
@@ -64,6 +65,8 @@ export default function PassengerHomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchIntent, setSearchIntent] = useState(false);
+  const searchRequest = useRef(0);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -74,7 +77,11 @@ export default function PassengerHomeScreen() {
   // Nearby available motors (fetched from backend when available)
   const [availableMotors, setAvailableMotors] = useState<any[]>([]);
 
-  const [driverPos, setDriverPos] = useState({ lat: -1.9500, lng: 30.0650 });
+  const [driverPos, setDriverPos] = useState<{ lat: number; lng: number; updatedAt: number } | null>(null);
+  const [trackingNow, setTrackingNow] = useState(Date.now());
+  const [sosVisible, setSosVisible] = useState(false);
+  const [sosBusy, setSosBusy] = useState(false);
+  const [rideNotice, setRideNotice] = useState("");
   const [rideId, setRideId] = useState<string | null>(null);
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
@@ -185,13 +192,7 @@ export default function PassengerHomeScreen() {
       try {
         let geocode = await Location.reverseGeocodeAsync(location.coords);
         if (geocode && geocode.length > 0) {
-          const name = geocode[0].name || geocode[0].street;
-          const city = geocode[0].city || geocode[0].region || geocode[0].district;
-          if (name) {
-            setLocationName(`${name}, ${city}`);
-          } else {
-            setLocationName(`${city || geocode[0].isoCountryCode}`);
-          }
+          setLocationName(formatPlace(geocode[0], "Current location"));
         }
       } catch (e) {}
 
@@ -247,12 +248,7 @@ export default function PassengerHomeScreen() {
           if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(ride?.status)) {
             setServerRideStatus(ride.status);
             setAcceptedDriver(ride.driver || ride.assignedDriver);
-            if (ride.driver?.lastLocation) {
-              setDriverPos({
-                lat: ride.driver.lastLocation.latitude,
-                lng: ride.driver.lastLocation.longitude,
-              });
-            }
+            // The status endpoint supplies the driver's location timestamp after acceptance.
             setRideState("accepted");
             clearInterval(interval);
           } else if (ride?.status === 'cancelled' || ride?.status === 'expired') {
@@ -280,8 +276,9 @@ export default function PassengerHomeScreen() {
           const ride = (await ridesApi.getRideStatus(rideId)).data;
           setServerRideStatus(ride.rideStatus || ride.status || '');
           const location = ride.driverId?.lastLocation || ride.driver?.lastLocation;
-          if (location?.latitude != null && location?.longitude != null) {
-            setDriverPos({ lat: location.latitude, lng: location.longitude });
+          const capturedAt = Date.parse(ride.driverId?.lastLocationAt || ride.driver?.lastLocationAt || '');
+          if (location?.latitude != null && location?.longitude != null && Number.isFinite(capturedAt) && Date.now() - capturedAt < 30000 && capturedAt <= Date.now() + 5000) {
+            setDriverPos({ lat: location.latitude, lng: location.longitude, updatedAt: capturedAt });
             const latKm = (pickupLoc.latitude - location.latitude) * 111;
             const lngKm = (pickupLoc.longitude - location.longitude) * 111 * Math.cos(pickupLoc.latitude * Math.PI / 180);
             const remaining = Math.sqrt(latKm * latKm + lngKm * lngKm);
@@ -295,6 +292,32 @@ export default function PassengerHomeScreen() {
     }
     return () => clearInterval(interval);
   }, [rideState, rideId, pickupLoc.latitude, pickupLoc.longitude]);
+
+  useEffect(() => {
+    if (rideState !== "accepted") { setDriverPos(null); return; }
+    const interval = setInterval(() => setTrackingNow(Date.now()), 5000);
+    return () => clearInterval(interval);
+  }, [rideState]);
+
+  const sendSafetyRequest = async () => {
+    if (!rideId || sosBusy) return;
+    setSosBusy(true);
+    try {
+      await productionApi.createSafetyEvent({
+        rideId,
+        type: "sos",
+        category: "active_ride",
+        location: { latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, capturedAt: new Date().toISOString() },
+      });
+      setSosVisible(false);
+      setRideNotice("MOTA support received your safety request. For immediate emergency assistance, contact local emergency services directly.");
+    } catch (error: any) {
+      setRideNotice(error?.response?.data?.message || "Safety request could not be sent. Please contact local emergency services directly if you need immediate help.");
+      setSosVisible(false);
+    } finally {
+      setSosBusy(false);
+    }
+  };
 
   const adjustOffer = (amount: number) => {
     const newOffer = offer + amount;
@@ -329,6 +352,10 @@ export default function PassengerHomeScreen() {
       Alert.alert('Destination required', 'Select a destination before requesting a ride.');
       return;
     }
+    if (isScheduled && (!scheduledDate || !scheduledTime || scheduledAt.getTime() <= Date.now() + 20 * 60 * 1000)) {
+      Alert.alert('Choose a later time', 'Schedule your ride at least 20 minutes ahead.');
+      return;
+    }
     if (paymentMethod === 'wallet') {
       try {
         const wallet = (await walletApi.getBalance()).data;
@@ -343,6 +370,7 @@ export default function PassengerHomeScreen() {
     setWaitingMinimized(false);
     setSearchTimer(0);
     setAcceptedDriver(null);
+    setDriverPos(null);
     try {
       const res = await ridesApi.requestRide({
         pickup: { name: locationName, latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, lat: pickupLoc.latitude, lng: pickupLoc.longitude },
@@ -355,6 +383,13 @@ export default function PassengerHomeScreen() {
         scheduledTime: isScheduled ? scheduledTime : undefined,
       });
       const id = res.data?.data?.rideId || res.data?.rideId || res.data?.ride?._id || res.data?._id;
+      if (isScheduled && res.data?.data?.rideStatus === 'scheduled') {
+        setRideState('idle');
+        setRideId(null);
+        clearRideRequest();
+        Alert.alert('Ride scheduled', `We will remind you before ${scheduledDate} at ${scheduledTime}. Driver matching begins shortly before pickup.`, [{ text: 'View ride', onPress: () => router.push(id ? { pathname: '/(passenger)/ride-details/[id]', params: { id } } as any : '/(passenger)/rides') }]);
+        return;
+      }
       if (id) setRideId(id);
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Unable to request this ride. Please check the trip details and try again.';
@@ -425,7 +460,7 @@ export default function PassengerHomeScreen() {
       try {
         let geocode = await Location.reverseGeocodeAsync(coords);
         if (geocode && geocode.length > 0) {
-          const locStr = `${geocode[0].name || geocode[0].street || "Selected Location"}, ${geocode[0].city || ""}`;
+          const locStr = formatPlace(geocode[0]);
           setDestination(locStr);
           setSearchQuery(locStr);
         } else {
@@ -455,29 +490,39 @@ export default function PassengerHomeScreen() {
   };
 
   const handleSearch = async (query: string) => {
-    setSearchQuery(query);
+    const request = ++searchRequest.current;
     if (query.length < 3) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
     setIsSearching(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=rw&limit=5`, {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=rw&limit=10`, {
         headers: {
           'User-Agent': 'MotaRideApp/1.0',
           'Accept': 'application/json'
         }
       });
       const data = await response.json();
-      setSearchResults(data);
+      if (request === searchRequest.current) setSearchResults(data);
     } catch (e) {
       console.log("Search error:", e);
     } finally {
-      setIsSearching(false);
+      if (request === searchRequest.current) setIsSearching(false);
     }
   };
 
+  useEffect(() => {
+    if (!searchIntent || vehicleType === null) return;
+    const timer = setTimeout(() => { void handleSearch(searchQuery); }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchIntent, vehicleType]);
+
   const handleSelectPlace = (place: any) => {
+    searchRequest.current += 1;
+    setIsSearching(false);
+    setSearchIntent(false);
     const name = place.display_name.split(',')[0];
     setDestination(name);
     setSearchQuery(name);
@@ -498,12 +543,12 @@ export default function PassengerHomeScreen() {
           center={pickupLoc}
           destination={destinationLoc}
           route={routeCoordinates}
-          drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))}
+          drivers={rideState === 'accepted' ? (driverPos && trackingNow - driverPos.updatedAt < 30000 ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned driver' }] : []) : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby driver' }))}
           onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })}
           onReady={() => setMapReady(true)}
         />
       ) : GOOGLE_MAPS_APIKEY ? (
-        <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={pickupLoc} destination={destinationLoc} route={routeCoordinates} drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))} onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })} onReady={() => { setMapReady(true); setMapError(null); }} onError={setMapError} />
+        <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={pickupLoc} destination={destinationLoc} route={routeCoordinates} drivers={rideState === 'accepted' ? (driverPos && trackingNow - driverPos.updatedAt < 30000 ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned driver' }] : []) : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby driver' }))} onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })} onReady={() => { setMapReady(true); setMapError(null); }} onError={setMapError} />
       ) : null}
       {!mapReady ? <View style={[s.mapLoading, { pointerEvents: 'none' }]}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
       {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
@@ -537,8 +582,8 @@ export default function PassengerHomeScreen() {
                 <Text style={s.locationTopText}>{locationName}</Text>
               </View>
             </View>
-            <TouchableOpacity style={s.menuBtnTop} onPress={() => router.push("/(passenger)/rides")}>
-              <Feather name="grid" size={20} color="#111827" />
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open my rides" style={s.menuBtnTop} onPress={() => router.push("/(passenger)/rides")}>
+              <Feather name="list" size={20} color="#111827" />
             </TouchableOpacity>
           </View>
 
@@ -587,18 +632,20 @@ export default function PassengerHomeScreen() {
               
               <View style={s.vehicleCardsRow}>
                 <TouchableOpacity 
-                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}15` }]} 
+                  accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "car" }}
+                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
                   onPress={() => setVehicleType("car")}
                 >
-                   <Text style={{fontSize:40, marginBottom: 8}}>🚗</Text>
+                   <Feather name="truck" size={28} color={vehicleType === "car" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.cars")}</Text>
                    <Text style={s.vcSub}>{t("ride.car_help")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}15` }]} 
+                  accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "motor" }}
+                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
                   onPress={() => setVehicleType("motor")}
                 >
-                   <Text style={{fontSize:40, marginBottom: 8}}>🏍️</Text>
+                   <Feather name="navigation" size={28} color={vehicleType === "motor" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.motors")}</Text>
                    <Text style={s.vcSub}>{t("ride.motor_help")}</Text>
                 </TouchableOpacity>
@@ -615,7 +662,7 @@ export default function PassengerHomeScreen() {
                       placeholder={t("ride.destination_placeholder")}
                       placeholderTextColor="#9CA3AF"
                       value={searchQuery}
-                      onChangeText={(text) => setSearchQuery(text)}
+                      onChangeText={(text) => { setSearchIntent(true); setSearchQuery(text); setDestinationLoc(null); }}
                       onSubmitEditing={() => handleSearch(searchQuery)}
                       returnKeyType="search"
                     />
@@ -642,8 +689,8 @@ export default function PassengerHomeScreen() {
                             <Feather name="map-pin" size={14} color="#fff" />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={s.dropdownTitle} numberOfLines={1}>{item.display_name.split(',')[0]}</Text>
-                            <Text style={s.dropdownSub} numberOfLines={1}>{item.display_name.split(',').slice(1).join(',').trim()}</Text>
+                            <Text style={s.dropdownTitle} numberOfLines={2}>{item.display_name.split(',')[0]}</Text>
+                            <Text style={s.dropdownSub} numberOfLines={2}>{item.display_name.split(',').slice(1).join(',').trim()}</Text>
                           </View>
                           <Feather name="arrow-up-left" size={16} color="#9CA3AF" />
                         </TouchableOpacity>
@@ -821,6 +868,9 @@ export default function PassengerHomeScreen() {
                  <Text style={s.cardTitle}>Driver: {acceptedDriver?.firstName || 'Your Rider'} {acceptedDriver?.lastName || ''}</Text>
                  <Text style={s.cardSub}>Plate: {acceptedDriver?.plate || 'N/A'} • {vehicleType === 'car' ? '🚗' : '🏍️'} MOTA {vehicleType === 'car' ? 'Car' : 'Standard'}</Text>
                  <Text style={[s.cardSub, { marginTop: 8 }]}>Destination: {destination}</Text>
+                 <Text accessibilityLiveRegion="polite" style={[s.cardSub, { marginTop: 8 }]}>{driverPos && trackingNow - driverPos.updatedAt < 30000 ? "Driver location updating" : "Waiting for a current driver location"}</Text>
+                 {!!rideNotice && <Text accessibilityRole="alert" style={[s.cardSub, { color: '#991B1B', marginTop: 8 }]}>{rideNotice}</Text>}
+                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Request safety support for this ride" onPress={() => setSosVisible(true)} style={{ borderColor: '#B91C1C', borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 12 }}><Text style={{ color: '#991B1B', fontFamily: 'Inter_700Bold' }}>SOS · Request safety support</Text></TouchableOpacity>
                  <View style={s.timeline}>
                    {([
                      ['Request sent', true],
@@ -869,6 +919,16 @@ export default function PassengerHomeScreen() {
           <Text style={s.cardSub}>{serverRideStatus === 'in_progress' ? 'The fare will be held while admin or caller support reviews the report.' : 'Tell us why you are cancelling. The reason is saved in ride history.'}</Text>
           <TextInput multiline maxLength={500} value={cancellationReason} onChangeText={setCancellationReason} placeholder="Enter cancellation reason" placeholderTextColor="#9CA3AF" style={s.reasonInput} />
           <View style={s.modalActions}><TouchableOpacity style={[s.primaryBtn, s.modalButton, { backgroundColor: '#E5E7EB' }]} onPress={() => setCancelModalVisible(false)}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Keep ride</Text></TouchableOpacity><TouchableOpacity disabled={cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3)} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#DC2626', opacity: cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3) ? .5 : 1 }]} onPress={() => void cancelWithReason(cancellationReason.trim())}><Text style={s.primaryBtnText}>Cancel ride</Text></TouchableOpacity></View>
+        </View></View>
+      </Modal>
+      <Modal transparent visible={sosVisible} animationType="fade" onRequestClose={() => setSosVisible(false)}>
+        <View style={s.modalBackdrop}><View style={s.cancelModal}>
+          <Text style={s.cardTitle}>Request safety support?</Text>
+          <Text style={s.cardSub}>This sends your ride and current location to MOTA support. It does not call emergency services. For immediate help, contact local emergency services directly.</Text>
+          <View style={s.modalActions}>
+            <TouchableOpacity accessibilityRole="button" disabled={sosBusy} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#E5E7EB' }]} onPress={() => setSosVisible(false)}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" disabled={sosBusy} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#B91C1C', opacity: sosBusy ? .6 : 1 }]} onPress={() => void sendSafetyRequest()}><Text style={s.primaryBtnText}>{sosBusy ? 'Sending…' : 'Send request'}</Text></TouchableOpacity>
+          </View>
         </View></View>
       </Modal>
     </View>
@@ -955,9 +1015,9 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   fieldLabel: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14, marginBottom: 3 },
   fieldHelp: { color: 'rgba(255,255,255,.78)', fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 9 },
   vehicleCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  vehicleCard: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-  vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },
-  vcSub: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#6B7280', marginTop: 4 },
+  vehicleCard: { flex: 1, minWidth: 0, backgroundColor: '#fff', borderColor: 'transparent', borderWidth: 2, borderRadius: 20, padding: 14, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827', flexShrink: 1 },
+  vcSub: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium', color: '#4B5563', marginTop: 4, flexShrink: 1 },
   
   searchBarContainer: { width: '100%', marginBottom: 10 },
   searchBarInputBox: { backgroundColor: '#fff', height: 60, borderRadius: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
