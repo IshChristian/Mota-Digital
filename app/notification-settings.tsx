@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Switch, Text, View } from "react-native";
+import { Switch, Text, View } from "react-native";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
@@ -18,30 +18,31 @@ export default function NotificationSettings() {
     promotions: false,
     security: true,
   });
+  const [feedback, setFeedback] = useState("");
   useEffect(() => {
     productionApi
       .notificationPreferences()
       .then((r) => setValues((v) => ({ ...v, ...r.data.data })))
-      .catch(() =>
-        Alert.alert(
-          "Unavailable",
-          "Notification preferences could not be loaded.",
-        ),
-      );
+      .catch(() => setFeedback("Notification preferences could not be loaded. Pull back and try again."));
   }, []);
   const change = async (key: keyof typeof labels, value: boolean) => {
     const previous = values;
     setValues({ ...values, [key]: value });
     try {
       await productionApi.updateNotificationPreferences({ [key]: value });
+      setFeedback("Notification preferences saved.");
     } catch {
       setValues(previous);
-      Alert.alert("Not saved", "Please retry.");
+      setFeedback("Changes were not saved. Please try again.");
     }
   };
   return (
     <PassengerSettingsScreen title="Notifications">
-      {Object.entries(labels).map(([key, label]) => (
+      {feedback ? <Text accessibilityRole="alert" style={{ color: colors.textPrimary, backgroundColor: colors.backgroundCard, padding: 12, borderRadius: 10 }}>{feedback}</Text> : null}
+      {(["Operational", "Promotional"] as const).map((group) => <View key={group}>
+        <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 17, marginBottom: 6 }}>{group}</Text>
+        <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>{group === "Operational" ? "Ride, account, and security updates" : "Offers and news from MOTA"}</Text>
+      {Object.entries(labels).filter(([key]) => group === "Promotional" ? key === "promotions" : key !== "promotions").map(([key, label]) => (
         <View
           key={key}
           style={{
@@ -72,6 +73,7 @@ export default function NotificationSettings() {
           />
         </View>
       ))}
+      </View>)}
     </PassengerSettingsScreen>
   );
 }
