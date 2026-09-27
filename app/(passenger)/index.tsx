@@ -352,6 +352,10 @@ export default function PassengerHomeScreen() {
       Alert.alert('Destination required', 'Select a destination before requesting a ride.');
       return;
     }
+    if (isScheduled && (!scheduledDate || !scheduledTime || scheduledAt.getTime() <= Date.now() + 20 * 60 * 1000)) {
+      Alert.alert('Choose a later time', 'Schedule your ride at least 20 minutes ahead.');
+      return;
+    }
     if (paymentMethod === 'wallet') {
       try {
         const wallet = (await walletApi.getBalance()).data;
@@ -379,6 +383,13 @@ export default function PassengerHomeScreen() {
         scheduledTime: isScheduled ? scheduledTime : undefined,
       });
       const id = res.data?.data?.rideId || res.data?.rideId || res.data?.ride?._id || res.data?._id;
+      if (isScheduled && res.data?.data?.rideStatus === 'scheduled') {
+        setRideState('idle');
+        setRideId(null);
+        clearRideRequest();
+        Alert.alert('Ride scheduled', `We will remind you before ${scheduledDate} at ${scheduledTime}. Driver matching begins shortly before pickup.`, [{ text: 'View ride', onPress: () => router.push(id ? { pathname: '/(passenger)/ride-details/[id]', params: { id } } as any : '/(passenger)/rides') }]);
+        return;
+      }
       if (id) setRideId(id);
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Unable to request this ride. Please check the trip details and try again.';
