@@ -26,7 +26,9 @@ const driverDocuments = [
   ["transportPermitDocument", "Transport permit"],
   ["insuranceDocument", "Insurance certificate"],
   ["vehicleRegistrationDocument", "Vehicle registration"],
+  ["technicalInspectionDocument", "Technical inspection certificate"],
 ] as const;
+const optionalDriverDocuments = [["vocationalCardDocument", "Driver vocational card (optional)"]] as const;
 
 export function RoleKycScreen({ kind }: { kind: Kind }) {
   const { colors } = useTheme();
@@ -194,6 +196,8 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             ["transportPermitExpiresAt", "Transport permit expiry"],
             ["insuranceExpiresAt", "Insurance expiry"],
             ["vehicleRegistrationExpiresAt", "Vehicle registration expiry"],
+            ["technicalInspectionExpiresAt", "Technical inspection expiry"],
+            ["vocationalCardExpiresAt", "Vocational card expiry (if provided)"],
           ] as const).map(([key, label]) => (
             <TextInput key={key} style={s.input} accessibilityLabel={label} placeholder={`${label} (YYYY-MM-DD)`} placeholderTextColor={colors.textSecondary} value={form[key] ? form[key].slice(0, 10) : ""} onChangeText={(v) => set(key, v)} />
           ))}
@@ -222,6 +226,15 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
           </View>
         </TouchableOpacity>
       ))}
+      {kind === "driver" ? <>
+        <Text style={s.section}>Optional document</Text>
+        {optionalDriverDocuments.map(([key, label]) => (
+          <TouchableOpacity key={key} style={s.doc} onPress={() => pick(key)} disabled={status === "approved"}>
+            <Feather name={form[key] ? "check-circle" : "upload"} size={20} color={form[key] ? colors.primary : colors.textSecondary} />
+            <View style={{ flex: 1 }}><Text style={s.docTitle}>{label}</Text><Text style={s.docSub}>{form[key] ? "Uploaded — tap to replace" : "Tap to select and upload"}</Text></View>
+          </TouchableOpacity>
+        ))}
+      </> : null}
       <TouchableOpacity
         style={[s.submit, status === "approved" && { opacity: 0.5 }]}
         onPress={submit}
