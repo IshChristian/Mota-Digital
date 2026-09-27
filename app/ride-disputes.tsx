@@ -1,51 +1,80 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
-import { productionApi } from "@/services/api";
+import { productionApi, uploadsApi } from "@/services/api";
 
 export default function RideDisputes() {
   const { colors } = useTheme();
   const [items, setItems] = useState<any[]>([]);
   const [plateNumber, setPlateNumber] = useState("");
   const [description, setDescription] = useState("");
+  const [evidence, setEvidence] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   const load = useCallback(
     () =>
       productionApi
         .disputes()
         .then((r) => setItems(r.data.data || []))
-        .catch(() =>
-          Alert.alert("Unavailable", "Disputes could not be loaded."),
-        ),
+        .catch(() => setMessage("Disputes could not be loaded. Please try again.")),
     [],
   );
   useEffect(() => {
     void load();
   }, [load]);
+  const attachEvidence = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") {
+      setMessage("Allow photo access to attach evidence.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (result.canceled) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const asset = result.assets[0];
+      const body = new FormData();
+      body.append("file", { uri: asset.uri, name: asset.fileName || "evidence.jpg", type: asset.mimeType || "image/jpeg" } as any);
+      const response = await uploadsApi.upload(body);
+      setEvidence(response.data.data.url);
+      setMessage("Evidence attached.");
+    } catch (e: any) {
+      setMessage(e?.response?.data?.message || "Evidence upload failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const submit = async () => {
     const normalizedPlate = plateNumber.trim().toUpperCase().replace(/\s+/g, " ");
     if (!normalizedPlate) {
-      Alert.alert("Plate required", "Enter the verified plate number shown on the driver or vehicle.");
+      setMessage("Enter the verified plate number shown on the driver or vehicle.");
       return;
     }
     if (!description.trim()) {
-      Alert.alert("Details required", "Explain what happened so support can review the correct ride.");
+      setMessage("Explain what happened so support can review the correct ride.");
       return;
     }
     try {
+      setBusy(true);
+      setMessage("");
       await productionApi.createDisputeByPlate(normalizedPlate, {
         category: "other",
         description: description.trim(),
         requestRefund: true,
+        evidence: evidence ? [evidence] : [],
       });
       setPlateNumber("");
       setDescription("");
+      setEvidence(null);
+      setMessage("Your request was submitted. Support will review it.");
       await load();
     } catch (e: any) {
-      Alert.alert(
-        "Not submitted",
-        e?.response?.data?.message || "Check the plate number and try again.",
-      );
+      setMessage(e?.response?.data?.message || "Request was not submitted. Check the plate number and try again.");
+    } finally {
+      setBusy(false);
     }
   };
   const input = {
@@ -75,8 +104,13 @@ export default function RideDisputes() {
         multiline
         placeholderTextColor={colors.textSecondary}
       />
+      <TouchableOpacity onPress={attachEvidence} disabled={busy} accessibilityRole="button" style={{ borderWidth: 1, borderColor: colors.border, padding: 14, borderRadius: 12 }}>
+        <Text style={{ color: colors.textPrimary }}>{evidence ? "Evidence photo attached · Change photo" : "Attach evidence photo (optional)"}</Text>
+      </TouchableOpacity>
+      {!!message && <Text accessibilityRole="alert" style={{ color: colors.textPrimary }}>{message}</Text>}
       <TouchableOpacity
         onPress={submit}
+        disabled={busy}
         style={{
           backgroundColor: colors.primary,
           padding: 15,
@@ -85,7 +119,7 @@ export default function RideDisputes() {
         }}
       >
         <Text style={{ color: "#fff", fontFamily: "Inter_700Bold" }}>
-          Submit dispute and refund request
+          {busy ? "Please wait…" : "Submit dispute and refund request"}
         </Text>
       </TouchableOpacity>
       {items.map((item) => (
