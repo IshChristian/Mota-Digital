@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
-import { authApi } from "@/services/api";
+import { authApi, isNetworkError } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
@@ -88,7 +88,20 @@ export default function RegisterScreen() {
         setError(data.message || "Registration succeeded but failed to parse response.");
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t("error"));
+      // Registration may have been saved even when the response was lost.
+      if (isNetworkError(err) || err.response?.status >= 500) {
+        try {
+          const recovery = await authApi.recoverRegistration({ phone: getSubmitPhone()!, password: formData.password });
+          if (recovery.data?.userId) {
+            if (recovery.data.isVerified) router.replace("/(auth)/login");
+            else router.push({ pathname: "/(auth)/confirm-phone", params: { userId: recovery.data.userId, phone: getSubmitPhone(), fromRegister: "1", email: formData.email } } as any);
+            return;
+          }
+        } catch { /* The result remains uncertain when recovery is unavailable. */ }
+        setError("We could not confirm whether your account was created. Please try signing in before submitting registration again.");
+      } else {
+        setError(err.response?.data?.message || err.message || t("error"));
+      }
     } finally {
       setLoading(false);
     }
