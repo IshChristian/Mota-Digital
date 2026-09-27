@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi } from "@/services/api";
+import { ridesApi, paymentApi, realtimeApi, mapsApi, walletApi, productionApi } from "@/services/api";
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
@@ -65,6 +65,8 @@ export default function PassengerHomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchIntent, setSearchIntent] = useState(false);
+  const searchRequest = useRef(0);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -75,7 +77,11 @@ export default function PassengerHomeScreen() {
   // Nearby available motors (fetched from backend when available)
   const [availableMotors, setAvailableMotors] = useState<any[]>([]);
 
-  const [driverPos, setDriverPos] = useState({ lat: -1.9500, lng: 30.0650 });
+  const [driverPos, setDriverPos] = useState<{ lat: number; lng: number; updatedAt: number } | null>(null);
+  const [trackingNow, setTrackingNow] = useState(Date.now());
+  const [sosVisible, setSosVisible] = useState(false);
+  const [sosBusy, setSosBusy] = useState(false);
+  const [rideNotice, setRideNotice] = useState("");
   const [rideId, setRideId] = useState<string | null>(null);
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
@@ -242,12 +248,7 @@ export default function PassengerHomeScreen() {
           if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(ride?.status)) {
             setServerRideStatus(ride.status);
             setAcceptedDriver(ride.driver || ride.assignedDriver);
-            if (ride.driver?.lastLocation) {
-              setDriverPos({
-                lat: ride.driver.lastLocation.latitude,
-                lng: ride.driver.lastLocation.longitude,
-              });
-            }
+            // The status endpoint supplies the driver's location timestamp after acceptance.
             setRideState("accepted");
             clearInterval(interval);
           } else if (ride?.status === 'cancelled' || ride?.status === 'expired') {
@@ -275,8 +276,9 @@ export default function PassengerHomeScreen() {
           const ride = (await ridesApi.getRideStatus(rideId)).data;
           setServerRideStatus(ride.rideStatus || ride.status || '');
           const location = ride.driverId?.lastLocation || ride.driver?.lastLocation;
-          if (location?.latitude != null && location?.longitude != null) {
-            setDriverPos({ lat: location.latitude, lng: location.longitude });
+          const capturedAt = Date.parse(ride.driverId?.lastLocationAt || ride.driver?.lastLocationAt || '');
+          if (location?.latitude != null && location?.longitude != null && Number.isFinite(capturedAt) && Date.now() - capturedAt < 30000 && capturedAt <= Date.now() + 5000) {
+            setDriverPos({ lat: location.latitude, lng: location.longitude, updatedAt: capturedAt });
             const latKm = (pickupLoc.latitude - location.latitude) * 111;
             const lngKm = (pickupLoc.longitude - location.longitude) * 111 * Math.cos(pickupLoc.latitude * Math.PI / 180);
             const remaining = Math.sqrt(latKm * latKm + lngKm * lngKm);
@@ -290,6 +292,32 @@ export default function PassengerHomeScreen() {
     }
     return () => clearInterval(interval);
   }, [rideState, rideId, pickupLoc.latitude, pickupLoc.longitude]);
+
+  useEffect(() => {
+    if (rideState !== "accepted") { setDriverPos(null); return; }
+    const interval = setInterval(() => setTrackingNow(Date.now()), 5000);
+    return () => clearInterval(interval);
+  }, [rideState]);
+
+  const sendSafetyRequest = async () => {
+    if (!rideId || sosBusy) return;
+    setSosBusy(true);
+    try {
+      await productionApi.createSafetyEvent({
+        rideId,
+        type: "sos",
+        category: "active_ride",
+        location: { latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, capturedAt: new Date().toISOString() },
+      });
+      setSosVisible(false);
+      setRideNotice("MOTA support received your safety request. For immediate emergency assistance, contact local emergency services directly.");
+    } catch (error: any) {
+      setRideNotice(error?.response?.data?.message || "Safety request could not be sent. Please contact local emergency services directly if you need immediate help.");
+      setSosVisible(false);
+    } finally {
+      setSosBusy(false);
+    }
+  };
 
   const adjustOffer = (amount: number) => {
     const newOffer = offer + amount;
@@ -338,6 +366,7 @@ export default function PassengerHomeScreen() {
     setWaitingMinimized(false);
     setSearchTimer(0);
     setAcceptedDriver(null);
+    setDriverPos(null);
     try {
       const res = await ridesApi.requestRide({
         pickup: { name: locationName, latitude: pickupLoc.latitude, longitude: pickupLoc.longitude, lat: pickupLoc.latitude, lng: pickupLoc.longitude },
@@ -450,29 +479,38 @@ export default function PassengerHomeScreen() {
   };
 
   const handleSearch = async (query: string) => {
-    setSearchQuery(query);
+    const request = ++searchRequest.current;
     if (query.length < 3) {
       setSearchResults([]);
       return;
     }
     setIsSearching(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=rw&limit=5`, {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&countrycodes=rw&limit=10`, {
         headers: {
           'User-Agent': 'MotaRideApp/1.0',
           'Accept': 'application/json'
         }
       });
       const data = await response.json();
-      setSearchResults(data);
+      if (request === searchRequest.current) setSearchResults(data);
     } catch (e) {
       console.log("Search error:", e);
     } finally {
-      setIsSearching(false);
+      if (request === searchRequest.current) setIsSearching(false);
     }
   };
 
+  useEffect(() => {
+    if (!searchIntent || vehicleType === null) return;
+    const timer = setTimeout(() => { void handleSearch(searchQuery); }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchIntent, vehicleType]);
+
   const handleSelectPlace = (place: any) => {
+    searchRequest.current += 1;
+    setIsSearching(false);
+    setSearchIntent(false);
     const name = place.display_name.split(',')[0];
     setDestination(name);
     setSearchQuery(name);
@@ -493,12 +531,12 @@ export default function PassengerHomeScreen() {
           center={pickupLoc}
           destination={destinationLoc}
           route={routeCoordinates}
-          drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))}
+          drivers={rideState === 'accepted' ? (driverPos && trackingNow - driverPos.updatedAt < 30000 ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned driver' }] : []) : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby driver' }))}
           onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })}
           onReady={() => setMapReady(true)}
         />
       ) : GOOGLE_MAPS_APIKEY ? (
-        <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={pickupLoc} destination={destinationLoc} route={routeCoordinates} drivers={rideState === 'accepted' ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned rider' }] : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby rider' }))} onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })} onReady={() => { setMapReady(true); setMapError(null); }} onError={setMapError} />
+        <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={pickupLoc} destination={destinationLoc} route={routeCoordinates} drivers={rideState === 'accepted' ? (driverPos && trackingNow - driverPos.updatedAt < 30000 ? [{ latitude: driverPos.lat, longitude: driverPos.lng, label: 'Assigned driver' }] : []) : availableMotors.map(motor => ({ latitude: motor.lat, longitude: motor.lng, label: motor.name || 'Nearby driver' }))} onCoordinatePress={(coordinate) => void handleMapPress({ nativeEvent: { coordinate } })} onReady={() => { setMapReady(true); setMapError(null); }} onError={setMapError} />
       ) : null}
       {!mapReady ? <View style={[s.mapLoading, { pointerEvents: 'none' }]}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
       {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
@@ -612,7 +650,7 @@ export default function PassengerHomeScreen() {
                       placeholder={t("ride.destination_placeholder")}
                       placeholderTextColor="#9CA3AF"
                       value={searchQuery}
-                      onChangeText={(text) => setSearchQuery(text)}
+                      onChangeText={(text) => { setSearchIntent(true); setSearchQuery(text); setDestinationLoc(null); }}
                       onSubmitEditing={() => handleSearch(searchQuery)}
                       returnKeyType="search"
                     />
@@ -639,8 +677,8 @@ export default function PassengerHomeScreen() {
                             <Feather name="map-pin" size={14} color="#fff" />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={s.dropdownTitle} numberOfLines={1}>{item.display_name.split(',')[0]}</Text>
-                            <Text style={s.dropdownSub} numberOfLines={1}>{item.display_name.split(',').slice(1).join(',').trim()}</Text>
+                            <Text style={s.dropdownTitle} numberOfLines={2}>{item.display_name.split(',')[0]}</Text>
+                            <Text style={s.dropdownSub} numberOfLines={2}>{item.display_name.split(',').slice(1).join(',').trim()}</Text>
                           </View>
                           <Feather name="arrow-up-left" size={16} color="#9CA3AF" />
                         </TouchableOpacity>
@@ -818,6 +856,9 @@ export default function PassengerHomeScreen() {
                  <Text style={s.cardTitle}>Driver: {acceptedDriver?.firstName || 'Your Rider'} {acceptedDriver?.lastName || ''}</Text>
                  <Text style={s.cardSub}>Plate: {acceptedDriver?.plate || 'N/A'} • {vehicleType === 'car' ? '🚗' : '🏍️'} MOTA {vehicleType === 'car' ? 'Car' : 'Standard'}</Text>
                  <Text style={[s.cardSub, { marginTop: 8 }]}>Destination: {destination}</Text>
+                 <Text accessibilityLiveRegion="polite" style={[s.cardSub, { marginTop: 8 }]}>{driverPos && trackingNow - driverPos.updatedAt < 30000 ? "Driver location updating" : "Waiting for a current driver location"}</Text>
+                 {!!rideNotice && <Text accessibilityRole="alert" style={[s.cardSub, { color: '#991B1B', marginTop: 8 }]}>{rideNotice}</Text>}
+                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Request safety support for this ride" onPress={() => setSosVisible(true)} style={{ borderColor: '#B91C1C', borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center', marginTop: 12 }}><Text style={{ color: '#991B1B', fontFamily: 'Inter_700Bold' }}>SOS · Request safety support</Text></TouchableOpacity>
                  <View style={s.timeline}>
                    {([
                      ['Request sent', true],
@@ -866,6 +907,16 @@ export default function PassengerHomeScreen() {
           <Text style={s.cardSub}>{serverRideStatus === 'in_progress' ? 'The fare will be held while admin or caller support reviews the report.' : 'Tell us why you are cancelling. The reason is saved in ride history.'}</Text>
           <TextInput multiline maxLength={500} value={cancellationReason} onChangeText={setCancellationReason} placeholder="Enter cancellation reason" placeholderTextColor="#9CA3AF" style={s.reasonInput} />
           <View style={s.modalActions}><TouchableOpacity style={[s.primaryBtn, s.modalButton, { backgroundColor: '#E5E7EB' }]} onPress={() => setCancelModalVisible(false)}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Keep ride</Text></TouchableOpacity><TouchableOpacity disabled={cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3)} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#DC2626', opacity: cancellationReason.trim().length < (serverRideStatus === 'in_progress' ? 10 : 3) ? .5 : 1 }]} onPress={() => void cancelWithReason(cancellationReason.trim())}><Text style={s.primaryBtnText}>Cancel ride</Text></TouchableOpacity></View>
+        </View></View>
+      </Modal>
+      <Modal transparent visible={sosVisible} animationType="fade" onRequestClose={() => setSosVisible(false)}>
+        <View style={s.modalBackdrop}><View style={s.cancelModal}>
+          <Text style={s.cardTitle}>Request safety support?</Text>
+          <Text style={s.cardSub}>This sends your ride and current location to MOTA support. It does not call emergency services. For immediate help, contact local emergency services directly.</Text>
+          <View style={s.modalActions}>
+            <TouchableOpacity accessibilityRole="button" disabled={sosBusy} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#E5E7EB' }]} onPress={() => setSosVisible(false)}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" disabled={sosBusy} style={[s.primaryBtn, s.modalButton, { backgroundColor: '#B91C1C', opacity: sosBusy ? .6 : 1 }]} onPress={() => void sendSafetyRequest()}><Text style={s.primaryBtnText}>{sosBusy ? 'Sending…' : 'Send request'}</Text></TouchableOpacity>
+          </View>
         </View></View>
       </Modal>
     </View>
