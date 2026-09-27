@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { authApi, API_BASE_URL, getStoredToken, paymentApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { isPassengerRole } from "@/constants/roles";
 
 export default function PaymentRegistrationScreen() {
   const router = useRouter();
@@ -41,12 +42,17 @@ export default function PaymentRegistrationScreen() {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (isPassengerRole(user?.role)) router.replace("/(passenger)" as any);
+  }, [user?.role, router]);
+
+  useEffect(() => {
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, []);
 
   const handlePay = async () => {
+    if (isPassengerRole(user?.role)) return;
     setLoading(true);
     setError("");
     try {
@@ -102,6 +108,8 @@ export default function PaymentRegistrationScreen() {
   };
 
   const s = styles(colors);
+
+  if (isPassengerRole(user?.role)) return null;
 
   if (success) {
     return (
