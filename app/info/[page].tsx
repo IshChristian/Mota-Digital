@@ -11,6 +11,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const legal = {
   privacy: {
@@ -103,6 +104,7 @@ export default function InformationScreen() {
   const { page } = useLocalSearchParams<{ page?: string }>();
   const router = useRouter();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const document = legal[page as keyof typeof legal];
   const filteredFaqs = useMemo(
@@ -116,7 +118,7 @@ export default function InformationScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
     >
       <TouchableOpacity
         accessibilityLabel="Go back"
@@ -222,7 +224,7 @@ export default function InformationScreen() {
           <Text style={[styles.intro, { color: colors.textSecondary }]}>
             {document.intro}
           </Text>
-          {document.sections.map(([heading, body]) => (
+          {document.sections.map(([heading, body], index) => (
             <View
               key={heading}
               style={[
@@ -233,9 +235,10 @@ export default function InformationScreen() {
                 },
               ]}
             >
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                {heading}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                {page === "privacy" ? <Feather name={(["database", "settings", "lock", "sliders"] as const)[index]} size={19} color={colors.primary} /> : null}
+                <Text style={[styles.cardTitle, { color: colors.textPrimary, marginBottom: 0, flex: 1 }]}>{heading}</Text>
+              </View>
               <Text style={[styles.body, { color: colors.textSecondary }]}>
                 {body}
               </Text>
