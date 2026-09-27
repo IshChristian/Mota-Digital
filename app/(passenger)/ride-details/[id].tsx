@@ -11,7 +11,7 @@ import { PassengerCard } from "@/components/passenger/PassengerUI";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AppAlert, AlertType } from "@/components/AppAlert";
 
-const cancellable = ["requested", "searching", "accepted", "approaching", "arrived"];
+const cancellable = ["scheduled", "requested", "searching", "accepted", "approaching", "arrived"];
 const coordinate = (location: any) => location?.latitude != null || location?.lat != null
   ? { latitude: Number(location.latitude ?? location.lat), longitude: Number(location.longitude ?? location.lng) }
   : null;
@@ -44,6 +44,8 @@ export default function PassengerRideDetailsScreen() {
   const pickup = coordinate(ride.pickup);
   const destination = coordinate(ride.destination);
   const driver = ride.driver || ride.driverId;
+  const locationAge = Date.now() - Date.parse(driver?.lastLocationAt || "");
+  const showDriver = ["accepted", "approaching", "arrived", "start_requested", "in_progress", "stop_requested"].includes(status) && locationAge >= 0 && locationAge < 30000;
   const fare = Number(ride.fare || ride.offeredFare || 0);
   const scheduled = ride.scheduledDate ? `${ride.scheduledDate} ${ride.scheduledTime || ""}`.trim() : null;
 
@@ -80,9 +82,10 @@ export default function PassengerRideDetailsScreen() {
   return <View style={[styles.page, { backgroundColor: colors.background }]}>
     <View style={styles.header}><ScreenHeader title={t("ride.details")} /></View>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {pickup ? <View style={styles.map}><OpenStreetMapView center={pickup} destination={destination} route={destination ? [pickup, destination] : []} drivers={driver?.lastLocation ? [{ latitude: driver.lastLocation.latitude, longitude: driver.lastLocation.longitude, label: personName(driver, t("ride.driver")) }] : []} /></View> : null}
+      {pickup ? <View style={styles.map}><OpenStreetMapView center={pickup} destination={destination} route={destination ? [pickup, destination] : []} drivers={showDriver && driver?.lastLocation ? [{ latitude: driver.lastLocation.latitude, longitude: driver.lastLocation.longitude, label: personName(driver, t("ride.driver")) }] : []} /></View> : null}
       <PassengerCard>
         <Text style={[styles.status, { color: colors.primary }]}>{String(status).replaceAll("_", " ").toUpperCase()}</Text>
+        {status === "scheduled" ? <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>We will remind you before pickup. Driver matching starts about 15 minutes before the scheduled time.</Text> : null}
         {info.map(([label, value]) => <View key={label} style={[styles.infoRow, { borderBottomColor: colors.border }]}><Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{value}</Text></View>)}
       </PassengerCard>
       <PassengerCard>
