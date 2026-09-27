@@ -482,6 +482,7 @@ export default function PassengerHomeScreen() {
     const request = ++searchRequest.current;
     if (query.length < 3) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
     setIsSearching(true);
