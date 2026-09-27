@@ -12,6 +12,7 @@ import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useT } from '@/context/I18nContext';
+import { formatPlace } from '@/utils/formatPlace';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const SHEET_COLLAPSED_OFFSET = Math.min(260, Dimensions.get("window").height * 0.3);
@@ -185,13 +186,7 @@ export default function PassengerHomeScreen() {
       try {
         let geocode = await Location.reverseGeocodeAsync(location.coords);
         if (geocode && geocode.length > 0) {
-          const name = geocode[0].name || geocode[0].street;
-          const city = geocode[0].city || geocode[0].region || geocode[0].district;
-          if (name) {
-            setLocationName(`${name}, ${city}`);
-          } else {
-            setLocationName(`${city || geocode[0].isoCountryCode}`);
-          }
+          setLocationName(formatPlace(geocode[0], "Current location"));
         }
       } catch (e) {}
 
@@ -425,7 +420,7 @@ export default function PassengerHomeScreen() {
       try {
         let geocode = await Location.reverseGeocodeAsync(coords);
         if (geocode && geocode.length > 0) {
-          const locStr = `${geocode[0].name || geocode[0].street || "Selected Location"}, ${geocode[0].city || ""}`;
+          const locStr = formatPlace(geocode[0]);
           setDestination(locStr);
           setSearchQuery(locStr);
         } else {
@@ -537,8 +532,8 @@ export default function PassengerHomeScreen() {
                 <Text style={s.locationTopText}>{locationName}</Text>
               </View>
             </View>
-            <TouchableOpacity style={s.menuBtnTop} onPress={() => router.push("/(passenger)/rides")}>
-              <Feather name="grid" size={20} color="#111827" />
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open my rides" style={s.menuBtnTop} onPress={() => router.push("/(passenger)/rides")}>
+              <Feather name="list" size={20} color="#111827" />
             </TouchableOpacity>
           </View>
 
@@ -587,18 +582,20 @@ export default function PassengerHomeScreen() {
               
               <View style={s.vehicleCardsRow}>
                 <TouchableOpacity 
-                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}15` }]} 
+                  accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "car" }}
+                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
                   onPress={() => setVehicleType("car")}
                 >
-                   <Text style={{fontSize:40, marginBottom: 8}}>🚗</Text>
+                   <Feather name="truck" size={28} color={vehicleType === "car" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.cars")}</Text>
                    <Text style={s.vcSub}>{t("ride.car_help")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}15` }]} 
+                  accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "motor" }}
+                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
                   onPress={() => setVehicleType("motor")}
                 >
-                   <Text style={{fontSize:40, marginBottom: 8}}>🏍️</Text>
+                   <Feather name="navigation" size={28} color={vehicleType === "motor" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.motors")}</Text>
                    <Text style={s.vcSub}>{t("ride.motor_help")}</Text>
                 </TouchableOpacity>
@@ -955,9 +952,9 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   fieldLabel: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14, marginBottom: 3 },
   fieldHelp: { color: 'rgba(255,255,255,.78)', fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 9 },
   vehicleCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  vehicleCard: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-  vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },
-  vcSub: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#6B7280', marginTop: 4 },
+  vehicleCard: { flex: 1, minWidth: 0, backgroundColor: '#fff', borderColor: 'transparent', borderWidth: 2, borderRadius: 20, padding: 14, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827', flexShrink: 1 },
+  vcSub: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium', color: '#4B5563', marginTop: 4, flexShrink: 1 },
   
   searchBarContainer: { width: '100%', marginBottom: 10 },
   searchBarInputBox: { backgroundColor: '#fff', height: 60, borderRadius: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
