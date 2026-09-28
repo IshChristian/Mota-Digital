@@ -99,10 +99,10 @@ export default function CreateProfileScreen() {
 
       setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
 
-      const url = await uploadToCloudinary(asset.uri, "mota-docs");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined);
       setDoc(key, { url, uploading: false });
     } catch (err: any) {
-      setDoc(key, { uploading: false, error: "Upload failed. Tap to retry." });
+      setDoc(key, { uploading: false, error: err?.message || "Upload failed. Tap to retry." });
     }
   };
 
