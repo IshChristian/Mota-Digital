@@ -86,6 +86,10 @@ export default function PaymentRegistrationScreen() {
         }
       };
       await check();
+      if (!ref && !finished) {
+        setSuccess(false);
+        setError("No payment reference was returned. Check your setup status before trying again.");
+      }
       if (ref && !finished && pollIntervalRef.current === null) {
         pollIntervalRef.current = setInterval(() => {
           pollCountRef.current += 1;
