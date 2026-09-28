@@ -10,7 +10,7 @@ import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '@/context/I18nContext';
 import { formatPlace } from '@/utils/formatPlace';
 import { AppAlert } from '@/components/AppAlert';
@@ -421,9 +421,8 @@ export default function PassengerHomeScreen() {
     }
   };
 
-  const updateSchedule = (_event: DateTimePickerEvent, value?: Date) => {
+  const updateSchedule = (_event: unknown, value: Date) => {
     setSchedulePicker(null);
-    if (!value) return;
     setScheduledAt(value);
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -838,7 +837,7 @@ export default function PassengerHomeScreen() {
                     </View>
                   </View>
                 )}
-                {schedulePicker ? <DateTimePicker value={scheduledAt} mode={schedulePicker} minimumDate={new Date()} minuteInterval={5} onChange={updateSchedule} /> : null}
+                {schedulePicker ? <DateTimePicker value={scheduledAt} mode={schedulePicker} minimumDate={new Date()} minuteInterval={5} onValueChange={updateSchedule} onDismiss={() => setSchedulePicker(null)} /> : null}
               </View>
               
               <View style={[s.whiteCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}><Feather name="credit-card" size={20} color={colors.primary} /><View style={{ marginLeft: 12, flex: 1 }}><Text style={s.payText}>Payment from MOTA Wallet</Text><Text style={s.cardSub}>Your balance is verified before submitting the request.</Text></View></View>
