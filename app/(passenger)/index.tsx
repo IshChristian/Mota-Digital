@@ -667,21 +667,23 @@ export default function PassengerHomeScreen() {
               <View style={s.vehicleCardsRow}>
                 <TouchableOpacity 
                   accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "car" }}
-                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
+                  style={[s.vehicleCard, vehicleType === "car" && { borderColor: colors.primary, backgroundColor: `${colors.primary}24` }]}
                   onPress={() => setVehicleType("car")}
                 >
                    <Feather name="truck" size={28} color={vehicleType === "car" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.cars")}</Text>
                    <Text style={s.vcSub}>{t("ride.car_help")}</Text>
+                   {vehicleType === "car" && <Text style={[s.selectedBadge, { color: colors.primary }]}><Feather name="check-circle" size={15} /> Selected</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity 
                   accessibilityRole="radio" accessibilityState={{ selected: vehicleType === "motor" }}
-                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}
+                  style={[s.vehicleCard, vehicleType === "motor" && { borderColor: colors.primary, backgroundColor: `${colors.primary}24` }]}
                   onPress={() => setVehicleType("motor")}
                 >
                    <Feather name="navigation" size={28} color={vehicleType === "motor" ? colors.primary : "#111827"} style={{ marginBottom: 8 }} />
                    <Text style={s.vcTitle}>{t("ride.motors")}</Text>
                    <Text style={s.vcSub}>{t("ride.motor_help")}</Text>
+                   {vehicleType === "motor" && <Text style={[s.selectedBadge, { color: colors.primary }]}><Feather name="check-circle" size={15} /> Selected</Text>}
                 </TouchableOpacity>
               </View>
 
@@ -1048,6 +1050,7 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   fieldHelp: { color: 'rgba(255,255,255,.78)', fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 9 },
   vehicleCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   vehicleCard: { flex: 1, minWidth: 0, backgroundColor: '#fff', borderColor: 'transparent', borderWidth: 2, borderRadius: 20, padding: 14, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  selectedBadge: { marginTop: 10, fontFamily: 'Inter_700Bold', fontSize: 13 },
   vcTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827', flexShrink: 1 },
   vcSub: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium', color: '#4B5563', marginTop: 4, flexShrink: 1 },
   

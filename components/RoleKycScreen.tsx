@@ -174,16 +174,16 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
           <Text style={s.section}>Vehicle type</Text>
           <View style={s.choices}>
             {(["car", "moto"] as const).map((value) => (
-              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.vehicleType === value }} style={[s.choice, form.vehicleType === value && { borderColor: colors.primary }]} onPress={() => set("vehicleType", value)}>
-                <Text style={s.docTitle}>{value === "car" ? "Car" : "Moto"}</Text>
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.vehicleType === value }} style={[s.choice, form.vehicleType === value && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}24` }]} onPress={() => set("vehicleType", value)}>
+                <Text style={s.docTitle}>{value === "car" ? "Car" : "Moto"}{form.vehicleType === value ? "  ✓ Selected" : ""}</Text>
               </TouchableOpacity>
             ))}
           </View>
           <Text style={s.section}>Power type</Text>
           <View style={s.choices}>
             {(["electric", "diesel", "petrol"] as const).map((value) => (
-              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.powertrain === value }} style={[s.choice, form.powertrain === value && { borderColor: colors.primary }]} onPress={() => set("powertrain", value)}>
-                <Text style={s.docTitle}>{value[0].toUpperCase() + value.slice(1)}</Text>
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.powertrain === value }} style={[s.choice, form.powertrain === value && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}24` }]} onPress={() => set("powertrain", value)}>
+                <Text style={s.docTitle}>{value[0].toUpperCase() + value.slice(1)}{form.powertrain === value ? "  ✓ Selected" : ""}</Text>
               </TouchableOpacity>
             ))}
           </View>

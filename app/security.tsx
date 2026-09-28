@@ -1,6 +1,6 @@
 import { Alert } from "@/components/GlobalAlert";
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { usersApi } from "@/services/api";
@@ -43,9 +43,10 @@ export default function SecurityScreen() {
         ["Current password", current, setCurrent],
         ["New password", next, setNext],
         ["Confirm new password", confirm, setConfirm],
-      ].map(([label, value, setter]) => (
+      ].map(([label, value, setter]) => (<View key={label as string}>
+        <Text style={[s.label, { color: colors.textPrimary }]}>{label as string}</Text>
         <TextInput
-          key={label as string}
+          accessibilityLabel={label as string}
           secureTextEntry
           placeholder={label as string}
           placeholderTextColor={colors.textTertiary}
@@ -56,7 +57,7 @@ export default function SecurityScreen() {
             { color: colors.textPrimary, borderColor: colors.border },
           ]}
         />
-      ))}
+      </View>))}
       <TouchableOpacity
         disabled={busy}
         onPress={change}
@@ -82,6 +83,7 @@ export default function SecurityScreen() {
   );
 }
 const s = StyleSheet.create({
+  label: { marginBottom: 7, fontFamily: "Inter_600SemiBold" },
   input: { borderWidth: 1, borderRadius: 14, padding: 15 },
   button: { padding: 16, borderRadius: 14, alignItems: "center" },
   buttonText: { color: "#fff", fontFamily: "Inter_700Bold" },

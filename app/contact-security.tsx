@@ -60,6 +60,7 @@ export default function ContactSecurity() {
       >
         <Text style={{ color: colors.textPrimary }}>Changing: {type}</Text>
       </TouchableOpacity>
+      <Text style={[s.label, { color: colors.textPrimary }]}>New {type === "phone" ? "phone number" : "email address"}</Text>
       {type === "phone" ? <RwandaPhoneInput value={value} onChangeText={setValue} accessibilityLabel="New verified phone number" /> : <TextInput
         autoCapitalize="none"
         keyboardType={type === "email" ? "email-address" : "phone-pad"}
@@ -73,6 +74,8 @@ export default function ContactSecurity() {
         ]}
       />}
       {sent ? (
+        <>
+        <Text style={[s.label, { color: colors.textPrimary }]}>Confirmation code</Text>
         <TextInput
           keyboardType="number-pad"
           maxLength={6}
@@ -85,6 +88,7 @@ export default function ContactSecurity() {
             { color: colors.textPrimary, borderColor: colors.border },
           ]}
         />
+        </>
       ) : null}
       <TouchableOpacity
         disabled={busy || !value}
@@ -103,6 +107,7 @@ export default function ContactSecurity() {
   );
 }
 const s = StyleSheet.create({
+  label: { marginBottom: 7, fontFamily: "Inter_600SemiBold" },
   input: { borderWidth: 1, borderRadius: 14, padding: 15 },
   button: { padding: 16, borderRadius: 14, alignItems: "center" },
   buttonText: { color: "#fff", fontFamily: "Inter_700Bold" },

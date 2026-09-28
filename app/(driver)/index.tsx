@@ -87,9 +87,11 @@ export default function DashboardScreen() {
           setAvailabilityFeedback({ type: "warning", title: "Driver documents need approval", message: "Submit your ID, driving licence, and vehicle documents for review before going online.", actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) });
           return;
         }
-        const expiryKeys = ["drivingLicenseExpiresAt", "transportPermitExpiresAt", "insuranceExpiresAt", "vehicleRegistrationExpiresAt", "technicalInspectionExpiresAt"];
-        if (expiryKeys.some((key) => !kyc[key] || new Date(kyc[key]).getTime() <= Date.now())) {
-          setAvailabilityFeedback({ type: "warning", title: "Document renewal required", message: "A required driving or vehicle document is expired or missing an expiry date. Open verification to see your documents, then contact support for a reviewed correction.", actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) });
+        const expiryFields = [["drivingLicenseExpiresAt", "Driving licence"], ["transportPermitExpiresAt", "Transport permit"], ["insuranceExpiresAt", "Insurance"], ["vehicleRegistrationExpiresAt", "Vehicle registration"], ["technicalInspectionExpiresAt", "Technical inspection"]] as const;
+        const invalidDocument = expiryFields.find(([key]) => !kyc[key] || !Number.isFinite(new Date(kyc[key]).getTime()) || new Date(kyc[key]).getTime() <= Date.now());
+        if (invalidDocument) {
+          const [key, label] = invalidDocument;
+          setAvailabilityFeedback({ type: "warning", title: `${label} needs attention`, message: `${label} ${!kyc[key] ? "has no expiry date" : "has expired or has an invalid expiry date"}. Update your document and request review before going online.`, actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) });
           return;
         }
       }
@@ -356,25 +358,6 @@ export default function DashboardScreen() {
               <Feather name="plus-circle" size={24} color={colors.primary} />
             </View>
             <Text style={s.actionText}>{t("log_ride")}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={s.actionBtn}
-            onPress={() => router.push("/send-money")}
-          >
-            <View
-              style={[
-                s.actionIcon,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(16,185,129,0.18)"
-                    : "rgba(16,185,129,0.12)",
-                },
-              ]}
-            >
-              <Feather name="send" size={24} color={colors.success} />
-            </View>
-            <Text style={s.actionText}>Send</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
