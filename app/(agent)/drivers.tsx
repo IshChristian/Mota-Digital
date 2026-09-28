@@ -1,5 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import { useCallback, useState } from "react";
-import { Alert, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { agentApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";

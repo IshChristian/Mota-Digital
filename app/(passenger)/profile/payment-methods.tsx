@@ -1,13 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import { useCallback, useEffect, useState } from "react";
-import {
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";

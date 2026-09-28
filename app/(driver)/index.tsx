@@ -1,3 +1,4 @@
+import { showMessage } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -20,6 +21,7 @@ import { useTheme } from "@/context/ThemeContext";
 import Colors from "@/constants/colors";
 import { useFinanceStore } from "@/store/financeStore";
 import { useEffect } from "react";
+import { AppAlert, type AlertType } from "@/components/AppAlert";
 
 export default function DashboardScreen() {
   const { user, riderStatus: cachedRiderStatus } = useAuth();
@@ -31,6 +33,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [availabilityFeedback, setAvailabilityFeedback] = useState<{ type: AlertType; title: string; message: string } | null>(null);
 
   const { riskScore, migrationStage, fetchRiskScore, fetchMigrationStage } =
     useFinanceStore();
@@ -74,10 +77,12 @@ export default function DashboardScreen() {
     setToggling(true);
     try {
       const newState = !isOnline;
-      await driverApi.updateAvailability({ isOnline: newState });
-      setIsOnline(newState);
-    } catch (error) {
-      console.error("Failed to update availability", error);
+      const response = await driverApi.updateAvailability({ isOnline: newState });
+      setIsOnline(Boolean(response.data?.isOnline));
+      void refetchDash();
+      setAvailabilityFeedback({ type: "success", title: newState ? "You're online" : "You're offline", message: newState ? "You can now receive ride requests." : "You won't receive new ride requests." });
+    } catch (error: any) {
+      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message: error?.response?.data?.message || "Could not update your status. Check your connection and try again." });
     } finally {
       setToggling(false);
     }
@@ -116,6 +121,7 @@ export default function DashboardScreen() {
   const s = styles(colors, isDark);
 
   return (
+    <>
     <ScrollView
       style={{
         flex: 1,
@@ -158,7 +164,7 @@ export default function DashboardScreen() {
                 { borderColor: getRiskColor(riskScore.grade) },
               ]}
               onPress={() =>
-                alert(
+                showMessage(
                   `Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`,
                 )
               }
@@ -356,25 +362,6 @@ export default function DashboardScreen() {
 
           <TouchableOpacity
             style={s.actionBtn}
-            onPress={() => router.push("/leaderboard")}
-          >
-            <View
-              style={[
-                s.actionIcon,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(244,162,97,0.18)"
-                    : "rgba(244,162,97,0.12)",
-                },
-              ]}
-            >
-              <Feather name="bar-chart-2" size={24} color={Colors.accent} />
-            </View>
-            <Text style={s.actionText}>{t("leaderboard")}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={s.actionBtn}
             onPress={() => router.push("/loans")}
           >
             <View
@@ -502,6 +489,8 @@ export default function DashboardScreen() {
         </View>
       )}
     </ScrollView>
+    <AppAlert visible={Boolean(availabilityFeedback)} type={availabilityFeedback?.type} title={availabilityFeedback?.title || ""} message={availabilityFeedback?.message} onConfirm={() => setAvailabilityFeedback(null)} onCancel={() => setAvailabilityFeedback(null)} />
+    </>
   );
 }
 

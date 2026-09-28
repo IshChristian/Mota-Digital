@@ -1,5 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import { useEffect } from "react";
-import { Alert, Linking } from "react-native";
+import { Linking } from "react-native";
 import Constants from "expo-constants";
 import { releaseApi } from "@/services/api";
 

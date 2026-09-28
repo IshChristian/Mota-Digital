@@ -1,3 +1,4 @@
+import { showMessage } from "@/components/GlobalAlert";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   StyleSheet,
@@ -165,7 +166,7 @@ export default function FuelVouchersScreen() {
   // ─── Claim MoMo Fuel ────────────────────────────────────────────────────────
   const handleClaimMoMo = async () => {
     if (momoRemaining <= 0) {
-      alert("You've used all MoMo vouchers today. Come back tomorrow!");
+      showMessage("You've used all MoMo vouchers today. Come back tomorrow!");
       return;
     }
     haptic("medium");
@@ -180,7 +181,7 @@ export default function FuelVouchersScreen() {
       if (momoRemaining - 1 + qrRemaining <= 0) showConfetti();
     } catch (err: any) {
       haptic("error");
-      alert(err.response?.data?.message || "Failed to claim MoMo voucher");
+      showMessage(err.response?.data?.message || "Failed to claim MoMo voucher");
     } finally {
       setClaimingMomo(false);
     }
@@ -189,7 +190,7 @@ export default function FuelVouchersScreen() {
   // ─── Claim QR Fuel ──────────────────────────────────────────────────────────
   const handleClaimQR = async () => {
     if (qrRemaining <= 0) {
-      alert("You've used all QR vouchers today. Come back tomorrow!");
+      showMessage("You've used all QR vouchers today. Come back tomorrow!");
       return;
     }
     haptic("medium");
@@ -206,7 +207,7 @@ export default function FuelVouchersScreen() {
       if (qrRemaining - 1 + momoRemaining <= 0) showConfetti();
     } catch (err: any) {
       haptic("error");
-      alert(err.response?.data?.message || "Failed to generate QR voucher");
+      showMessage(err.response?.data?.message || "Failed to generate QR voucher");
     } finally {
       setClaimingQR(false);
     }
@@ -610,7 +611,7 @@ export default function FuelVouchersScreen() {
                 onPress={() => {
                   haptic("light");
                   // Copy to clipboard would go here
-                  alert(`Copied: ${activeQRCode}`);
+                  showMessage(`Copied: ${activeQRCode}`);
                 }}
               >
                 <Feather name="copy" size={16} color={colors.primary} />

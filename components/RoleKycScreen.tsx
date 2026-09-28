@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { kycApi, uploadsApi } from "@/services/api";
+import { kycApi } from "@/services/api";
+import { uploadToCloudinary } from "@/services/cloudinary";
 import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { DriverHeader } from "@/components/driver/DriverUI";
@@ -72,17 +73,11 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     setBusy(true);
     try {
       const asset = result.assets[0];
-      const body = new FormData();
-      body.append("file", {
-        uri: asset.uri,
-        name: asset.fileName || `${key}.jpg`,
-        type: asset.mimeType || "image/jpeg",
-      } as any);
-      const response = await uploadsApi.upload(body);
-      set(key, response.data.data.url);
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || `${key}.jpg`, asset.mimeType || "image/jpeg");
+      set(key, url);
       setMessage(`${key} uploaded.`);
     } catch (e: any) {
-      setMessage(e?.response?.data?.message || "Document upload failed.");
+      setMessage(e?.message || "Document upload failed. Please retry.");
     } finally {
       setBusy(false);
     }

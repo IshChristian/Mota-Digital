@@ -3,10 +3,10 @@ import { API_BASE_URL } from './api';
 import { getStoredToken } from './secureStorage';
 
 /** Upload through the authenticated backend; Cloudinary credentials stay server-side. */
-export async function uploadToCloudinary(uri: string, _folder?: string): Promise<string> {
-  const filename = uri.split('/').pop() || 'upload.jpg';
+export async function uploadToCloudinary(uri: string, _folder?: string, selectedName?: string, selectedMimeType?: string): Promise<string> {
+  const filename = selectedName || uri.split('/').pop() || 'upload.jpg';
   const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-  const mimeType = ext === 'pdf' ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+  const mimeType = selectedMimeType || (ext === 'pdf' ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`);
   const formData = new FormData();
 
   if (Platform.OS === 'web') {
@@ -28,9 +28,12 @@ export async function uploadToCloudinary(uri: string, _folder?: string): Promise
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     body: formData,
   });
-  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Your session has expired. Sign in again before uploading.');
+    throw new Error(payload?.message || (response.status === 413 ? 'This file is too large. Choose a smaller image.' : `Upload failed (${response.status}). Please retry.`));
+  }
   const url = payload?.data?.url || payload?.data?.secureUrl || payload?.url || payload?.secureUrl;
-  if (!url) throw new Error('Upload completed without a file URL');
+  if (!url) throw new Error('The upload response did not contain a file link. Please retry.');
   return url;
 }
