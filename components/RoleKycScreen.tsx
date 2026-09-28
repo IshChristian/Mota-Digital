@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { kycApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
 import { useTheme } from "@/context/ThemeContext";
@@ -43,15 +43,16 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [dateField, setDateField] = useState<string | null>(null);
   const today = new Date(new Date().setHours(0, 0, 0, 0));
   const dateValue = (key: string) => {
     const value = form[key] ? new Date(form[key].slice(0, 10) + "T12:00:00") : today;
     return Number.isNaN(value.getTime()) || value < today ? today : value;
   };
-  const chooseDate = (event: DateTimePickerEvent, value?: Date) => {
+  const chooseDate = (_event: unknown, value: Date) => {
     if (Platform.OS !== "ios") setDateField(null);
-    if (event.type !== "set" || !value || !dateField) return;
+    if (!dateField) return;
     set(dateField, `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`);
   };
   useEffect(() => {
@@ -73,6 +74,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const set = (key: string, value: string) =>
     setForm((v) => ({ ...v, [key]: value }));
   const pick = async (key: string) => {
+    if (busy) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== "granted") {
       setMessage("Photo-library permission is required.");
@@ -84,14 +86,19 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     });
     if (result.canceled) return;
     setBusy(true);
+    setUploadingKey(key);
+    setMessage("");
     try {
       const asset = result.assets[0];
+      if (!asset?.uri) throw new Error("No image was selected. Choose a photo and retry.");
       const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || `${key}.jpg`, asset.mimeType || "image/jpeg");
       set(key, url);
-      setMessage(`${key} uploaded.`);
+      const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
+      setMessage(`${label} uploaded successfully. Submit verification to save it for review.`);
     } catch (e: any) {
       setMessage(e?.message || "Document upload failed. Please retry.");
     } finally {
+      setUploadingKey(null);
       setBusy(false);
     }
   };
@@ -231,7 +238,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             </View>
           ))}
           {dateField ? <View>
-            <DateTimePicker value={dateValue(dateField)} mode="date" minimumDate={today} onChange={chooseDate} />
+            <DateTimePicker value={dateValue(dateField)} mode="date" minimumDate={today} onValueChange={chooseDate} onDismiss={() => setDateField(null)} />
             {Platform.OS === "ios" ? <TouchableOpacity accessibilityRole="button" onPress={() => setDateField(null)} style={s.dateDone}><Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>Done</Text></TouchableOpacity> : null}
           </View> : null}
         </>
@@ -243,17 +250,17 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
           key={key}
           style={s.doc}
           onPress={() => pick(key)}
-          disabled={status === "approved"}
+          disabled={busy || status === "approved"}
         >
-          <Feather
+          {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : <Feather
             name={form[key] ? "check-circle" : "upload"}
             size={20}
             color={form[key] ? colors.primary : colors.textSecondary}
-          />
+          />}
           <View style={{ flex: 1 }}>
             <Text style={s.docTitle}>{label}</Text>
             <Text style={s.docSub}>
-              {form[key]
+              {uploadingKey === key ? "Uploading to Cloudinary…" : form[key]
                 ? "Uploaded — tap to replace"
                 : "Tap to select and upload"}
             </Text>
@@ -263,9 +270,9 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       {kind === "driver" ? <>
         <Text style={s.section}>Optional document</Text>
         {optionalDriverDocuments.map(([key, label]) => (
-          <TouchableOpacity key={key} style={s.doc} onPress={() => pick(key)} disabled={status === "approved"}>
-            <Feather name={form[key] ? "check-circle" : "upload"} size={20} color={form[key] ? colors.primary : colors.textSecondary} />
-            <View style={{ flex: 1 }}><Text style={s.docTitle}>{label}</Text><Text style={s.docSub}>{form[key] ? "Uploaded — tap to replace" : "Tap to select and upload"}</Text></View>
+          <TouchableOpacity key={key} style={s.doc} onPress={() => pick(key)} disabled={busy || status === "approved"}>
+            {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : <Feather name={form[key] ? "check-circle" : "upload"} size={20} color={form[key] ? colors.primary : colors.textSecondary} />}
+            <View style={{ flex: 1 }}><Text style={s.docTitle}>{label}</Text><Text style={s.docSub}>{uploadingKey === key ? "Uploading to Cloudinary…" : form[key] ? "Uploaded — tap to replace" : "Tap to select and upload"}</Text></View>
           </TouchableOpacity>
         ))}
       </> : null}
