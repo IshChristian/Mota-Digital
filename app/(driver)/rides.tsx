@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { driverApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
@@ -31,19 +31,19 @@ export default function DriverRidesScreen() {
   const { colors } = useTheme();
   const [tab, setTab] = useState<"today" | "history">("today");
   const [expandedRide, setExpandedRide] = useState<string | null>(null);
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["driver-rides"],
-    queryFn: async () => {
-      const response = await driverApi.getRides(1);
-      const payload =
-        response.data?.rides ?? response.data?.data ?? response.data;
-      return Array.isArray(payload) ? payload : [];
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const response = await driverApi.getRides(pageParam);
+      return response.data;
     },
+    getNextPageParam: (last) => last?.pagination?.page < last?.pagination?.pages ? last.pagination.page + 1 : undefined,
     retry: 2,
   });
 
   const rides = useMemo(() => {
-    const rows = query.data ?? [];
+    const rows = query.data?.pages.flatMap(page => Array.isArray(page?.rides) ? page.rides : []) ?? [];
     if (tab === "history") return rows;
     const today = new Date();
     return rows.filter((ride: any) => {
@@ -66,6 +66,9 @@ export default function DriverRidesScreen() {
         contentContainerStyle={styles.content}
         refreshing={query.isRefetching}
         onRefresh={() => query.refetch()}
+        onEndReached={() => { if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage(); }}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator color={colors.primary} style={{ margin: 20 }} /> : null}
         ListHeaderComponent={
           <View style={styles.headerContent}>
             <DriverHeader
