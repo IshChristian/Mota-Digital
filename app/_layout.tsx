@@ -51,7 +51,7 @@ function RootLayoutNav() {
     if (!isAuthenticated && !inAuthGroup && !isPublicInformation) {
       router.replace("/(auth)/welcome" as any);
     } else if (isAuthenticated) {
-      if (needsPhoneVerification) {
+      if (needsPhoneVerification && user?.role !== "driver") {
         if (segments[1] !== "otp" && segments[1] !== "confirm-phone") router.replace("/(auth)/confirm-phone");
       } else if (needsDriverReview) {
         const allowed = (segments[0] === "(auth)" && ["verification-progress", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||

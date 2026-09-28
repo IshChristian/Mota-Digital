@@ -21,8 +21,11 @@ export default function VerificationProgress() {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [profile, kyc] = await Promise.all([usersApi.getMe(), kycApi.getMine()]);
-      setKycStatus(kyc.data?.data?.status || "not_submitted");
+      const profile = await usersApi.getMe();
+      if ((profile.data?.data || profile.data?.user)?.isVerified) {
+        const kyc = await kycApi.getMine();
+        setKycStatus(kyc.data?.data?.status || "not_submitted");
+      }
       await updateUserRef.current(profile.data?.data || profile.data?.user || {});
       setError("");
     } catch (e: any) {
@@ -34,7 +37,7 @@ export default function VerificationProgress() {
   const steps = [
     { title: "Phone number", done: !!user?.isVerified, detail: "Required for every account", route: "/(auth)/confirm-phone" },
     { title: "Email address", done: !!user?.isEmailVerified, detail: user?.email ? "Optional — verify when ready" : "Optional — add an email later", route: user?.email ? "/(auth)/verify-email" : undefined },
-    { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : "Upload ID, selfie, licence and vehicle documents", route: "/(auth)/driver-kyc" },
+    { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : user?.isVerified ? "Upload ID, selfie, licence and vehicle documents" : "Verify your phone before uploading documents", route: user?.isVerified ? "/(auth)/driver-kyc" : undefined },
     { title: "Registration fee", done: !!user?.registrationPaid, detail: "5,000 RWF via MoMo after KYC submission", route: ["submitted", "approved"].includes(kycStatus) ? "/(auth)/payment-registration" : undefined },
     { title: "Account approval", done: user?.registrationStatus === "approved" && !!user?.isActive, detail: "An administrator reviews your driver account", route: undefined },
   ];
