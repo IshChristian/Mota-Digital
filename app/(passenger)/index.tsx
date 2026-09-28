@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Animated, Dimensions, PanResponder, StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, FlatList, ScrollView, Modal } from "react-native";
+import { Animated, Dimensions, PanResponder, StyleSheet, Text, View, TouchableOpacity, TextInput, ActivityIndicator, Image, FlatList, ScrollView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { GoogleMapWebView } from '@/components/GoogleMapWebView';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useT } from '@/context/I18nContext';
 import { formatPlace } from '@/utils/formatPlace';
+import { AppAlert } from '@/components/AppAlert';
 
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const SHEET_COLLAPSED_OFFSET = Math.min(260, Dimensions.get("window").height * 0.3);
@@ -85,6 +86,9 @@ export default function PassengerHomeScreen() {
   const [rideId, setRideId] = useState<string | null>(null);
   const [acceptedDriver, setAcceptedDriver] = useState<any>(null);
   const [serverRideStatus, setServerRideStatus] = useState<string>('');
+  const [serverPaymentStatus, setServerPaymentStatus] = useState<string>('');
+  const [completedRideId, setCompletedRideId] = useState<string | null>(null);
+  const [screenFeedback, setScreenFeedback] = useState<{ title: string; message: string; confirmText?: string; onConfirm?: () => void; confirm?: boolean } | null>(null);
   const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>('openstreetmap');
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -170,14 +174,14 @@ export default function PassengerHomeScreen() {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setLocationStatus('denied');
-        Alert.alert('Permission required', 'Allow location access to use MOTA');
+        setScreenFeedback({ title: 'Location permission required', message: 'Allow location access in device settings to use ride matching.' });
         return;
       }
 
       let isEnabled = await Location.hasServicesEnabledAsync();
       if (!isEnabled) {
         setLocationStatus('off');
-        Alert.alert('GPS Disabled', 'Please turn on location services on your device for real-time ride matching.');
+        setScreenFeedback({ title: 'GPS is off', message: 'Turn on location services for real-time ride matching.' });
       } else {
         setLocationStatus('granted');
       }
@@ -243,16 +247,17 @@ export default function PassengerHomeScreen() {
       interval = setInterval(async () => {
         setSearchTimer((t) => t + 1);
         try {
-          const res = await ridesApi.getRideDetails(rideId);
-          const ride = res.data?.data?.ride || res.data?.ride || res.data;
-          if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(ride?.status)) {
-            setServerRideStatus(ride.status);
-            setAcceptedDriver(ride.driver || ride.assignedDriver);
+          const ride = (await ridesApi.getRideStatus(rideId)).data;
+          const status = ride?.rideStatus || ride?.status;
+          if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(status)) {
+            setServerRideStatus(status);
+            setServerPaymentStatus(ride.paymentStatus || 'pending');
+            setAcceptedDriver(ride.driverId || ride.driver || ride.assignedDriver);
             // The status endpoint supplies the driver's location timestamp after acceptance.
             setRideState("accepted");
             clearInterval(interval);
-          } else if (ride?.status === 'cancelled' || ride?.status === 'expired') {
-            Alert.alert("Ride Update", "No riders available at the moment. Please try again.");
+          } else if (status === 'cancelled' || status === 'expired') {
+            setScreenFeedback({ title: 'Ride update', message: 'No driver is available for this request. Please try again.' });
             setRideState("idle");
             clearInterval(interval);
           }
@@ -274,7 +279,17 @@ export default function PassengerHomeScreen() {
       const refresh = async () => {
         try {
           const ride = (await ridesApi.getRideStatus(rideId)).data;
-          setServerRideStatus(ride.rideStatus || ride.status || '');
+          const status = ride.rideStatus || ride.status || '';
+          if (status === 'completed') {
+            setRideState('idle');
+            setRideId(null);
+            setAcceptedDriver(null);
+            setDriverPos(null);
+            setCompletedRideId(rideId);
+            return;
+          }
+          setServerRideStatus(status);
+          setServerPaymentStatus(ride.paymentStatus || 'pending');
           const location = ride.driverId?.lastLocation || ride.driver?.lastLocation;
           const capturedAt = Date.parse(ride.driverId?.lastLocationAt || ride.driver?.lastLocationAt || '');
           if (location?.latitude != null && location?.longitude != null && Number.isFinite(capturedAt) && Date.now() - capturedAt < 30000 && capturedAt <= Date.now() + 5000) {
@@ -349,11 +364,11 @@ export default function PassengerHomeScreen() {
 
   const handleRequestRide = async () => {
     if (!destinationLoc) {
-      Alert.alert('Destination required', 'Select a destination before requesting a ride.');
+      setScreenFeedback({ title: 'Destination required', message: 'Select a destination before requesting a ride.' });
       return;
     }
     if (isScheduled && (!scheduledDate || !scheduledTime || scheduledAt.getTime() <= Date.now() + 20 * 60 * 1000)) {
-      Alert.alert('Choose a later time', 'Schedule your ride at least 20 minutes ahead.');
+      setScreenFeedback({ title: 'Choose a later time', message: 'Schedule your ride at least 20 minutes ahead.' });
       return;
     }
     if (paymentMethod === 'wallet') {
@@ -361,10 +376,10 @@ export default function PassengerHomeScreen() {
         const wallet = (await walletApi.getBalance()).data;
         const balance = Number(wallet?.balance || 0);
         if (balance < offer) {
-          Alert.alert('Wallet balance too low', `This ride needs ${offer.toLocaleString()} RWF, but your wallet has ${balance.toLocaleString()} RWF.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Top up wallet', onPress: () => router.push('/(passenger)/wallet' as any) }]);
+          setScreenFeedback({ title: 'Wallet balance too low', message: `This ride needs ${offer.toLocaleString()} RWF, but your wallet has ${balance.toLocaleString()} RWF.`, confirm: true, confirmText: 'Top up wallet', onConfirm: () => router.push('/(passenger)/wallet' as any) });
           return;
         }
-      } catch { Alert.alert('Wallet unavailable', 'Could not verify your balance. Please try again.'); return; }
+      } catch { setScreenFeedback({ title: 'Wallet unavailable', message: 'Could not verify your balance. Please try again.' }); return; }
     }
     setRideState("searching");
     setWaitingMinimized(false);
@@ -387,7 +402,7 @@ export default function PassengerHomeScreen() {
         setRideState('idle');
         setRideId(null);
         clearRideRequest();
-        Alert.alert('Ride scheduled', `We will remind you before ${scheduledDate} at ${scheduledTime}. Driver matching begins shortly before pickup.`, [{ text: 'View ride', onPress: () => router.push(id ? { pathname: '/(passenger)/ride-details/[id]', params: { id } } as any : '/(passenger)/rides') }]);
+        setScreenFeedback({ title: 'Ride scheduled', message: `We will remind you before ${scheduledDate} at ${scheduledTime}. Driver matching begins shortly before pickup.`, confirmText: 'View ride', onConfirm: () => router.push(id ? { pathname: '/(passenger)/ride-details/[id]', params: { id } } as any : '/(passenger)/rides') });
         return;
       }
       if (id) setRideId(id);
@@ -402,7 +417,7 @@ export default function PassengerHomeScreen() {
       }
       console.warn("Ride request error:", message);
       setRideState('negotiating');
-      Alert.alert('Ride request failed', message);
+      setScreenFeedback({ title: 'Ride request failed', message });
     }
   };
 
@@ -419,7 +434,7 @@ export default function PassengerHomeScreen() {
 
   const cancelWithReason = async (reason: string) => {
     if (rideId && (rideState === "searching" || rideState === "accepted")) {
-      try { await ridesApi.cancelRide(rideId, reason); } catch (e) { Alert.alert('Cancellation failed', 'The ride could not be cancelled.'); return; }
+      try { await ridesApi.cancelRide(rideId, reason); } catch (e) { setScreenFeedback({ title: 'Cancellation failed', message: 'The ride could not be cancelled. Please retry.' }); return; }
     }
     setRideState("idle");
     setDestinationLoc(null);
@@ -443,7 +458,7 @@ export default function PassengerHomeScreen() {
       setServerRideStatus(nextStatus);
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Unable to confirm the destination. Refresh the ride timeline and try again.';
-      Alert.alert('Destination confirmation failed', message);
+      setScreenFeedback({ title: 'Destination confirmation failed', message });
       try {
         const current = (await ridesApi.getRideStatus(rideId)).data;
         if (current?.rideStatus) setServerRideStatus(current.rideStatus);
@@ -898,15 +913,11 @@ export default function PassengerHomeScreen() {
 
                  {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) await ridesApi.confirmStart(rideId); }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
                  {serverRideStatus === 'stop_requested' && <TouchableOpacity disabled={confirmingStop} style={[s.primaryBtn, { marginTop: 18, opacity: confirmingStop ? .6 : 1 }]} onPress={() => void handleConfirmStop()}><Text style={s.primaryBtnText}>{confirmingStop ? 'Confirming…' : 'Confirm Destination Reached'}</Text></TouchableOpacity>}
-                 {serverRideStatus === 'awaiting_payment' && <View style={[s.whiteCard, { marginTop: 18 }]}><Text style={s.cardTitle}>Wallet payment confirmed</Text><Text style={s.cardSub}>{offer.toLocaleString()} RWF was settled securely through your MOTA Wallet.</Text></View>}
+                 {serverRideStatus === 'awaiting_payment' && <View style={[s.whiteCard, { marginTop: 18 }]}><Text style={s.cardTitle}>{serverPaymentStatus === 'successful' ? 'Payment confirmed' : 'Awaiting payment confirmation'}</Text><Text style={s.cardSub}>{serverPaymentStatus === 'successful' ? 'Your fare has been confirmed. The driver can now finish the ride.' : 'Your ride has ended. Payment is still pending confirmation.'}</Text></View>}
 
                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                   <TouchableOpacity style={[s.primaryBtn, { flex: 1, backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}>
-                     <Text style={[s.primaryBtnText, { color: '#111827' }]}>Pause</Text>
-                   </TouchableOpacity>
-                   <TouchableOpacity style={[s.primaryBtn, { flex: 1, marginTop: 0, backgroundColor: '#EF4444' }]} onPress={handleCancel}>
-                     <Text style={s.primaryBtnText}>End ride</Text>
-                   </TouchableOpacity>
+                   {['accepted', 'approaching', 'arrived'].includes(serverRideStatus) ? <TouchableOpacity style={[s.primaryBtn, { flex: 1, backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Cancel request</Text></TouchableOpacity> : null}
+                   <TouchableOpacity style={[s.primaryBtn, { flex: 1, marginTop: 0 }]} onPress={() => rideId && router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id: rideId } } as any)}><Text style={s.primaryBtnText}>View ride details</Text></TouchableOpacity>
                  </View>
               </View>
             </View>
@@ -931,6 +942,8 @@ export default function PassengerHomeScreen() {
           </View>
         </View></View>
       </Modal>
+      <AppAlert visible={Boolean(screenFeedback)} type={screenFeedback?.confirm ? 'confirm' : 'info'} title={screenFeedback?.title || ''} message={screenFeedback?.message} confirmText={screenFeedback?.confirmText || 'OK'} cancelText="Not now" onConfirm={() => { const action = screenFeedback?.onConfirm; setScreenFeedback(null); action?.(); }} onCancel={() => setScreenFeedback(null)} />
+      <AppAlert visible={Boolean(completedRideId)} type="success" title="Ride completed" message="Your ride is in My rides. You can view its details and rate the driver." confirmText="View ride" onConfirm={() => { const id = completedRideId; setCompletedRideId(null); if (id) router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id } } as any); }} onCancel={() => setCompletedRideId(null)} />
     </View>
   );
 }
