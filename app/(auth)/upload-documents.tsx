@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { uploadToCloudinary } from "@/services/cloudinary";
 
-type DocType = "insuranceAttachment" | "permitAttachment" | "permitId";
+type DocType = "insuranceAttachment" | "permitAttachment";
 
 type DocState = {
   uri?: string;
@@ -34,7 +34,6 @@ export default function UploadDocumentsScreen() {
   const [docs, setDocs] = useState<Record<DocType, DocState>>({
     insuranceAttachment: { uploading: false },
     permitAttachment: { uploading: false },
-    permitId: { uploading: false },
   });
 
   const setDoc = (key: DocType, partial: Partial<DocState>) => {
@@ -60,14 +59,14 @@ export default function UploadDocumentsScreen() {
 
       setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
 
-      const url = await uploadToCloudinary(asset.uri, "mota-docs");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined);
       setDoc(key, { url, uploading: false });
     } catch (err: any) {
-      setDoc(key, { uploading: false, error: "Upload failed. Tap to retry." });
+      setDoc(key, { uploading: false, error: err?.message || "Upload failed. Tap to retry." });
     }
   };
 
-  const allDone = docs.insuranceAttachment.url && docs.permitAttachment.url && docs.permitId.url;
+  const allDone = docs.insuranceAttachment.url && docs.permitAttachment.url;
 
   const handleContinue = () => {
     router.push({
@@ -75,7 +74,6 @@ export default function UploadDocumentsScreen() {
       params: {
         insuranceAttachment: docs.insuranceAttachment.url,
         permitAttachment: docs.permitAttachment.url,
-        permitId: docs.permitId.url,
       },
     });
   };
@@ -164,12 +162,6 @@ export default function UploadDocumentsScreen() {
         icon="file-text"
         title="Permit Document"
         description="Upload your driving permit (JPG, PNG)"
-      />
-      <DocCard
-        docKey="permitId"
-        icon="credit-card"
-        title="Permit ID Photo"
-        description="Upload a clear photo of your permit ID"
       />
 
       <TouchableOpacity
