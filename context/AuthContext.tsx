@@ -85,10 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * Check whether a driver profile exists on the backend for the current user.
-   * If found, patch kycLevel to 'full' locally so the onboarding gate is skipped.
+   * A driver profile and approved KYC are separate server-side checks.
    */
   const checkDriverProfile = async (currentUser?: User | null) => {
-    if (currentUser?.role?.trim().toLowerCase() !== 'driver') {
+    if (currentUser?.role?.trim().toLowerCase() !== 'driver' || currentUser.isActive !== true) {
       setHasDriverProfile(false);
       return false;
     }
@@ -98,13 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = res.data?.data || res.data?.profile || res.data;
       if (profile && (profile.plateNumber || profile.nid || profile._id)) {
         setHasDriverProfile(true);
-        // Patch the local user so kycLevel gate is satisfied
-        setUser((prev) => {
-          if (!prev) return prev;
-          const updated = { ...prev, kycLevel: 'full' };
-          storeSensitiveJson('user', updated).catch((error) => console.warn('Unable to persist user profile', error));
-          return updated;
-        });
         return true;
       }
     } catch (error) {

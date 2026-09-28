@@ -30,6 +30,7 @@ export default function DriverRidesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [tab, setTab] = useState<"today" | "history">("today");
+  const [expandedRide, setExpandedRide] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["driver-rides"],
     queryFn: async () => {
@@ -223,6 +224,16 @@ export default function DriverRidesScreen() {
                   </Text>
                 </View>
               </View>
+              <TouchableOpacity accessibilityRole="button" onPress={() => setExpandedRide(expandedRide === String(item._id || item.id) ? null : String(item._id || item.id))} style={{ paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>{expandedRide === String(item._id || item.id) ? "Hide ride details" : "View ride details"}</Text>
+                <Feather name={expandedRide === String(item._id || item.id) ? "chevron-up" : "chevron-down"} size={16} color={colors.primary} />
+              </TouchableOpacity>
+              {expandedRide === String(item._id || item.id) && <View style={{ gap: 6, paddingBottom: 12 }}>
+                <Text style={{ color: colors.textSecondary }}>Ride ID: {item._id || item.id}</Text>
+                <Text style={{ color: colors.textSecondary }}>Payment: {String(item.paymentStatus || "Not recorded").replaceAll("_", " ")}</Text>
+                {item.completedAt ? <Text style={{ color: colors.textSecondary }}>Completed: {new Date(item.completedAt).toLocaleString()}</Text> : null}
+                {item.cancelReason ? <Text style={{ color: colors.textSecondary }}>Cancellation: {item.cancelReason}</Text> : null}
+              </View>}
             </DriverCard>
           );
         }}

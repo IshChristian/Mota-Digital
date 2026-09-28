@@ -140,6 +140,13 @@ export default function PassengerProfileScreen() {
           <Text style={s.phone}>{user?.phone || user?.email}</Text>
         </PassengerCard>
 
+        {(user?.kycLevel !== "full" || (!!user?.email && !user?.isEmailVerified)) && <PassengerCard style={{ padding: 16, marginBottom: 16 }}>
+          <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 16, marginBottom: 6 }}>Finish account verification</Text>
+          <Text style={{ color: colors.textSecondary, marginBottom: 12 }}>Your phone is verified. You can use the app while completing the remaining steps.</Text>
+          {user?.kycLevel !== "full" && <PassengerMenuRow icon="check-circle" label="Complete passenger ID and selfie" detail="Submit documents for review" onPress={() => router.push("/(passenger)/profile/kyc" as any)} />}
+          {!!user?.email && !user?.isEmailVerified && <PassengerMenuRow icon="mail" label="Verify email (optional)" detail={user.email} onPress={() => router.push("/(auth)/verify-email" as any)} />}
+        </PassengerCard>}
+
         <PassengerCard style={{ paddingVertical: 0 }}>
           <PassengerMenuRow icon={isDark ? "sun" : "moon"} label={isDark ? "Light mode" : "Dark mode"} detail="Change how MOTA looks" onPress={toggleTheme} />
 

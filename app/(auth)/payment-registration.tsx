@@ -6,12 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { authApi, API_BASE_URL, getStoredToken, paymentApi } from "@/services/api";
+import { authApi, paymentApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isPassengerRole } from "@/constants/roles";
@@ -73,7 +72,9 @@ export default function PaymentRegistrationScreen() {
               pollIntervalRef.current = null;
               
               if (user) {
-                await updateUser({ registrationPaid: true });
+                const verified = await authApi.registrationStatus({ userId: user.id });
+                if (verified.data?.paid === true) await updateUser({ registrationPaid: true });
+                else { setSuccess(false); setError("Payment was received but confirmation is still pending. Refresh your setup status shortly."); }
               }
             } else if (status === 'failed') {
               if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -87,12 +88,12 @@ export default function PaymentRegistrationScreen() {
           }
         }, 1000);
       } else {
-        // Fallback if no ref returned
-        setTimeout(async () => {
-          if (user) {
-            await updateUser({ registrationPaid: true });
-          }
-        }, 3000);
+        // A missing reference is never proof of payment.
+        if (user) {
+          const profile = await authApi.registrationStatus({ userId: user.id }).catch(() => null);
+          if (profile?.data?.paid === true) await updateUser({ registrationPaid: true });
+          else { setSuccess(false); setError("Payment reference unavailable. Check your setup status before trying again."); }
+        }
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
@@ -120,7 +121,7 @@ export default function PaymentRegistrationScreen() {
         <Text style={s.successTitle}>Payment Initiated!</Text>
         <Text style={s.successDesc}>
           You'll receive a MoMo push notification to approve the payment of{" "}
-          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>10,000 RWF</Text>.
+          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>5,000 RWF</Text>.
           {"\n\n"}Waiting for payment confirmation...
         </Text>
         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -185,7 +186,7 @@ export default function PaymentRegistrationScreen() {
         ) : (
           <>
             <Feather name="credit-card" size={20} color="#fff" />
-            <Text style={s.payBtnText}>Pay 10,000 RWF</Text>
+            <Text style={s.payBtnText}>Pay 5,000 RWF</Text>
           </>
         )}
       </TouchableOpacity>
