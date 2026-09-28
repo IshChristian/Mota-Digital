@@ -102,8 +102,10 @@ export default function WalletScreen() {
         );
         const result = response.data?.data;
         Alert.alert(
-          result?.status === "queued" ? "Withdrawal Queued" : "Payout Pending",
-          response.data?.message || "Your withdrawal has been reserved for settlement.",
+          "Withdrawal request received",
+          result?.status === "queued"
+            ? `Your request for ${amt.toLocaleString()} RWF is queued. Payout starts once queued withdrawals reach 10,000 RWF. After payout starts, it usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`
+            : `Your request for ${amt.toLocaleString()} RWF was received. Payout usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`,
         );
       }
       closeModal();
