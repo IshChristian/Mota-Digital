@@ -12,6 +12,8 @@ export default function AuthLayout() {
     >
       <Stack.Screen name="welcome" />
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="verification-progress" />
+      <Stack.Screen name="driver-kyc" />
       <Stack.Screen name="login" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="reset-password" />

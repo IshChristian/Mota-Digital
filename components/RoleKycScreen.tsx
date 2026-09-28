@@ -15,6 +15,7 @@ import { uploadToCloudinary } from "@/services/cloudinary";
 import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { DriverHeader } from "@/components/driver/DriverUI";
+import { useAuth } from "@/context/AuthContext";
 
 type Kind = "driver" | "passenger";
 const commonDocuments = [
@@ -32,6 +33,7 @@ const driverDocuments = [
 const optionalDriverDocuments = [["vocationalCardDocument", "Driver vocational card (optional)"]] as const;
 
 export function RoleKycScreen({ kind }: { kind: Kind }) {
+  const { user } = useAuth();
   const { colors } = useTheme();
   const s = styles(colors);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -46,17 +48,15 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
         if (r.data.kycType !== kind)
           throw new Error(`This screen is for ${kind} KYC only`);
         const data = r.data.data || {};
-        setForm(
-          Object.fromEntries(
-            Object.entries(data).filter(([, v]) => typeof v === "string"),
-          ) as Record<string, string>,
-        );
+        setForm({ nationalIdNumber: user?.nationalId || "",
+          ...Object.fromEntries(Object.entries(data).filter(([, v]) => typeof v === "string")) as Record<string, string>,
+        });
         setStatus(data.status || "not_submitted");
         setRemarks(data.remarks || "");
       })
       .catch((e) => setMessage(e?.response?.data?.message || e.message))
       .finally(() => setBusy(false));
-  }, [kind]);
+  }, [kind, user?.nationalId]);
   const set = (key: string, value: string) =>
     setForm((v) => ({ ...v, [key]: value }));
   const pick = async (key: string) => {
@@ -83,6 +83,12 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     }
   };
   const submit = async () => {
+    const docs = [...commonDocuments, ...(kind === "driver" ? driverDocuments : [])];
+    const missing = docs.find(([key]) => !form[key]);
+    if (!form.nationalIdNumber?.trim() || missing) {
+      setMessage(`Complete National ID number and ${missing?.[1] || "required documents"} before submitting.`);
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
@@ -115,6 +121,8 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       {remarks ? <Text style={s.notice}>Review note: {remarks}</Text> : null}
       {message ? <Text style={s.notice}>{message}</Text> : null}
       <Text style={s.section}>Identity information</Text>
+      <Text style={s.notice}>Name: {user?.firstName} {user?.lastName} · ID registered: {user?.nationalId || "Use your registered ID"}</Text>
+      <Text style={s.docTitle}>National ID number *</Text>
       <TextInput
         style={s.input}
         placeholder="National ID number"
@@ -199,6 +207,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
         </>
       )}
       <Text style={s.section}>Required documents</Text>
+      <Text style={s.notice}>Upload clear images of both sides of your ID and a current selfie. Drivers also need the documents listed below.</Text>
       {docs.map(([key, label]) => (
         <TouchableOpacity
           key={key}

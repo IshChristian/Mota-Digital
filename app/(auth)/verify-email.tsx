@@ -58,6 +58,7 @@ export default function VerifyEmailScreen() {
     try {
       await authApi.verifyEmailOtp({ email, otp: code });
       await updateUser({ isEmailVerified: true });
+      router.back();
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid verification code");
     } finally {
@@ -93,6 +94,7 @@ export default function VerifyEmailScreen() {
       </View>
 
       <Text style={s.title}>Verify Your Email</Text>
+      <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" style={{ padding: 12 }}><Text style={{ color: colors.primary }}>Do this later</Text></TouchableOpacity>
       <Text style={s.subtitle}>
         We sent a 6-digit verification code to{"\n"}
         <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>{email}</Text>
