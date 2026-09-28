@@ -1,17 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  Share,
-  ScrollView,
-  ActivityIndicator,
-  Image,
-} from "react-native";
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, Platform, Share, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";

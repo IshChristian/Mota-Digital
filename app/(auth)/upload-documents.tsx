@@ -1,15 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Image,
-  Platform,
-} from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Image, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { Feather } from "@expo/vector-icons";

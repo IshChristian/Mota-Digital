@@ -1,3 +1,4 @@
+import { showMessage } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -163,7 +164,7 @@ export default function DashboardScreen() {
                 { borderColor: getRiskColor(riskScore.grade) },
               ]}
               onPress={() =>
-                alert(
+                showMessage(
                   `Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`,
                 )
               }

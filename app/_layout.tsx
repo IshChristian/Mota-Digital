@@ -24,6 +24,7 @@ import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { isPassengerRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
+import { GlobalAlert } from "@/components/GlobalAlert";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -231,6 +232,7 @@ export default function RootLayout() {
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <KeyboardProvider>
                     <RootLayoutNav />
+                    <GlobalAlert />
                   </KeyboardProvider>
                 </GestureHandlerRootView>
               </I18nProvider>

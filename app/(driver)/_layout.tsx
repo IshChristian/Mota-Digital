@@ -1,15 +1,9 @@
+import { Alert, showMessage } from "@/components/GlobalAlert";
 import { BlurView } from "expo-blur";
 import { Tabs, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import {
-  Platform,
-  StyleSheet,
-  View,
-  Text,
-  Alert,
-  TouchableOpacity,
-} from "react-native";
+import { Platform, StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EventSource from "react-native-sse";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
@@ -162,7 +156,7 @@ export default function TabLayout() {
       } catch {
         /* Use the API message below. */
       }
-      alert(
+      showMessage(
         e?.response?.data?.message ||
           "Unable to accept this ride. Refresh to see its current timeline.",
       );

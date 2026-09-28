@@ -1,5 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, View, TouchableOpacity, TextInput, Alert, ScrollView } from "react-native";
+import { Image, StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
