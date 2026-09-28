@@ -46,7 +46,9 @@ export default function PassengerHomeScreen() {
   const [destination, setDestination] = useState("");
   const [destinationLoc, setDestinationLoc] = useState<{latitude: number, longitude: number} | null>(null);
   const [pickupLoc, setPickupLoc] = useState({ latitude: -1.9536, longitude: 30.0606 }); 
-  const [locationName, setLocationName] = useState("Kigali, RW");
+  const [locationName, setLocationName] = useState("Finding your pickup…");
+  const [hasPickupFix, setHasPickupFix] = useState(false);
+  const [locationAttempt, setLocationAttempt] = useState(0);
   
   // Estimation Data
   const [distanceKm, setDistanceKm] = useState(0);
@@ -73,7 +75,7 @@ export default function PassengerHomeScreen() {
   const [scheduledTime, setScheduledTime] = useState("");
   const [scheduledAt, setScheduledAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
   const [schedulePicker, setSchedulePicker] = useState<'date' | 'time' | null>(null);
-  const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "off">("granted");
+  const [locationStatus, setLocationStatus] = useState<"loading" | "granted" | "denied" | "off">("loading");
 
   // Nearby available motors (fetched from backend when available)
   const [availableMotors, setAvailableMotors] = useState<any[]>([]);
@@ -137,7 +139,7 @@ export default function PassengerHomeScreen() {
   }, [destinationLoc?.latitude, destinationLoc?.longitude]);
 
   useEffect(() => {
-    if (!destinationLoc) { setRouteCoordinates([]); return; }
+    if (!destinationLoc || !hasPickupFix) { setRouteCoordinates([]); return; }
     let active = true;
     const loadRouteAndFare = async () => {
       const [routeResult, fareResult] = await Promise.allSettled([
@@ -165,15 +167,19 @@ export default function PassengerHomeScreen() {
     };
     void loadRouteAndFare();
     return () => { active = false; };
-  }, [destinationLoc?.latitude, destinationLoc?.longitude]);
+  }, [destinationLoc?.latitude, destinationLoc?.longitude, pickupLoc.latitude, pickupLoc.longitude, hasPickupFix]);
 
   // 0. GPS Location Tracking
   useEffect(() => {
     let locationSubscription: any;
+    let active = true;
     (async () => {
+      try {
       let { status } = await Location.requestForegroundPermissionsAsync();
+      if (!active) return;
       if (status !== 'granted') {
         setLocationStatus('denied');
+        setHasPickupFix(false);
         setScreenFeedback({ title: 'Location permission required', message: 'Allow location access in device settings to use ride matching.' });
         return;
       }
@@ -181,12 +187,15 @@ export default function PassengerHomeScreen() {
       let isEnabled = await Location.hasServicesEnabledAsync();
       if (!isEnabled) {
         setLocationStatus('off');
+        setHasPickupFix(false);
         setScreenFeedback({ title: 'GPS is off', message: 'Turn on location services for real-time ride matching.' });
-      } else {
-        setLocationStatus('granted');
+        return;
       }
       
       let location = await Location.getCurrentPositionAsync({});
+      if (!active) return;
+      setLocationStatus('granted');
+      setHasPickupFix(true);
       setPickupLoc({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -203,20 +212,25 @@ export default function PassengerHomeScreen() {
       locationSubscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, distanceInterval: 5 },
         (loc) => {
+           if (!active) return;
            setLocationStatus('granted');
            setPickupLoc({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         }
       );
+      } catch {
+        if (active) { setLocationStatus('off'); setHasPickupFix(false); setLocationName('Location unavailable'); }
+      }
     })();
     return () => {
+      active = false;
       if (locationSubscription) locationSubscription.remove();
     };
-  }, []);
+  }, [locationAttempt]);
 
   // 1. Fetch nearby available motors from backend
   useEffect(() => {
     let interval: any;
-    if (rideState === "idle") {
+    if (rideState === "idle" && hasPickupFix) {
       const fetchNearby = async () => {
         try {
           const res = await realtimeApi.getNearbyDrivers(pickupLoc.latitude, pickupLoc.longitude, 3);
@@ -238,7 +252,7 @@ export default function PassengerHomeScreen() {
       interval = setInterval(fetchNearby, 15000);
     }
     return () => clearInterval(interval);
-  }, [rideState, pickupLoc]);
+  }, [rideState, pickupLoc.latitude, pickupLoc.longitude, hasPickupFix]);
 
   // 2. Poll for rider acceptance (real waiting)
   useEffect(() => {
@@ -363,6 +377,10 @@ export default function PassengerHomeScreen() {
   };
 
   const handleRequestRide = async () => {
+    if (!hasPickupFix || locationStatus !== 'granted') {
+      setScreenFeedback({ title: 'Confirm pickup location', message: 'Turn on location services and refresh your location before requesting a ride.' });
+      return;
+    }
     if (!destinationLoc) {
       setScreenFeedback({ title: 'Destination required', message: 'Select a destination before requesting a ride.' });
       return;
@@ -593,7 +611,7 @@ export default function PassengerHomeScreen() {
             <View style={s.locationTopBox}>
               <Feather name="navigation" size={14} color={colors.primary} />
               <View style={{ marginLeft: 6 }}>
-                <Text style={s.locationTopLabel}>Your location</Text>
+                <Text style={s.locationTopLabel}>Pickup location</Text>
                 <Text style={s.locationTopText}>{locationName}</Text>
               </View>
             </View>
@@ -620,8 +638,9 @@ export default function PassengerHomeScreen() {
               <Text style={{ color: '#fff', fontSize: 12, fontFamily: 'Inter_600SemiBold', flex: 1 }}>
                 {locationStatus === 'denied'
                   ? "GPS Permission denied. Enable location permissions in settings."
-                  : "GPS Location is turned off. Turn on location for real-time tracking."}
+                  : locationStatus === 'loading' ? 'Finding your pickup location…' : "GPS Location is turned off. Turn on location for real-time tracking."}
               </Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry pickup location" onPress={() => { setLocationStatus('loading'); setLocationAttempt(v => v + 1); }} style={{ padding: 8 }}><Text style={{ color: '#fff', fontFamily: 'Inter_700Bold' }}>Retry</Text></TouchableOpacity>
             </View>
           )}
         </View>
@@ -729,8 +748,8 @@ export default function PassengerHomeScreen() {
               <View style={s.whiteCard}>
                 <Text style={s.estimateTitle}>Confirm Ride to {destination.split(',')[0]}</Text>
                 <Text style={s.suggestedText}>Suggested Fare: {minFare.toLocaleString()} RWF</Text>
-                <TouchableOpacity style={s.primaryBtn} onPress={() => setRideState("negotiating")}>
-                  <Text style={s.primaryBtnText}>Proceed</Text>
+                <TouchableOpacity style={[s.primaryBtn, !hasPickupFix && { opacity: 0.55 }]} disabled={!hasPickupFix} onPress={() => setRideState("negotiating")}>
+                  <Text style={s.primaryBtnText}>{hasPickupFix ? 'Review fare' : 'Finding pickup…'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -843,8 +862,8 @@ export default function PassengerHomeScreen() {
               
               <View style={[s.whiteCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}><Feather name="credit-card" size={20} color={colors.primary} /><View style={{ marginLeft: 12, flex: 1 }}><Text style={s.payText}>Payment from MOTA Wallet</Text><Text style={s.cardSub}>Your balance is verified before submitting the request.</Text></View></View>
 
-              <TouchableOpacity style={s.primaryBtn} onPress={handleRequestRide}>
-                <Text style={s.primaryBtnText}>Start ride</Text>
+              <TouchableOpacity style={[s.primaryBtn, !hasPickupFix && { opacity: 0.55 }]} onPress={handleRequestRide} disabled={!hasPickupFix}>
+                <Text style={s.primaryBtnText}>{hasPickupFix ? 'Request ride' : 'Finding pickup…'}</Text>
               </TouchableOpacity>
             </View>
           )}

@@ -86,6 +86,7 @@ export default function PaymentMethods() {
       </Text>
       {pendingId ? (
         <>
+          <Text style={{ color: colors.textSecondary, fontFamily: "Inter_600SemiBold" }}>SMS verification code *</Text>
           <TextInput
             style={input}
             value={otp}
@@ -104,6 +105,7 @@ export default function PaymentMethods() {
         </>
       ) : (
         <>
+          <Text style={{ color: colors.textSecondary, fontFamily: "Inter_600SemiBold" }}>Mobile Money phone number *</Text>
           <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Mobile Money phone number" />
           <TouchableOpacity
             disabled={busy || !phone.trim()}

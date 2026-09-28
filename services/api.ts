@@ -69,6 +69,7 @@ export const authApi = {
   payRegistration: (data: any) => api.post("/auth/pay-registration", data),
   registrationStatus: (data: any) =>
     api.post("/auth/registration-status", data),
+  myRegistrationPayment: () => api.get("/auth/my-registration-payment"),
   /** Submit full registration request for admin review */
   submitRegistrationRequest: () => api.post("/auth/submit-registration"),
   /** Check current registration approval status */

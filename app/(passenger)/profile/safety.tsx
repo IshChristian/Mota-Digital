@@ -9,7 +9,7 @@ import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 
 export default function Safety() {
-  const { user, refreshUser } = useAuth() as any;
+  const { user, updateUser } = useAuth();
   const { colors } = useTheme();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -20,15 +20,17 @@ export default function Safety() {
     if (!name.trim() || !normalizedPhone) return Alert.alert("Required", "Add a contact name and a valid Rwanda phone number.");
     setSaving(true);
     try {
-      await usersApi.updateMe({ emergencyContactName: name.trim(), emergencyContactPhone: normalizedPhone });
-      await refreshUser?.();
+      const response = await usersApi.updateMe({ emergencyContactName: name.trim(), emergencyContactPhone: normalizedPhone });
+      await updateUser(response.data?.data || { emergencyContactName: name.trim(), emergencyContactPhone: normalizedPhone });
       Alert.alert("Saved", "Emergency contact updated.");
     } catch (error: any) { Alert.alert("Unable to save", error?.response?.data?.message || "Please try again."); }
     finally { setSaving(false); }
   };
   return <PassengerSettingsScreen title="Safety">
     <Text style={{ color: colors.textSecondary }}>This contact can be used by support during an active ride emergency.</Text>
+    <Text style={{ color: colors.textSecondary, fontFamily: "Inter_600SemiBold" }}>Contact name *</Text>
     <TextInput style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Emergency contact name" placeholderTextColor={colors.textSecondary} />
+    <Text style={{ color: colors.textSecondary, fontFamily: "Inter_600SemiBold" }}>Rwanda phone number *</Text>
     <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Emergency contact phone number" />
     <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} disabled={saving} onPress={save}><Text style={styles.buttonText}>{saving ? "Saving…" : "Save safety contact"}</Text></TouchableOpacity>
   </PassengerSettingsScreen>;

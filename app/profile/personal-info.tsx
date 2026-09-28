@@ -26,7 +26,7 @@ const clean = (value: unknown): string => typeof value === "string" && !["null",
 export default function PersonalInfoScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, login, token } = useAuth();
+  const { user, updateUser } = useAuth();
   const { colors } = useTheme();
 
   const [editing, setEditing] = useState(false);
@@ -79,11 +79,8 @@ export default function PersonalInfoScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await usersApi.updateMe(form);
-      const updated = res.data?.user || res.data;
-      if (token && updated) {
-        await login(token, { ...user!, ...updated });
-      }
+      const res = await usersApi.updateMe({ firstName: form.firstName.trim(), lastName: form.lastName.trim() });
+      await updateUser(res.data?.data || { firstName: form.firstName.trim(), lastName: form.lastName.trim() });
       setEditing(false);
       setAlert({ visible: true, type: "success", title: "Saved!", message: "Your profile has been updated." });
     } catch (err: any) {
@@ -111,12 +108,7 @@ export default function PersonalInfoScreen() {
       setUploadingAvatar(true);
 
       const updated = await usersApi.uploadAvatar(asset.uri);
-      if (user && token) {
-        await login(token, {
-          ...user,
-          avatarUrl: updated.avatarUrl,
-        });
-      }
+      await updateUser({ avatarUrl: updated.avatarUrl });
       setAlert({ visible: true, type: "success", title: "Success", message: "Your profile photo has been updated." });
     } catch (err: any) {
       setAlert({ visible: true, type: "error", title: "Error", message: err.message || "Could not upload profile photo." });
@@ -225,7 +217,8 @@ export default function PersonalInfoScreen() {
             <Text style={s.cardTitle}>Account Details</Text>
             <Field label="First Name" value={form.firstName} field="firstName" editable />
             <Field label="Last Name" value={form.lastName} field="lastName" editable />
-            <Field label="Email" value={form.email} field="email" keyboard="email-address" editable />
+            <Field label="Email" value={form.email} editable={false} />
+            <TouchableOpacity onPress={() => router.push("/contact-security" as any)} accessibilityRole="button" style={{ paddingVertical: 12 }}><Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Change phone or email securely</Text></TouchableOpacity>
             <Field label="Phone" value={clean(src?.phone)} editable={false} />
             <Field label="National ID" value={clean(src?.nationalId || driverProfile?.nid)} editable={false} />
           </View>

@@ -9,7 +9,7 @@ import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 
 export default function PersonalInfo() {
   const router = useRouter();
-  const { user, refreshUser } = useAuth() as any;
+  const { user, updateUser } = useAuth();
   const { colors } = useTheme();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -19,19 +19,26 @@ export default function PersonalInfo() {
     if (!firstName.trim() || !lastName.trim()) return Alert.alert("Required", "Complete both name fields.");
     setSaving(true);
     try {
-      await usersApi.updateMe({ firstName: firstName.trim(), lastName: lastName.trim() });
-      await refreshUser?.();
+      const response = await usersApi.updateMe({ firstName: firstName.trim(), lastName: lastName.trim() });
+      await updateUser(response.data?.data || { firstName: firstName.trim(), lastName: lastName.trim() });
       Alert.alert("Saved", "Personal information updated.");
     } catch (error: any) { Alert.alert("Unable to save", error?.response?.data?.message || "Please try again."); }
     finally { setSaving(false); }
   };
   const input = [styles.input, { color: colors.textPrimary, borderColor: colors.border }];
   return <PassengerSettingsScreen title="Personal information">
+    <Text style={[styles.label, { color: colors.textSecondary }]}>First name *</Text>
     <TextInput style={input} value={firstName} onChangeText={setFirstName} placeholder="First name" placeholderTextColor={colors.textSecondary} />
+    <Text style={[styles.label, { color: colors.textSecondary }]}>Last name *</Text>
     <TextInput style={input} value={lastName} onChangeText={setLastName} placeholder="Last name" placeholderTextColor={colors.textSecondary} />
+    <Text style={[styles.label, { color: colors.textSecondary }]}>National ID</Text>
+    <Text style={[styles.verified, { color: colors.textPrimary, backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>{user?.nationalId || "Not set"}</Text>
     <Text style={[styles.label, { color: colors.textSecondary }]}>Verified phone</Text>
     <Text style={[styles.verified, { color: colors.textPrimary, backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>{user?.phone || "Not set"}</Text>
     <TouchableOpacity style={[styles.outline, { borderColor: colors.primary }]} onPress={() => router.push("/contact-security" as any)}><Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>Change verified phone securely</Text></TouchableOpacity>
+    <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+    <Text style={[styles.verified, { color: colors.textPrimary, backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>{user?.email || "Optional — not set"}</Text>
+    <TouchableOpacity style={[styles.outline, { borderColor: colors.primary }]} onPress={() => router.push("/contact-security" as any)}><Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>Change email securely</Text></TouchableOpacity>
     <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} disabled={saving} onPress={save}><Text style={styles.buttonText}>{saving ? "Saving…" : "Save changes"}</Text></TouchableOpacity>
   </PassengerSettingsScreen>;
 }

@@ -3,14 +3,13 @@ import {
   StyleSheet,
   Text,
   View,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { authApi, paymentApi } from "@/services/api";
+import { authApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isPassengerRole } from "@/constants/roles";
@@ -39,6 +38,8 @@ export default function PaymentRegistrationScreen() {
   const [error, setError] = useState("");
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const checkingRef = useRef(false);
+  const pollCountRef = useRef(0);
 
   useEffect(() => {
     if (isPassengerRole(user?.role)) router.replace("/(passenger)" as any);
@@ -56,49 +57,52 @@ export default function PaymentRegistrationScreen() {
     setError("");
     try {
       const res = await authApi.payRegistration({ phone: displayPhone });
-      const ref = res.data?.ref || res.data?.data?.ref; // Extract Paypack ref from response
+      const ref = res.data?.ref || res.data?.data?.ref;
       setSuccess(true);
-      
-      if (ref) {
-        // Start high-frequency status polling (every 1 second)
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const statusRes = await paymentApi.checkPaymentStatus(ref);
-            const data = statusRes.data?.data || statusRes.data;
-            const status = data?.status;
-
-            if (status === 'completed' || status === 'successful') {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              pollIntervalRef.current = null;
-              
-              if (user) {
-                const verified = await authApi.registrationStatus({ userId: user.id });
-                if (verified.data?.paid === true) await updateUser({ registrationPaid: true });
-                else { setSuccess(false); setError("Payment was received but confirmation is still pending. Refresh your setup status shortly."); }
-              }
-            } else if (status === 'failed') {
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              pollIntervalRef.current = null;
-              
-              setSuccess(false);
-              setError("Payment failed. Please try again.");
-            }
-          } catch (err) {
-            console.error("Error checking payment status", err);
+      pollCountRef.current = 0;
+      let finished = false;
+      const check = async () => {
+        if (checkingRef.current) return;
+        checkingRef.current = true;
+        try {
+          const result = await authApi.myRegistrationPayment();
+          if (result.data?.paid === true) {
+            finished = true;
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            await updateUser({ registrationPaid: true });
+            router.replace("/(auth)/verification-progress" as any);
+          } else if (result.data?.status === 'failed') {
+            finished = true;
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setSuccess(false);
+            setError("Payment failed. Please retry after checking your MoMo account.");
           }
-        }, 1000);
-      } else {
-        // A missing reference is never proof of payment.
-        if (user) {
-          const profile = await authApi.registrationStatus({ userId: user.id }).catch(() => null);
-          if (profile?.data?.paid === true) await updateUser({ registrationPaid: true });
-          else { setSuccess(false); setError("Payment reference unavailable. Check your setup status before trying again."); }
+        } catch (err: any) {
+          if (!ref) { setSuccess(false); setError(err?.response?.data?.message || "Payment status is unavailable. Check setup before retrying."); }
+        } finally {
+          checkingRef.current = false;
         }
+      };
+      await check();
+      if (ref && !finished && pollIntervalRef.current === null) {
+        pollIntervalRef.current = setInterval(() => {
+          pollCountRef.current += 1;
+          if (pollCountRef.current >= 75) {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setSuccess(false);
+            setError("Confirmation is taking longer than expected. Check setup status before making another payment.");
+            return;
+          }
+          void check();
+        }, 4000);
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
-        router.replace("/(driver)" as any);
+        router.replace("/(auth)/verification-progress" as any);
       } else {
         setError(msg);
       }
@@ -125,6 +129,7 @@ export default function PaymentRegistrationScreen() {
           {"\n\n"}Waiting for payment confirmation...
         </Text>
         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+        <TouchableOpacity onPress={() => router.replace("/(auth)/verification-progress" as any)} style={{ marginTop: 28, padding: 14 }}><Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Return to setup</Text></TouchableOpacity>
       </View>
     );
   }
