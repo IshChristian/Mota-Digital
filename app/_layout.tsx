@@ -10,6 +10,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { Image, View } from "react-native";
+import { Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,13 +23,15 @@ import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { isPassengerRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
+import { ReleaseNotice } from "@/components/ReleaseNotice";
+import { GlobalAlert } from "@/components/GlobalAlert";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading, user, hasDriverProfile } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments() as string[];
   const router = useRouter();
 
@@ -37,77 +41,25 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
       ["info", "system"].includes(segments[0]) ||
-      segments[0] === "search" ||
       segments[0] === "+not-found";
     const isPassenger = isPassengerRole(user?.role);
 
-    // A user is fully onboarded when all verification & approval steps are done.
-    // We check each gate individually rather than relying on isActive, because
-    // the backend may not flip isActive immediately after approval.
-    const isFullyOnboarded =
-      isAuthenticated &&
-      user &&
-      (user.isActive === true ||
-        (user.isVerified === true &&
-          (user.isEmailVerified === true || !user.email) &&
-          (isPassenger || user.registrationPaid !== false) &&
-          (isPassenger || user.registrationStatus === "approved") &&
-          (isPassenger || hasDriverProfile || user.kycLevel === "full")));
-
-    // Individual onboarding gates — only evaluated if not fully onboarded
-    const needsPhoneVerification =
-      !isFullyOnboarded && isAuthenticated && user && user.isVerified === false;
-    const needsEmailVerification =
-      !isFullyOnboarded &&
-      isAuthenticated &&
-      user &&
-      user.isEmailVerified === false &&
-      !!user.email;
-    const needsPayment =
-      !isFullyOnboarded &&
-      isAuthenticated &&
-      user &&
-      !isPassenger &&
-      user.registrationPaid === false;
-    // Skip profile gate if backend confirms a driver profile already exists (passengers don't have driver profiles)
-    const needsProfile =
-      !isFullyOnboarded &&
-      isAuthenticated &&
-      user &&
-      user.kycLevel !== "full" &&
-      !isPassenger &&
-      !hasDriverProfile;
-    const needsApproval =
-      !isFullyOnboarded &&
-      isAuthenticated &&
-      user &&
-      !isPassenger &&
-      user.registrationStatus &&
-      user.registrationStatus !== "approved";
+    const needsPhoneVerification = isAuthenticated && user?.isVerified === false;
+    const needsDriverReview = isAuthenticated && user?.role === "driver" &&
+      (user.isActive !== true || user.registrationPaid !== true || user.registrationStatus !== "approved" || user.kycLevel !== "full");
 
     if (!isAuthenticated && !inAuthGroup && !isPublicInformation) {
       router.replace("/(auth)/welcome" as any);
     } else if (isAuthenticated) {
-      if (needsPhoneVerification) {
-        if (segments[1] !== "otp") router.replace("/(auth)/otp");
-      } else if (needsEmailVerification) {
-        if (segments[1] !== "verify-email")
-          router.replace("/(auth)/verify-email");
-      } else if (needsPayment) {
-        if (segments[1] !== "payment-registration")
-          router.replace("/(auth)/payment-registration");
-      } else if (needsProfile) {
-        if (
-          segments[1] !== "create-profile" &&
-          segments[1] !== "upload-documents"
-        )
-          router.replace("/(auth)/create-profile");
-      } else if (needsApproval) {
-        if (segments[1] !== "pending-approval")
-          router.replace("/(auth)/pending-approval" as any);
+      if (needsPhoneVerification && user?.role !== "driver") {
+        if (segments[1] !== "otp" && segments[1] !== "confirm-phone") router.replace("/(auth)/confirm-phone");
+      } else if (needsDriverReview) {
+        const allowed = (segments[0] === "(auth)" && ["verification-progress", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||
+          (segments[0] === "(driver)" && segments[1] === "kyc");
+        if (!allowed) router.replace("/(auth)/verification-progress" as any);
       } else {
         // Fully onboarded — route to the appropriate home screen
-        if (inAuthGroup) {
+        if (inAuthGroup && segments[1] !== "verify-email") {
           const role = normalizeRole(user?.role);
           if (role === "admin") router.replace("/(admin)" as any);
           else if (role === "agent") router.replace("/(agent)" as any);
@@ -116,17 +68,26 @@ function RootLayoutNav() {
         }
       }
     }
-  }, [isAuthenticated, isLoading, segments, user, hasDriverProfile]);
+  }, [isAuthenticated, isLoading, segments, user]);
 
-  if (isLoading) return null;
+  if (isLoading) return <WelcomeLoading />;
 
   return (
     <>
       <PushNotificationManager />
+      <ReleaseNotice />
       <ThemedStack />
       <PrivacyConsentBanner />
     </>
   );
+}
+
+function WelcomeLoading() {
+  const { colors, isDark } = useTheme();
+  return <View accessibilityLabel="Loading MOTA" style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+    <Image source={isDark ? require("@/assets/images/official-mota-black-logo-removebg-preview.png") : require("@/assets/images/official-mota-white-logo-removebg-preview.png")} resizeMode="contain" style={{ width: 220, height: 100 }} />
+    <Text accessibilityRole="text" style={{ color: colors.textSecondary, marginTop: 16 }}>Checking your account…</Text>
+  </View>;
 }
 
 function ThemedStack() {
@@ -220,6 +181,7 @@ export default function RootLayout() {
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <KeyboardProvider>
                     <RootLayoutNav />
+                    <GlobalAlert />
                   </KeyboardProvider>
                 </GestureHandlerRootView>
               </I18nProvider>

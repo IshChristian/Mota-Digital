@@ -1,3 +1,4 @@
+import { showMessage } from "@/components/GlobalAlert";
 import React, { useState, useCallback, useRef } from "react";
 import {
   StyleSheet,
@@ -134,11 +135,11 @@ export default function LogRideScreen() {
   // Submit new ride
   const handleSubmit = async () => {
     if (!fare) {
-      alert("Please enter the fare amount");
+      showMessage("Please enter the fare amount");
       return;
     }
     if (!normalizeRwandaPhone(passengerPhone)) {
-      alert("Enter a valid Rwanda passenger phone number starting with 07 or 7");
+      showMessage("Enter a valid Rwanda passenger phone number starting with 07 or 7");
       return;
     }
     setSubmitting(true);
@@ -187,7 +188,7 @@ export default function LogRideScreen() {
               pollIntervalRef.current = null;
 
               setPaymentWaiting(false);
-              alert("Payment failed. Passenger may have declined.");
+              showMessage("Payment failed. Passenger may have declined.");
               setSubmitting(false);
             }
           } catch (e) {
@@ -207,7 +208,7 @@ export default function LogRideScreen() {
         setSubmitting(false);
       }
     } catch (e: any) {
-      alert(e.response?.data?.message || "Failed to log ride");
+      showMessage(e.response?.data?.message || "Failed to log ride");
       setSubmitting(false);
     }
   };

@@ -111,10 +111,7 @@ export default function ProfileScreen() {
       if (user && token) {
         await login(token, {
           ...user,
-          profileImage:
-            updated.profileImage ||
-            (updated as any).user?.profileImage ||
-            asset.uri,
+          avatarUrl: updated.avatarUrl,
         });
       }
       showAlert(
@@ -171,8 +168,8 @@ export default function ProfileScreen() {
         {/* Avatar */}
         <View style={s.profileCard}>
           <View style={s.avatarWrap}>
-            {user?.profileImage ? (
-              <Image source={{ uri: user.profileImage }} style={s.avatarImg} />
+            {user?.avatarUrl || user?.profileImage ? (
+              <Image source={{ uri: user.avatarUrl || user.profileImage }} style={s.avatarImg} />
             ) : (
               <View style={s.avatarPlaceholder}>
                 <Text style={s.avatarText}>

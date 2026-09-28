@@ -1,12 +1,13 @@
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
+import { fetch as expoFetch } from 'expo/fetch';
 import { API_BASE_URL } from './api';
 import { getStoredToken } from './secureStorage';
 
 /** Upload through the authenticated backend; Cloudinary credentials stay server-side. */
-export async function uploadToCloudinary(uri: string, _folder?: string): Promise<string> {
-  const filename = uri.split('/').pop() || 'upload.jpg';
+export async function uploadToCloudinary(uri: string, _folder?: string, selectedName?: string, selectedMimeType?: string): Promise<string> {
+  const filename = selectedName || uri.split('/').pop() || 'upload.jpg';
   const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-  const mimeType = ext === 'pdf' ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
   const formData = new FormData();
 
   if (Platform.OS === 'web') {
@@ -14,23 +15,26 @@ export async function uploadToCloudinary(uri: string, _folder?: string): Promise
     if (!source.ok) throw new Error('Unable to read selected file');
     formData.append('file', await source.blob(), filename);
   } else {
-    formData.append('file', {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-      name: filename,
-      type: mimeType,
-    } as any);
+    // Expo's fetch rejects React Native's { uri, name, type } FormData parts.
+    // File exposes bytes(), which its multipart encoder accepts.
+    const file = new File(uri);
+    if (!file.exists) throw new Error('The selected file is no longer available. Choose it again.');
+    formData.append('file', file as Blob, filename);
   }
 
   const token = await getStoredToken();
   if (!token) throw new Error('Authentication required');
-  const response = await fetch(`${API_BASE_URL}/uploads`, {
+  const response = await (Platform.OS === 'web' ? fetch : expoFetch)(`${API_BASE_URL}/uploads`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     body: formData,
   });
-  if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Your session has expired. Sign in again before uploading.');
+    throw new Error(payload?.message || (response.status === 413 ? 'This file is too large. Choose a smaller image.' : `Upload failed (${response.status}). Please retry.`));
+  }
   const url = payload?.data?.url || payload?.data?.secureUrl || payload?.url || payload?.secureUrl;
-  if (!url) throw new Error('Upload completed without a file URL');
+  if (typeof url !== 'string' || !/^https:\/\//i.test(url)) throw new Error('The upload response did not contain a secure file link. Please retry.');
   return url;
 }

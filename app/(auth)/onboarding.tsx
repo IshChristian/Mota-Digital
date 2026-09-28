@@ -30,8 +30,8 @@ export default function OnboardingScreen() {
   const { colors, isDark } = useTheme();
   const slide = slides[index];
   const logo = isDark
-    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
+    ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-white-logo-removebg-preview.png");
   return (
     <View style={[s.page, { backgroundColor: colors.background }]}>
       <Image source={logo} style={s.logo} resizeMode="contain" />

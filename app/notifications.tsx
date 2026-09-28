@@ -3,7 +3,7 @@ import {
   StyleSheet,
   Text,
   View,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 import { notificationsApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
@@ -29,7 +30,7 @@ export default function NotificationsScreen() {
       let apiNotifs: any[] = [];
       try {
         const res = await notificationsApi.getNotifications(1);
-        apiNotifs = res.data?.notifications || [];
+        apiNotifs = res.data?.data || res.data?.notifications || [];
       } catch (e) {}
 
       let localNotifs: any[] = [];
@@ -46,13 +47,19 @@ export default function NotificationsScreen() {
   });
 
   const s = styles(colors);
+  const all = data || [];
+  const promotional = (item: any) => item.metadata?.category === "promotion" || item.type === "promotion" || item.type === "promotional";
+  const sections = [
+    { title: "Operational", data: all.filter((item) => !promotional(item)) },
+    { title: "Promotional", data: all.filter(promotional) },
+  ].filter((section) => section.data.length);
 
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[s.notificationItem, !item.read && s.unreadItem]}
       onPress={async () => {
         if (!item.read) {
-          if (item.id?.startsWith("local-")) {
+          if (String(item.id || "").startsWith("local-")) {
             try {
               const localStr = await AsyncStorage.getItem("local_notifs");
               if (localStr) {
@@ -62,7 +69,7 @@ export default function NotificationsScreen() {
               }
             } catch (e) {}
           } else {
-            notificationsApi.markRead(item.id);
+            await notificationsApi.markRead(item._id || item.id);
           }
           refetch();
         }
@@ -81,18 +88,13 @@ export default function NotificationsScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
-          <Feather name="x" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>{t("notifications")}</Text>
-        <View style={{ width: 44 }} />
-      </View>
+      <View style={{ paddingHorizontal: 18 }}><ScreenHeader title={t("notifications")} close /></View>
 
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+      <SectionList
+        sections={sections}
+        keyExtractor={(item, index) => String(item._id || item.id || `${item.createdAt}-${index}`)}
         renderItem={renderItem}
+        renderSectionHeader={({ section }) => <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 17, marginBottom: 12, marginTop: 10 }}>{section.title}</Text>}
         contentContainerStyle={s.listContent}
         refreshing={isFetching}
         onRefresh={refetch}

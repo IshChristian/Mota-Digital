@@ -21,6 +21,7 @@ export type AppAlertProps = {
     cancelText?: string;
     onConfirm?: () => void;
     onCancel?: () => void;
+    actions?: { text: string; onPress?: () => void; style?: "cancel" | "destructive" | "default" }[];
 };
 
 const TYPE_CONFIG: Record<
@@ -43,6 +44,7 @@ export function AppAlert({
     cancelText = "Cancel",
     onConfirm,
     onCancel,
+    actions,
 }: AppAlertProps) {
     const { colors } = useTheme();
     const config = TYPE_CONFIG[type];
@@ -93,7 +95,20 @@ export function AppAlert({
                     <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                     {/* Buttons */}
-                    <View style={[styles.btnRow, isConfirm && styles.btnRowDouble]}>
+                    <View style={[styles.btnRow, actions && actions.length > 2 && styles.btnColumn, isConfirm && styles.btnRowDouble]}>
+                        {actions ? actions.map((action, index) => (
+                            <TouchableOpacity
+                                key={`${action.text}-${index}`}
+                                accessibilityRole="button"
+                                style={[styles.btn, action.style === "cancel" ? styles.btnCancel : styles.btnConfirm,
+                                    action.style === "cancel"
+                                        ? { borderColor: colors.border, backgroundColor: colors.backgroundElevated }
+                                        : { backgroundColor: action.style === "destructive" ? colors.error : colors.primary }]}
+                                onPress={action.onPress}
+                            >
+                                <Text style={[styles.btnText, { color: action.style === "cancel" ? colors.textPrimary : "#fff" }]}>{action.text}</Text>
+                            </TouchableOpacity>
+                        )) : <>
                         {isConfirm && (
                             <TouchableOpacity
                                 style={[
@@ -123,6 +138,7 @@ export function AppAlert({
                         >
                             <Text style={styles.btnConfirmText}>{confirmText}</Text>
                         </TouchableOpacity>
+                        </>}
                     </View>
                 </View>
             </View>
@@ -183,6 +199,9 @@ const styles = StyleSheet.create({
     },
     btnRowDouble: {
         flexDirection: "row",
+    },
+    btnColumn: {
+        flexDirection: "column",
     },
     btn: {
         flex: 1,

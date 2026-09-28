@@ -57,8 +57,8 @@ export default function SystemStateScreen() {
   const { colors, isDark } = useTheme();
   const state = states[type || "failure"] || states.failure;
   const logo = isDark
-    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
+    ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-white-logo-removebg-preview.png");
 
   return (
     <View style={[styles.page, { backgroundColor: colors.background }]}>

@@ -16,6 +16,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiErrorMessage, productionApi } from "@/services/api";
 import { legalDocuments, legalMenu } from "@/config/legalDocuments";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const information = {
   about: {
@@ -63,6 +64,7 @@ export default function InformationScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [accepting, setAccepting] = useState(false);
   const document = legalDocuments[page || ""];
@@ -96,7 +98,7 @@ export default function InformationScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
     >
       <TouchableOpacity
         accessibilityLabel="Go back"
@@ -230,6 +232,7 @@ export default function InformationScreen() {
             <Text style={[styles.version, { color: colors.textSecondary }]}>Effective {document.effectiveDate}</Text>
           </View>
           {document.sections.map(({ heading, body }) => (
+          {document.sections.map(([heading, body], index) => (
             <View
               key={heading}
               style={[
@@ -240,9 +243,10 @@ export default function InformationScreen() {
                 },
               ]}
             >
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                {heading}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                {page === "privacy" ? <Feather name={(["database", "settings", "lock", "sliders"] as const)[index]} size={19} color={colors.primary} /> : null}
+                <Text style={[styles.cardTitle, { color: colors.textPrimary, marginBottom: 0, flex: 1 }]}>{heading}</Text>
+              </View>
               <Text style={[styles.body, { color: colors.textSecondary }]}>
                 {body}
               </Text>

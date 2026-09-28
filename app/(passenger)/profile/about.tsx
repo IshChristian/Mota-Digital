@@ -6,8 +6,8 @@ import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 export default function About() {
   const { colors, isDark } = useTheme();
   const logo = isDark
-    ? require("@/assets/images/official-mota-white-logo-removebg-preview.png")
-    : require("@/assets/images/official-mota-black-logo-removebg-preview.png");
+    ? require("@/assets/images/official-mota-black-logo-removebg-preview.png")
+    : require("@/assets/images/official-mota-white-logo-removebg-preview.png");
 
   return (
     <PassengerSettingsScreen title="About MOTA">

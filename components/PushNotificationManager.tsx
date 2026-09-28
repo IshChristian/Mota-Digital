@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { registerForPushNotifications, supportsPushNotifications } from '@/services/pushNotifications';
 
 export function PushNotificationManager() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -25,7 +25,8 @@ export function PushNotificationManager() {
         const data = response.notification.request.content.data ?? {};
         const rideId = typeof data.rideId === 'string' ? data.rideId : null;
         if (!rideId) return;
-        if (data.event === 'rideRequest') router.push(`/ride-request/${rideId}` as any);
+        if (user?.role === 'passenger') router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id: rideId } } as any);
+        else if (data.event === 'rideRequest') router.push(`/ride-request/${rideId}` as any);
         else router.push({ pathname: '/active-ride', params: { rideId } } as any);
       });
       removeListener = () => subscription.remove();
@@ -35,7 +36,7 @@ export function PushNotificationManager() {
       active = false;
       removeListener?.();
     };
-  }, [router]);
+  }, [router, user?.role]);
 
   return null;
 }

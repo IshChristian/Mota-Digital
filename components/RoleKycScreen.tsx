@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,10 +12,13 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { kycApi, uploadsApi } from "@/services/api";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { kycApi } from "@/services/api";
+import { uploadToCloudinary } from "@/services/cloudinary";
 import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { DriverHeader } from "@/components/driver/DriverUI";
+import { useAuth } from "@/context/AuthContext";
 
 type Kind = "driver" | "passenger";
 const commonDocuments = [
@@ -26,9 +31,12 @@ const driverDocuments = [
   ["transportPermitDocument", "Transport permit"],
   ["insuranceDocument", "Insurance certificate"],
   ["vehicleRegistrationDocument", "Vehicle registration"],
+  ["technicalInspectionDocument", "Technical inspection certificate"],
 ] as const;
+const optionalDriverDocuments = [["vocationalCardDocument", "Driver vocational card (optional)"]] as const;
 
 export function RoleKycScreen({ kind }: { kind: Kind }) {
+  const { user } = useAuth();
   const { colors } = useTheme();
   const s = styles(colors);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -36,6 +44,20 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+  const [newUploads, setNewUploads] = useState<Record<string, boolean>>({});
+  const [dateField, setDateField] = useState<string | null>(null);
+  const today = new Date(new Date().setHours(0, 0, 0, 0));
+  const dateValue = (key: string) => {
+    const value = form[key] ? new Date(form[key].slice(0, 10) + "T12:00:00") : today;
+    return Number.isNaN(value.getTime()) || value < today ? today : value;
+  };
+  const chooseDate = (_event: unknown, value: Date) => {
+    if (Platform.OS !== "ios") setDateField(null);
+    if (!dateField) return;
+    set(dateField, `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`);
+  };
   useEffect(() => {
     kycApi
       .getMine()
@@ -43,54 +65,56 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
         if (r.data.kycType !== kind)
           throw new Error(`This screen is for ${kind} KYC only`);
         const data = r.data.data || {};
-        setForm(
-          Object.fromEntries(
-            Object.entries(data).filter(([, v]) => typeof v === "string"),
-          ) as Record<string, string>,
-        );
+        setForm({ nationalIdNumber: user?.nationalId || "",
+          ...Object.fromEntries(Object.entries(data).filter(([, v]) => typeof v === "string")) as Record<string, string>,
+        });
         setStatus(data.status || "not_submitted");
         setRemarks(data.remarks || "");
       })
       .catch((e) => setMessage(e?.response?.data?.message || e.message))
       .finally(() => setBusy(false));
-  }, [kind]);
+  }, [kind, user?.nationalId]);
   const set = (key: string, value: string) =>
     setForm((v) => ({ ...v, [key]: value }));
   const pick = async (key: string) => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
-      setMessage("Photo-library permission is required.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (result.canceled) return;
-    setBusy(true);
+    if (busy) return;
     try {
+      setUploadErrors((previous) => ({ ...previous, [key]: "" }));
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") throw new Error("Allow photo access to upload this document.");
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+      if (result.canceled) return;
+      setBusy(true);
+      setUploadingKey(key);
       const asset = result.assets[0];
-      const body = new FormData();
-      body.append("file", {
-        uri: asset.uri,
-        name: asset.fileName || `${key}.jpg`,
-        type: asset.mimeType || "image/jpeg",
-      } as any);
-      const response = await uploadsApi.upload(body);
-      set(key, response.data.data.url);
-      setMessage(`${key} uploaded.`);
+      if (!asset?.uri) throw new Error("No image was selected. Choose a photo and retry.");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || `${key}.jpg`, asset.mimeType || "image/jpeg");
+      set(key, url);
+      setNewUploads((previous) => ({ ...previous, [key]: true }));
+      const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
+      setMessage(`${label} uploaded successfully. Submit verification to save it for review.`);
     } catch (e: any) {
-      setMessage(e?.response?.data?.message || "Document upload failed.");
+      const error = e?.message || "Document upload failed. Tap to retry.";
+      setUploadErrors((previous) => ({ ...previous, [key]: error }));
+      setMessage(error);
     } finally {
+      setUploadingKey(null);
       setBusy(false);
     }
   };
   const submit = async () => {
+    const docs = [...commonDocuments, ...(kind === "driver" ? driverDocuments : [])];
+    const missing = docs.find(([key]) => !form[key]);
+    if (!form.nationalIdNumber?.trim() || missing) {
+      setMessage(`Complete National ID number and ${missing?.[1] || "required documents"} before submitting.`);
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
       const response = await kycApi.submitMine(form);
       setStatus(response.data.data.status);
+      setNewUploads({});
       setMessage(response.data.message);
     } catch (e: any) {
       setMessage(e?.response?.data?.message || "KYC submission failed.");
@@ -102,6 +126,18 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     ...commonDocuments,
     ...(kind === "driver" ? driverDocuments : []),
   ];
+  const documentCard = ([key, label]: readonly [string, string]) => (
+    <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={`${label}: ${uploadErrors[key] ? "upload failed, retry" : uploadingKey === key ? "uploading" : form[key] ? "uploaded" : "select image"}`} style={[s.doc, uploadErrors[key] ? s.docError : form[key] ? s.docUploaded : null]} onPress={() => pick(key)} disabled={busy || status === "approved"}>
+      {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : form[key] ? <Image source={{ uri: form[key] }} style={s.preview} accessibilityLabel={`${label} preview`} /> : <Feather name={uploadErrors[key] ? "alert-circle" : "upload"} size={22} color={uploadErrors[key] ? cError : colors.textSecondary} />}
+      <View style={{ flex: 1 }}>
+        <Text style={s.docTitle}>{label}</Text>
+        <Text style={[s.docSub, uploadErrors[key] ? s.errorText : form[key] ? s.successText : null]}>
+          {uploadingKey === key ? "Uploading image…" : uploadErrors[key] ? `Upload failed: ${uploadErrors[key]} Tap to retry.` : form[key] ? newUploads[key] ? "✓ Upload complete · submit verification to save" : "✓ Image uploaded · tap to replace" : "Tap to select and upload an image"}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+  const cError = colors.error || "#DC2626";
   if (busy && !Object.keys(form).length)
     return (
       <View style={s.center}>
@@ -118,6 +154,8 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       {remarks ? <Text style={s.notice}>Review note: {remarks}</Text> : null}
       {message ? <Text style={s.notice}>{message}</Text> : null}
       <Text style={s.section}>Identity information</Text>
+      <Text style={s.notice}>Name: {user?.firstName} {user?.lastName} · ID registered: {user?.nationalId || "Use your registered ID"}</Text>
+      <Text style={s.docTitle}>National ID number *</Text>
       <TextInput
         style={s.input}
         placeholder="National ID number"
@@ -127,6 +165,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       />
       {kind === "passenger" ? (
         <>
+          <Text style={s.fieldLabel}>Residential address (optional)</Text>
           <TextInput
             style={s.input}
             placeholder="Residential address (optional)"
@@ -134,6 +173,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.residentialAddress || ""}
             onChangeText={(v) => set("residentialAddress", v)}
           />
+          <Text style={s.fieldLabel}>Emergency contact name (optional)</Text>
           <TextInput
             style={s.input}
             placeholder="Emergency contact name (optional)"
@@ -141,10 +181,12 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.emergencyContactName || ""}
             onChangeText={(v) => set("emergencyContactName", v)}
           />
+          <Text style={s.fieldLabel}>Emergency contact phone (optional)</Text>
           <RwandaPhoneInput value={form.emergencyContactPhone || ""} onChangeText={(v) => set("emergencyContactPhone", v)} accessibilityLabel="Emergency contact phone number" />
         </>
       ) : (
         <>
+          <Text style={s.fieldLabel}>Driving licence number *</Text>
           <TextInput
             style={s.input}
             placeholder="Driving licence number"
@@ -152,6 +194,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.drivingLicenseNumber || ""}
             onChangeText={(v) => set("drivingLicenseNumber", v)}
           />
+          <Text style={s.fieldLabel}>Transport permit number *</Text>
           <TextInput
             style={s.input}
             placeholder="Transport permit number"
@@ -159,6 +202,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.transportPermitNumber || ""}
             onChangeText={(v) => set("transportPermitNumber", v)}
           />
+          <Text style={s.fieldLabel}>Vehicle plate number *</Text>
           <TextInput
             style={s.input}
             placeholder="Vehicle plate number"
@@ -166,6 +210,23 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.plateNumber || ""}
             onChangeText={(v) => set("plateNumber", v)}
           />
+          <Text style={s.section}>Vehicle type</Text>
+          <View style={s.choices}>
+            {(["car", "moto"] as const).map((value) => (
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.vehicleType === value }} style={[s.choice, form.vehicleType === value && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}24` }]} onPress={() => set("vehicleType", value)}>
+                <Text style={s.docTitle}>{value === "car" ? "Car" : "Moto"}{form.vehicleType === value ? "  ✓ Selected" : ""}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={s.section}>Power type</Text>
+          <View style={s.choices}>
+            {(["electric", "diesel", "petrol"] as const).map((value) => (
+              <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ selected: form.powertrain === value }} style={[s.choice, form.powertrain === value && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}24` }]} onPress={() => set("powertrain", value)}>
+                <Text style={s.docTitle}>{value[0].toUpperCase() + value.slice(1)}{form.powertrain === value ? "  ✓ Selected" : ""}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={s.fieldLabel}>Cooperative name (optional)</Text>
           <TextInput
             style={s.input}
             placeholder="Cooperative name (optional)"
@@ -173,31 +234,35 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
             value={form.cooperativeName || ""}
             onChangeText={(v) => set("cooperativeName", v)}
           />
+          {([
+            ["drivingLicenseExpiresAt", "Driving licence expiry"],
+            ["transportPermitExpiresAt", "Transport permit expiry"],
+            ["insuranceExpiresAt", "Insurance expiry"],
+            ["vehicleRegistrationExpiresAt", "Vehicle registration expiry"],
+            ["technicalInspectionExpiresAt", "Technical inspection expiry"],
+            ["vocationalCardExpiresAt", "Vocational card expiry (if provided)"],
+          ] as const).map(([key, label]) => (
+            <View key={key}>
+              <Text style={s.fieldLabel}>{label}{key === "vocationalCardExpiresAt" ? "" : " *"}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Choose ${label}`} style={[s.input, s.dateButton]} onPress={() => setDateField(key)}>
+                <Text style={{ color: form[key] ? colors.textPrimary : colors.textSecondary }}>{form[key]?.slice(0, 10) || "Select expiry date"}</Text>
+                <Feather name="calendar" size={19} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {dateField ? <View>
+            <DateTimePicker value={dateValue(dateField)} mode="date" minimumDate={today} onValueChange={chooseDate} onDismiss={() => setDateField(null)} />
+            {Platform.OS === "ios" ? <TouchableOpacity accessibilityRole="button" onPress={() => setDateField(null)} style={s.dateDone}><Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>Done</Text></TouchableOpacity> : null}
+          </View> : null}
         </>
       )}
       <Text style={s.section}>Required documents</Text>
-      {docs.map(([key, label]) => (
-        <TouchableOpacity
-          key={key}
-          style={s.doc}
-          onPress={() => pick(key)}
-          disabled={status === "approved"}
-        >
-          <Feather
-            name={form[key] ? "check-circle" : "upload"}
-            size={20}
-            color={form[key] ? colors.primary : colors.textSecondary}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={s.docTitle}>{label}</Text>
-            <Text style={s.docSub}>
-              {form[key]
-                ? "Uploaded — tap to replace"
-                : "Tap to select and upload"}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      ))}
+      <Text style={s.notice}>Upload clear images of both sides of your ID and a current selfie. Drivers also need the documents listed below.</Text>
+      {docs.map(documentCard)}
+      {kind === "driver" ? <>
+        <Text style={s.section}>Optional document</Text>
+        {optionalDriverDocuments.map(documentCard)}
+      </> : null}
       <TouchableOpacity
         style={[s.submit, status === "approved" && { opacity: 0.5 }]}
         onPress={submit}
@@ -256,6 +321,11 @@ const styles = (c: any) =>
       marginBottom: 10,
       backgroundColor: c.backgroundCard,
     },
+    fieldLabel: { color: c.textPrimary, fontFamily: "Inter_600SemiBold", marginBottom: 7, marginTop: 5 },
+    dateButton: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    dateDone: { alignSelf: "flex-end", padding: 12 },
+    choices: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+    choice: { borderWidth: 1, borderColor: c.border, backgroundColor: c.backgroundCard, borderRadius: 12, padding: 12 },
     doc: {
       flexDirection: "row",
       gap: 12,
@@ -269,6 +339,11 @@ const styles = (c: any) =>
     },
     docTitle: { color: c.textPrimary, fontFamily: "Inter_600SemiBold" },
     docSub: { color: c.textSecondary, fontSize: 12, marginTop: 3 },
+    docUploaded: { borderColor: c.success || "#16A34A" },
+    docError: { borderColor: c.error || "#DC2626" },
+    preview: { width: 54, height: 54, borderRadius: 8, backgroundColor: c.border },
+    successText: { color: c.success || "#16A34A" },
+    errorText: { color: c.error || "#DC2626" },
     submit: {
       backgroundColor: c.primary,
       borderRadius: 14,

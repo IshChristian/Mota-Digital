@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -31,6 +31,7 @@ function coordinate(value: unknown) {
 export default function DriverRequestsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const [manualRefresh, setManualRefresh] = useState(false);
   const query = useQuery({
     queryKey: ["driver-ride-requests"],
     queryFn: async () => {
@@ -69,8 +70,8 @@ export default function DriverRequestsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={query.isRefetching}
-            onRefresh={() => query.refetch()}
+            refreshing={manualRefresh}
+            onRefresh={async () => { setManualRefresh(true); try { await query.refetch(); } finally { setManualRefresh(false); } }}
             tintColor={colors.primary}
           />
         }

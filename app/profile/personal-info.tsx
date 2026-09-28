@@ -19,6 +19,9 @@ import { AppAlert } from "@/components/AppAlert";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "react-native";
 import Colors from "@/constants/colors";
+import { ScreenHeader } from "@/components/ScreenHeader";
+
+const clean = (value: unknown): string => typeof value === "string" && !["null", "undefined"].includes(value.trim().toLowerCase()) ? value.trim() : "";
 
 export default function PersonalInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -43,28 +46,29 @@ export default function PersonalInfoScreen() {
     queryKey: ["my_profile"],
     queryFn: async () => {
       const res = await usersApi.getMe();
-      return res.data?.user || res.data;
+      return res.data?.user || res.data?.data || res.data;
     },
   });
 
   // Fetch driver profile for plate & tier info
   const { data: driverProfile, isLoading: driverLoading } = useQuery({
     queryKey: ["driver_profile"],
+    enabled: user?.role === "driver",
     queryFn: async () => {
       const res = await driverApi.getProfile();
-      return res.data?.profile || res.data;
+      return res.data?.data?.profile || res.data?.data || res.data?.profile || res.data;
     },
   });
 
-  const isLoading = userLoading || driverLoading;
+  const isLoading = userLoading || (user?.role === "driver" && driverLoading);
 
   useEffect(() => {
     const src = profileData || user;
     if (src) {
       setForm({
-        firstName: src.firstName || "",
-        lastName: src.lastName || "",
-        email: src.email || "",
+        firstName: clean(src.firstName),
+        lastName: clean(src.lastName),
+        email: clean(src.email),
       });
     }
   }, [profileData, user]);
@@ -110,7 +114,7 @@ export default function PersonalInfoScreen() {
       if (user && token) {
         await login(token, {
           ...user,
-          profileImage: updated.profileImage || (updated as any).user?.profileImage || asset.uri,
+          avatarUrl: updated.avatarUrl,
         });
       }
       setAlert({ visible: true, type: "success", title: "Success", message: "Your profile photo has been updated." });
@@ -124,7 +128,7 @@ export default function PersonalInfoScreen() {
   const handleCancel = () => {
     setEditing(false);
     const src = profileData || user;
-    if (src) setForm({ firstName: src.firstName || "", lastName: src.lastName || "", email: src.email || "" });
+    if (src) setForm({ firstName: clean(src.firstName), lastName: clean(src.lastName), email: clean(src.email) });
   };
 
   const s = styles(colors);
@@ -156,7 +160,7 @@ export default function PersonalInfoScreen() {
         />
       ) : (
         <Text style={[s.fieldValue, !value && s.fieldEmpty]}>
-          {value || "—"}
+          {clean(value) || "N/A"}
         </Text>
       )}
     </View>
@@ -165,15 +169,10 @@ export default function PersonalInfoScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 8, paddingBottom: 48 }]}
+      contentContainerStyle={[s.container, { paddingBottom: 48 }]}
     >
       {/* Header */}
-      <View style={s.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={s.title}>Personal Information</Text>
-        <TouchableOpacity
+      <ScreenHeader title="Personal information" action={<TouchableOpacity
           style={s.editBtn}
           onPress={editing ? handleSave : () => setEditing(true)}
           disabled={saving}
@@ -183,8 +182,7 @@ export default function PersonalInfoScreen() {
           ) : (
             <Text style={s.editBtnText}>{editing ? "Save" : "Edit"}</Text>
           )}
-        </TouchableOpacity>
-      </View>
+        </TouchableOpacity>} />
 
       {isLoading && !src ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
@@ -194,8 +192,8 @@ export default function PersonalInfoScreen() {
           <View style={s.avatarSection}>
             <TouchableOpacity onPress={handleAvatarChange} disabled={uploadingAvatar}>
               <View style={s.avatar}>
-                {src?.profileImage ? (
-                  <Image source={{ uri: src.profileImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                {user?.avatarUrl || src?.avatarUrl || src?.profileImage ? (
+                  <Image source={{ uri: user?.avatarUrl || src?.avatarUrl || src?.profileImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
                 ) : (
                   <Text style={s.avatarText}>
                     {form.firstName?.[0]}{form.lastName?.[0]}
@@ -211,7 +209,7 @@ export default function PersonalInfoScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-            <Text style={s.fullName}>{form.firstName} {form.lastName}</Text>
+            <Text style={s.fullName}>{[form.firstName, form.lastName].filter(Boolean).join(" ") || "Your profile"}</Text>
             {src?.tier && (
               <View style={[s.tierChip, { borderColor: (Colors.tier as any)[src.tier?.toLowerCase()] || colors.primary }]}>
                 <Feather name="award" size={13} color={(Colors.tier as any)[src.tier?.toLowerCase()] || colors.primary} />
@@ -228,8 +226,8 @@ export default function PersonalInfoScreen() {
             <Field label="First Name" value={form.firstName} field="firstName" editable />
             <Field label="Last Name" value={form.lastName} field="lastName" editable />
             <Field label="Email" value={form.email} field="email" keyboard="email-address" editable />
-            <Field label="Phone" value={src?.phone || ""} editable={false} />
-            <Field label="National ID" value={src?.nationalId || driverProfile?.nid || ""} editable={false} />
+            <Field label="Phone" value={clean(src?.phone)} editable={false} />
+            <Field label="National ID" value={clean(src?.nationalId || driverProfile?.nid)} editable={false} />
           </View>
 
           {/* Verification Status */}

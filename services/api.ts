@@ -58,6 +58,7 @@ export default api;
 // Auth
 export const authApi = {
   register: (data: any) => api.post("/auth/register", data),
+  recoverRegistration: (data: { phone: string; password: string }) => api.post("/auth/recover-registration", data),
   login: (data: any) => api.post("/auth/login", data),
   verifyOtp: (data: any) => api.post("/auth/verify-otp", data),
   resendOtp: (data: any) => api.post("/auth/resend-otp", data),
@@ -276,9 +277,9 @@ export const usersApi = {
     api.delete("/users/account", { data: { password } }),
   /**
    * Upload avatar via backend multipart endpoint.
-   * The backend handles storage and returns the updated user with profileImage URL.
+   * The backend handles storage and returns the updated user with avatarUrl.
    */
-  uploadAvatar: async (uri: string): Promise<{ profileImage: string }> => {
+  uploadAvatar: async (uri: string): Promise<{ avatarUrl: string }> => {
     const filename = uri.split("/").pop() || "avatar.jpg";
     const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
     const mimeType = `image/${ext === "jpg" ? "jpeg" : ext}`;
@@ -301,8 +302,9 @@ export const usersApi = {
       throw new Error(err || "Avatar upload failed");
     }
     const data = await response.json();
-    // Backend may return { user: { profileImage } } or { profileImage }
-    return data?.user || data;
+    const updated = data?.data || data?.user || data;
+    if (!updated?.avatarUrl) throw new Error("The upload succeeded but no profile photo was returned.");
+    return updated;
   },
 };
 
@@ -451,6 +453,18 @@ export const searchApi = {
   /** Search specifically for users */
   searchUsers: (q: string) =>
     api.get(`/search/users?q=${encodeURIComponent(q)}`),
+};
+
+export const releaseApi = {
+  getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
+};
+
+export const agentApi = {
+  stats: () => api.get("/agent/stats"),
+  drivers: () => api.get("/agent/drivers", { params: { limit: 100 } }),
+  updateRequests: () => api.get("/agent/update-requests"),
+  registerDriver: (data: { firstName: string; lastName: string; phone: string; nationalId: string }) => api.post("/agent/register-driver", data),
+  requestDriverUpdate: (id: string, description: string, kind: "profile_update" | "kyc_help" | "fee_help" | "account_access") => api.post(`/agent/drivers/${id}/update-request`, { description, kind }),
 };
 
 // ─── Uploads ────────────────────────────────────────────────────────────────

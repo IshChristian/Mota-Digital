@@ -1,3 +1,4 @@
+import { showMessage } from "@/components/GlobalAlert";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
@@ -46,15 +47,15 @@ export default function PendingApprovalScreen() {
           // Account is now active, navigate to tabs
           router.replace("/(driver)" as any);
         } else if (manual) {
-           alert("Your status is currently: " + newStatus);
+           showMessage("Your status is currently: " + newStatus);
         }
       } else if (manual) {
-         alert("Could not determine status. Still pending.");
+         showMessage("Could not determine status. Still pending.");
       }
     } catch (err: any) {
       // Silently handle for auto-poll, but alert if manual
       if (manual) {
-         alert(err.response?.data?.message || "Failed to check status. Try again.");
+         showMessage(err.response?.data?.message || "Failed to check status. Try again.");
       }
     } finally {
       setChecking(false);

@@ -30,8 +30,8 @@ export function PassengerHeader({ title, subtitle, back = true, logo = false, ac
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const logoSource = isDark
-    ? require("@/assets/images/mota-icon-white.png")
-    : require("@/assets/images/mota-icon-black.png");
+    ? require("@/assets/images/mota-icon-black.png")
+    : require("@/assets/images/mota-icon-white.png");
   return (
     <View style={styles.header}>
       {back ? (

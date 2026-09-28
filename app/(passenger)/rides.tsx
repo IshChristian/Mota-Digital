@@ -3,12 +3,11 @@ import {
   StyleSheet, Text, View, RefreshControl, TouchableOpacity, FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
 import { ridesApi } from "@/services/api";
 import { useRouter } from "expo-router";
-import { PassengerHeader } from "@/components/passenger/PassengerUI";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 type RideHistoryItem = {
   id?: string;
@@ -21,7 +20,8 @@ type RideHistoryItem = {
   driverName?: string;
   driverId?: { firstName?: string; lastName?: string };
   createdAt: string;
-  rating?: number;
+  passengerRating?: number;
+  offeredFare?: number;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,7 +31,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PassengerRidesScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "cancelled">("all");
@@ -60,6 +59,7 @@ export default function PassengerRidesScreen() {
     const pickup = typeof item.pickup === "string" ? item.pickup : item.pickup?.name || item.pickup?.address || "Pickup location";
     const destination = typeof item.destination === "string" ? item.destination : item.destination?.name || item.destination?.address || "Destination";
     const driverName = item.driverName || [item.driverId?.firstName, item.driverId?.lastName].filter(Boolean).join(" ") || "Not assigned";
+    const fare = Number(item.fare ?? item.offeredFare ?? 0);
     return <TouchableOpacity style={s.rideCard} onPress={() => router.push({ pathname: "/(passenger)/ride-details/[id]", params: { id: item._id || item.id || "" } } as any)}>
       <View style={s.rideHeader}>
         <View style={[s.statusBadge, { backgroundColor: `${statusColor}20` }]}> 
@@ -90,17 +90,17 @@ export default function PassengerRidesScreen() {
           <Feather name="user" size={14} color={colors.textSecondary} />
           <Text style={s.driverText}>{driverName}</Text>
         </View>
-        <Text style={s.fareText}>{item.fare.toLocaleString()} RWF</Text>
+        <Text style={s.fareText}>{fare.toLocaleString()} RWF</Text>
       </View>
 
-      {item.rating && (
+      {item.passengerRating && (
         <View style={s.ratingRow}>
           {[1, 2, 3, 4, 5].map((star) => (
             <Feather
               key={star}
               name="star"
               size={14}
-              color={star <= item.rating! ? "#FFD700" : colors.border}
+              color={star <= item.passengerRating! ? "#FFD700" : colors.border}
             />
           ))}
         </View>
@@ -115,8 +115,8 @@ export default function PassengerRidesScreen() {
   ];
 
   return (
-    <View style={[s.container, { paddingTop: insets.top + 16 }]}>
-      <View style={{ paddingHorizontal: 16 }}><PassengerHeader title="My rides" subtitle="Track requests, completed trips, and cancellations" /></View>
+    <View style={s.container}>
+      <View style={{ paddingHorizontal: 16 }}><ScreenHeader title="My rides" /></View>
 
       <View style={s.tabBar}>
         {tabs.map((tab) => (

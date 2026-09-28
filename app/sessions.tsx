@@ -1,5 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";

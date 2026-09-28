@@ -1,17 +1,6 @@
+import { Alert } from "@/components/GlobalAlert";
 import React, { useRef, useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,6 +30,7 @@ export default function WalletScreen() {
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState(user?.phone || "");
   const [submitting, setSubmitting] = useState(false);
+  const [manualRefresh, setManualRefresh] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const submissionLock = useRef(false);
 
@@ -59,6 +49,10 @@ export default function WalletScreen() {
   });
 
   const balance = balanceData?.balance ?? 0;
+  const refreshManually = async () => {
+    setManualRefresh(true);
+    try { await refetch(); } finally { setManualRefresh(false); }
+  };
   const heldBalance = balanceData?.heldBalance ?? 0;
   const today = balanceData?.today;
   const recentTransactions = balanceData?.recentTransactions || [];
@@ -108,8 +102,10 @@ export default function WalletScreen() {
         );
         const result = response.data?.data;
         Alert.alert(
-          result?.status === "queued" ? "Withdrawal Queued" : "Payout Pending",
-          response.data?.message || "Your withdrawal has been reserved for settlement.",
+          "Withdrawal request received",
+          result?.status === "queued"
+            ? `Your request for ${amt.toLocaleString()} RWF is queued. Payout starts once queued withdrawals reach 10,000 RWF. After payout starts, it usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`
+            : `Your request for ${amt.toLocaleString()} RWF was received. Payout usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`,
         );
       }
       closeModal();
@@ -176,8 +172,8 @@ export default function WalletScreen() {
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         renderItem={renderTx}
         contentContainerStyle={s.listContent}
-        refreshing={isFetching}
-        onRefresh={refetch}
+        refreshing={manualRefresh}
+        onRefresh={refreshManually}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
