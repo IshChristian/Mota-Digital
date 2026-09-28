@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { driverApi, algorithmApi, walletApi } from "@/services/api";
+import { driverApi, algorithmApi, walletApi, kycApi, getApiErrorMessage } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -33,7 +33,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [availabilityFeedback, setAvailabilityFeedback] = useState<{ type: AlertType; title: string; message: string } | null>(null);
+  const [availabilityFeedback, setAvailabilityFeedback] = useState<{ type: AlertType; title: string; message: string; action?: () => void; actionText?: string } | null>(null);
 
   const { riskScore, migrationStage, fetchRiskScore, fetchMigrationStage } =
     useFinanceStore();
@@ -77,12 +77,31 @@ export default function DashboardScreen() {
     setToggling(true);
     try {
       const newState = !isOnline;
+      if (newState) {
+        if (user?.isActive !== true || user?.registrationPaid !== true || user?.registrationStatus !== "approved") {
+          setAvailabilityFeedback({ type: "warning", title: "Finish driver setup", message: "Complete the registration fee and account review before going online.", actionText: "View setup", action: () => router.push("/(auth)/verification-progress" as any) });
+          return;
+        }
+        const kyc = (await kycApi.getMine()).data?.data;
+        if (kyc?.status !== "approved") {
+          setAvailabilityFeedback({ type: "warning", title: "Driver documents need approval", message: "Submit your ID, driving licence, and vehicle documents for review before going online.", actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) });
+          return;
+        }
+        const expiryFields = [["drivingLicenseExpiresAt", "Driving licence"], ["transportPermitExpiresAt", "Transport permit"], ["insuranceExpiresAt", "Insurance"], ["vehicleRegistrationExpiresAt", "Vehicle registration"], ["technicalInspectionExpiresAt", "Technical inspection"]] as const;
+        const invalidDocument = expiryFields.find(([key]) => !kyc[key] || !Number.isFinite(new Date(kyc[key]).getTime()) || new Date(kyc[key]).getTime() <= Date.now());
+        if (invalidDocument) {
+          const [key, label] = invalidDocument;
+          setAvailabilityFeedback({ type: "warning", title: `${label} needs attention`, message: `${label} ${!kyc[key] ? "has no expiry date" : "has expired or has an invalid expiry date"}. Update your document and request review before going online.`, actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) });
+          return;
+        }
+      }
       const response = await driverApi.updateAvailability({ isOnline: newState });
       setIsOnline(Boolean(response.data?.isOnline));
       void refetchDash();
       setAvailabilityFeedback({ type: "success", title: newState ? "You're online" : "You're offline", message: newState ? "You can now receive ride requests." : "You won't receive new ride requests." });
     } catch (error: any) {
-      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message: error?.response?.data?.message || "Could not update your status. Check your connection and try again." });
+      const message = getApiErrorMessage(error);
+      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message, ...(message.toLowerCase().includes("document") ? { actionText: "View documents", action: () => router.push("/(driver)/kyc" as any) } : {}) });
     } finally {
       setToggling(false);
     }
@@ -343,25 +362,6 @@ export default function DashboardScreen() {
 
           <TouchableOpacity
             style={s.actionBtn}
-            onPress={() => router.push("/send-money")}
-          >
-            <View
-              style={[
-                s.actionIcon,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(16,185,129,0.18)"
-                    : "rgba(16,185,129,0.12)",
-                },
-              ]}
-            >
-              <Feather name="send" size={24} color={colors.success} />
-            </View>
-            <Text style={s.actionText}>Send</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={s.actionBtn}
             onPress={() => router.push("/loans")}
           >
             <View
@@ -489,7 +489,7 @@ export default function DashboardScreen() {
         </View>
       )}
     </ScrollView>
-    <AppAlert visible={Boolean(availabilityFeedback)} type={availabilityFeedback?.type} title={availabilityFeedback?.title || ""} message={availabilityFeedback?.message} onConfirm={() => setAvailabilityFeedback(null)} onCancel={() => setAvailabilityFeedback(null)} />
+    <AppAlert visible={Boolean(availabilityFeedback)} type={availabilityFeedback?.type} title={availabilityFeedback?.title || ""} message={availabilityFeedback?.message} confirmText={availabilityFeedback?.actionText || "OK"} onConfirm={() => { const action = availabilityFeedback?.action; setAvailabilityFeedback(null); action?.(); }} onCancel={() => setAvailabilityFeedback(null)} />
     </>
   );
 }
