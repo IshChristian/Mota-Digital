@@ -224,7 +224,7 @@ export default function WalletScreen() {
                   <View style={s.iconCircle}>
                     <Feather name="download" size={18} color="#fff" />
                   </View>
-                  <Text style={s.actionText}>Cash In</Text>
+                  <Text style={s.actionText}>Deposit</Text>
                 </TouchableOpacity>
                 <View style={s.divider} />
                 <TouchableOpacity
@@ -234,7 +234,7 @@ export default function WalletScreen() {
                   <View style={s.iconCircle}>
                     <Feather name="upload" size={18} color="#fff" />
                   </View>
-                  <Text style={s.actionText}>Cash Out</Text>
+                  <Text style={s.actionText}>Withdraw</Text>
                 </TouchableOpacity>
               </View>
             </View>
