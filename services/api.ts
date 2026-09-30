@@ -1,3 +1,4 @@
+import { uploadFile } from "./fileUpload";
 import axios from "axios";
 import { getStoredToken, removeStoredToken } from "./secureStorage";
 
@@ -280,30 +281,9 @@ export const usersApi = {
    * The backend handles storage and returns the updated user with avatarUrl.
    */
   uploadAvatar: async (uri: string): Promise<{ avatarUrl: string }> => {
-    const filename = uri.split("/").pop() || "avatar.jpg";
-    const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-    const mimeType = `image/${ext === "jpg" ? "jpeg" : ext}`;
-
-    const formData = new FormData();
-    formData.append("avatar", { uri, name: filename, type: mimeType } as any);
-
-    const token = await getStoredToken();
-    const response = await fetch(`${API_BASE_URL}/users/avatar`, {
-      method: "POST",
-      headers: {
-        Authorization: token ? `Bearer ${token}` : "",
-        Accept: "application/json",
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(err || "Avatar upload failed");
-    }
-    const data = await response.json();
+    const data = await uploadFile(`${API_BASE_URL}/users/avatar`, "avatar", uri);
     const updated = data?.data || data?.user || data;
-    if (!updated?.avatarUrl) throw new Error("The upload succeeded but no profile photo was returned.");
+    if (!updated?.avatarUrl) throw new Error("The upload response did not contain a profile photo link. Please retry.");
     return updated;
   },
 };
