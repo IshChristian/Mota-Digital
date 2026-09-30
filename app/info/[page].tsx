@@ -231,8 +231,7 @@ export default function InformationScreen() {
             <Text style={[styles.version, { color: colors.textSecondary }]}>Version {document.version}</Text>
             <Text style={[styles.version, { color: colors.textSecondary }]}>Effective {document.effectiveDate}</Text>
           </View>
-          {document.sections.map(({ heading, body }) => (
-          {document.sections.map(([heading, body], index) => (
+          {document.sections.map(({ heading, body }, index) => (
             <View
               key={heading}
               style={[

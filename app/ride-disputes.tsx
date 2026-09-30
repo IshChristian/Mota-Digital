@@ -3,7 +3,9 @@ import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
-import { productionApi, uploadsApi } from "@/services/api";
+import { productionApi } from "@/services/api";
+
+import { uploadToCloudinary } from "@/services/cloudinary";
 
 export default function RideDisputes() {
   const { colors } = useTheme();
@@ -36,13 +38,11 @@ export default function RideDisputes() {
     setMessage("");
     try {
       const asset = result.assets[0];
-      const body = new FormData();
-      body.append("file", { uri: asset.uri, name: asset.fileName || "evidence.jpg", type: asset.mimeType || "image/jpeg" } as any);
-      const response = await uploadsApi.upload(body);
-      setEvidence(response.data.data.url);
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || "evidence.jpg", asset.mimeType || "image/jpeg");
+      setEvidence(url);
       setMessage("Evidence attached.");
     } catch (e: any) {
-      setMessage(e?.response?.data?.message || "Evidence upload failed. Please try again.");
+      setMessage(e?.response?.data?.message || e?.message || "Evidence upload failed. Please try again.");
     } finally {
       setBusy(false);
     }
