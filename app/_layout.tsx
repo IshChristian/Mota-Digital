@@ -134,7 +134,7 @@ function ThemedStack() {
         options={{ presentation: "modal", title: "Loans" }}
       />
       <Stack.Screen
-        name="leaderboard"
+        name="leaderboard" 
         options={{ presentation: "modal", title: "Leaderboard" }}
       />
       <Stack.Screen
