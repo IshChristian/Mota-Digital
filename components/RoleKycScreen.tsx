@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -37,6 +38,7 @@ const optionalDriverDocuments = [["vocationalCardDocument", "Driver vocational c
 
 export function RoleKycScreen({ kind }: { kind: Kind }) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const s = styles(colors);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -82,13 +84,13 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       setUploadErrors((previous) => ({ ...previous, [key]: "" }));
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") throw new Error("Allow photo access to upload this document.");
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+      const result = await ImagePicker.launchImageLibraryAsync({ base64: true, mediaTypes: ["images"], quality: 0.8 });
       if (result.canceled) return;
       setBusy(true);
       setUploadingKey(key);
       const asset = result.assets[0];
       if (!asset?.uri) throw new Error("No image was selected. Choose a photo and retry.");
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || `${key}.jpg`, asset.mimeType || "image/jpeg");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || `${key}.jpg`, asset.mimeType || "image/jpeg", asset.base64);
       set(key, url);
       setNewUploads((previous) => ({ ...previous, [key]: true }));
       const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
@@ -129,7 +131,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const documentCard = ([key, label]: readonly [string, string]) => (
     <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={`${label}: ${uploadErrors[key] ? "upload failed, retry" : uploadingKey === key ? "uploading" : form[key] ? "uploaded" : "select image"}`} style={[s.doc, uploadErrors[key] ? s.docError : form[key] ? s.docUploaded : null]} onPress={() => pick(key)} disabled={busy || status === "approved"}>
       {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : form[key] ? <Image source={{ uri: form[key] }} style={s.preview} accessibilityLabel={`${label} preview`} /> : <Feather name={uploadErrors[key] ? "alert-circle" : "upload"} size={22} color={uploadErrors[key] ? cError : colors.textSecondary} />}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.docTitle}>{label}</Text>
         <Text style={[s.docSub, uploadErrors[key] ? s.errorText : form[key] ? s.successText : null]}>
           {uploadingKey === key ? "Uploading image…" : uploadErrors[key] ? `Upload failed: ${uploadErrors[key]} Tap to retry.` : form[key] ? newUploads[key] ? "✓ Upload complete · submit verification to save" : "✓ Image uploaded · tap to replace" : "Tap to select and upload an image"}
@@ -145,7 +147,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       </View>
     );
   return (
-    <ScrollView style={s.page} contentContainerStyle={s.content}>
+    <ScrollView style={s.page} contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 }]}>
       <DriverHeader
         back
         title={`${kind === "driver" ? "Driver" : "Passenger"} verification`}
@@ -282,7 +284,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
 const styles = (c: any) =>
   StyleSheet.create({
     page: { flex: 1, backgroundColor: c.background },
-    content: { padding: 18, paddingTop: 52, paddingBottom: 80 },
+    content: { padding: 18, paddingTop: 52, paddingBottom: 120, width: "100%", maxWidth: 760, alignSelf: "center" },
     center: {
       flex: 1,
       alignItems: "center",
@@ -337,11 +339,11 @@ const styles = (c: any) =>
       marginBottom: 10,
       backgroundColor: c.backgroundCard,
     },
-    docTitle: { color: c.textPrimary, fontFamily: "Inter_600SemiBold" },
-    docSub: { color: c.textSecondary, fontSize: 12, marginTop: 3 },
+    docTitle: { flexShrink: 1, color: c.textPrimary, fontFamily: "Inter_600SemiBold" },
+    docSub: { flexShrink: 1, color: c.textSecondary, fontSize: 12, marginTop: 3 },
     docUploaded: { borderColor: c.success || "#16A34A" },
     docError: { borderColor: c.error || "#DC2626" },
-    preview: { width: 54, height: 54, borderRadius: 8, backgroundColor: c.border },
+    preview: { flexShrink: 0, width: 54, height: 54, borderRadius: 8, backgroundColor: c.border },
     successText: { color: c.success || "#16A34A" },
     errorText: { color: c.error || "#DC2626" },
     submit: {

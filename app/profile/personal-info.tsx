@@ -100,7 +100,7 @@ export default function PersonalInfoScreen() {
         setAlert({ visible: true, type: "error", title: "Permission needed", message: "Please allow access to your photo library." });
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({ base64: true,
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
@@ -110,7 +110,7 @@ export default function PersonalInfoScreen() {
       const asset = result.assets[0];
       setUploadingAvatar(true);
 
-      const updated = await usersApi.uploadAvatar(asset.uri);
+      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64);
       if (user && token) {
         await login(token, {
           ...user,

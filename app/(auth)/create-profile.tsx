@@ -80,7 +80,7 @@ export default function CreateProfileScreen() {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({ base64: true,
         mediaTypes: ['images'],
         quality: 0.85,
         allowsEditing: false,
@@ -91,7 +91,7 @@ export default function CreateProfileScreen() {
 
       setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
 
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined);
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined, asset.base64);
       setDoc(key, { url, uploading: false });
     } catch (err: any) {
       setDoc(key, { uploading: false, error: err?.message || "Upload failed. Tap to retry." });

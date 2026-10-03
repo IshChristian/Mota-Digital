@@ -1,3 +1,4 @@
+import { fetch as expoFetch } from 'expo/fetch';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getStoredToken } from './secureStorage';
@@ -20,13 +21,30 @@ function checkSize(size: number) {
   if (size > maxSize) throw new Error('Choose a file smaller than 20 MB.');
 }
 /** Native multipart is built by Expo, not by the JavaScript FormData implementation. */
-export async function uploadFile(url: string, field: string, uri: string, selectedName?: string, selectedMimeType?: string): Promise<any> {
+export async function uploadFile(url: string, field: string, uri: string, selectedName?: string, selectedMimeType?: string, selectedBase64?: string | null): Promise<any> {
   const token = await getStoredToken();
   if (!token) throw new Error('Sign in again before uploading this file.');
   const filename = (selectedName || uri.split(/[?#]/)[0].split('/').pop() || 'upload.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   const mimeType = selectedMimeType || types[extension] || 'application/octet-stream';
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+  // ImagePicker supplies JPEG bytes directly. This path never reopens/copies the asset URI.
+  if (selectedBase64) {
+    checkSize(Math.floor(selectedBase64.length * 3 / 4) - (selectedBase64.endsWith("==") ? 2 : selectedBase64.endsWith("=") ? 1 : 0));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const response = await (Platform.OS === 'web' ? fetch : expoFetch)(url, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fieldName: field, fileName: filename.replace(/\.[^.]+$/, '') + '.jpg', mimeType: 'image/jpeg', fileBase64: selectedBase64 }),
+        signal: controller.signal,
+      });
+      return readResponse(response.status, await response.text());
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error('The upload timed out. Check your connection and retry.');
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
   if (Platform.OS === 'web') {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);

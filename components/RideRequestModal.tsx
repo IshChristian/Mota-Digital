@@ -21,6 +21,9 @@ type RideRequest = {
     | string;
   offeredFare?: number;
   fare?: number;
+  driverEarning?: number;
+  commissionAmount?: number;
+  commissionRate?: number;
   passengers?: number;
   scheduledTime?: string;
   scheduledDate?: string;
@@ -86,7 +89,7 @@ export function RideRequestModal({
             contentContainerStyle={styles.content}
           >
             <View style={styles.titleRow}>
-              <View>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <StatusPill label="New ride request" tone="warning" />
                 <Text style={[styles.title, { color: colors.textPrimary }]}>
                   Review before accepting
@@ -205,6 +208,12 @@ export function RideRequestModal({
               </Text>
             </View>
 
+            {typeof request.driverEarning === "number" ? <View style={[styles.routeCard, { backgroundColor: colors.backgroundCard }]}>
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Estimated take-home after platform commission</Text>
+              <Text style={[styles.fare, { color: colors.success }]}>{request.driverEarning.toLocaleString()} RWF</Text>
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Commission: {Number(request.commissionAmount || 0).toLocaleString()} RWF · Before fuel and other costs</Text>
+              {request.estimatedDurationMin ? <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Estimated trip time: {request.estimatedDurationMin} minutes</Text> : null}
+            </View> : null}
             {!rideId ? (
               <Text style={[styles.error, { color: colors.error }]}>
                 This request is missing its ride identifier. Refresh requests
@@ -276,6 +285,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: "91%",
+    width: "100%", maxWidth: 760, alignSelf: "center",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 10,
@@ -288,8 +298,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 14,
   },
-  title: { fontFamily: "Inter_700Bold", fontSize: 24, marginTop: 9 },
+  title: { flexShrink: 1, fontFamily: "Inter_700Bold", fontSize: 24, marginTop: 9 },
   bell: {
+    flexShrink: 0,
     width: 48,
     height: 48,
     borderRadius: 17,
@@ -301,7 +312,7 @@ const styles = StyleSheet.create({
   rail: { width: 12, alignItems: "center", paddingVertical: 5 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   line: { width: 2, flex: 1, minHeight: 42 },
-  routeCopy: { flex: 1, gap: 22 },
+  routeCopy: { flex: 1, minWidth: 0, gap: 22 },
   label: {
     fontFamily: "Inter_700Bold",
     fontSize: 10,
@@ -309,7 +320,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   place: { fontFamily: "Inter_600SemiBold", fontSize: 15, lineHeight: 21 },
-  metrics: { flexDirection: "row", gap: 12 },
+  metrics: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   schedule: {
     borderWidth: 1,
     borderRadius: 16,
@@ -333,9 +344,9 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: "center",
   },
-  actions: { flexDirection: "row", gap: 12 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   button: {
-    flex: 1,
+    flexGrow: 1, flexBasis: 120,
     minHeight: 54,
     borderRadius: 17,
     alignItems: "center",
@@ -344,6 +355,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   accept: { flex: 1.5 },
-  secondaryText: { fontFamily: "Inter_700Bold", fontSize: 15 },
-  acceptText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
+  secondaryText: { flexShrink: 1, textAlign: "center", fontFamily: "Inter_700Bold", fontSize: 15 },
+  acceptText: { flexShrink: 1, textAlign: "center", color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
 });

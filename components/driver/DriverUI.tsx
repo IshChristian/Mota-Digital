@@ -269,7 +269,6 @@ export function Metric({
       <Feather name={icon} size={18} color={colors.primary} />
       <Text
         style={[styles.metricValue, { color: colors.textPrimary }]}
-        numberOfLines={1}
       >
         {value}
       </Text>
@@ -282,14 +281,14 @@ export function Metric({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  screenContent: { paddingHorizontal: 18, gap: 18 },
+  screenContent: { paddingHorizontal: 18, gap: 18, width: "100%", maxWidth: 960, alignSelf: "center" },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0 },
   backButton: {
     width: 44,
     height: 44,
@@ -313,7 +312,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  sectionTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
+  sectionTitle: { flex: 1, flexShrink: 1, fontFamily: "Inter_700Bold", fontSize: 18 },
   pill: {
     minHeight: 30,
     borderRadius: 999,
@@ -324,6 +323,7 @@ const styles = StyleSheet.create({
   },
   pillDot: { width: 7, height: 7, borderRadius: 4 },
   pillText: {
+    flexShrink: 1,
     fontFamily: "Inter_700Bold",
     fontSize: 11,
     letterSpacing: 0.4,
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 9,
   },
-  buttonText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: "Inter_700Bold", fontSize: 15 },
   empty: {
     alignItems: "center",
     justifyContent: "center",
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 18,
   },
-  metric: { flex: 1, minWidth: 92, gap: 5 },
+  metric: { flexGrow: 1, flexBasis: 92, minWidth: 0, gap: 5 },
   metricValue: { fontFamily: "Inter_700Bold", fontSize: 17 },
   metricLabel: { fontFamily: "Inter_400Regular", fontSize: 12 },
 });
