@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { getStoredToken } from './secureStorage';
 
 const maxSize = 20 * 1024 * 1024;
 const types: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', pdf: 'application/pdf' };
@@ -18,7 +17,7 @@ function encodeBase64(bytes: Uint8Array): string {
   return chunks.join('');
 }
 // Native multipart is assembled by Expo's native uploader, never JS FormData.
-async function uploadNative(url: string, field: string, uri: string, filename: string, mimeType: string, token: string, pickerBase64?: string | null): Promise<any> {
+async function uploadNative(url: string, field: string, uri: string, filename: string, mimeType: string, preset: string, pickerBase64?: string | null): Promise<any> {
   let temporary: string | undefined;
   let fileUri = uri;
   let task: ReturnType<typeof FileSystem.createUploadTask> | undefined;
@@ -52,7 +51,8 @@ async function uploadNative(url: string, field: string, uri: string, filename: s
     task = FileSystem.createUploadTask(url, fileUri, {
       httpMethod: 'POST', uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: field, mimeType,
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      parameters: { upload_preset: preset },
+      headers: { Accept: 'application/json' },
     });
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -66,12 +66,12 @@ async function uploadNative(url: string, field: string, uri: string, filename: s
     let payload: any;
     try { payload = JSON.parse(response.body); } catch { payload = null; }
     if (response.status < 200 || response.status >= 300) {
-      if (response.status === 401) throw new Error('Your session has expired. Sign in again before uploading.');
+      if (response.status === 401) throw new Error('Cloudinary rejected the unsigned preset. Check its configuration.');
       if (response.status === 413) throw new Error('Choose a file smaller than 20 MB.');
-      throw new Error(payload?.message || `Upload failed (${response.status}). Please retry.`);
+      throw new Error(payload?.error?.message || payload?.message || `Upload failed (${response.status}). Please retry.`);
     }
     if (!payload) throw new Error('The upload server returned an invalid response. Please retry.');
-    return payload;
+    return confirmedUpload(payload);
   } catch (error) {
     if (timedOut) throw new Error('The upload timed out. Check your connection and retry.');
     throw error;
@@ -80,12 +80,20 @@ async function uploadNative(url: string, field: string, uri: string, filename: s
     if (temporary) await FileSystem.deleteAsync(temporary, { idempotent: true }).catch(() => undefined);
   }
 }
+function confirmedUpload(payload: any): any {
+  const url = payload?.secure_url;
+  if (!payload?.public_id || typeof url !== 'string' || !/^https:\/\/res\.cloudinary\.com\//i.test(url)) throw new Error('Cloudinary did not return a secure file link. Please retry.');
+  return { ...payload, data: { url, secureUrl: url, publicId: payload.public_id, resourceType: payload.resource_type } };
+}
 export async function uploadFile(url: string, field: string, uri: string, selectedName?: string, selectedMimeType?: string, selectedBase64?: string | null): Promise<any> {
-  const token = await getStoredToken();
-  if (!token) throw new Error('Sign in again before uploading this file.');
+  const cloud = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
+  const preset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim();
+  if (!cloud || !/^[a-zA-Z0-9_-]+$/.test(cloud) || !preset) throw new Error('Uploads are not configured. Set the Cloudinary cloud name and unsigned upload preset.');
+  url = `https://api.cloudinary.com/v1_1/${cloud}/auto/upload`;
+  field = 'file';
   let filename = (selectedName || uri.split(/[?#]/)[0].split('/').pop() || 'upload.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
   let mimeType = selectedMimeType || types[filename.split('.').pop()?.toLowerCase() || ''] || 'application/octet-stream';
-  if (Platform.OS !== 'web') return uploadNative(url, field, uri, filename, mimeType, token, selectedBase64);
+  if (Platform.OS !== 'web') return uploadNative(url, field, uri, filename, mimeType, preset, selectedBase64);
   let base64 = selectedBase64 || '';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120000);
@@ -104,19 +112,19 @@ export async function uploadFile(url: string, field: string, uri: string, select
     const size = Math.floor(base64.length * 3 / 4) - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
     if (size > maxSize) throw new Error('Choose a file smaller than 20 MB.');
     const response = await fetch(url, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fieldName: field, fileName: filename, mimeType, fileBase64: base64 }), signal: controller.signal,
+      method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `upload_preset=${encodeURIComponent(preset)}&file=${encodeURIComponent(`data:${mimeType};base64,${base64}`)}`, signal: controller.signal,
     });
     const text = await response.text();
     let payload: any;
     try { payload = JSON.parse(text); } catch { payload = null; }
     if (!response.ok) {
-      if (response.status === 401) throw new Error('Your session has expired. Sign in again before uploading.');
+      if (response.status === 401) throw new Error('Cloudinary rejected the unsigned preset. Check its configuration.');
       if (response.status === 413) throw new Error('Choose a file smaller than 20 MB.');
-      throw new Error(payload?.message || `Upload failed (${response.status}). Please retry.`);
+      throw new Error(payload?.error?.message || payload?.message || `Upload failed (${response.status}). Please retry.`);
     }
     if (!payload) throw new Error('The upload server returned an invalid response. Please retry.');
-    return payload;
+    return confirmedUpload(payload);
   } catch (error) {
     if (controller.signal.aborted) throw new Error('The upload timed out. Check your connection and retry.');
     throw error;

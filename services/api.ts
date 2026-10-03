@@ -276,14 +276,12 @@ export const usersApi = {
     api.post("/users/me/contact-change/verify", { otp }),
   deleteAccount: (password: string) =>
     api.delete("/users/account", { data: { password } }),
-  /**
-   * Upload avatar via backend multipart endpoint.
-   * The backend handles storage and returns the updated user with avatarUrl.
-   */
+  /** Upload directly to Cloudinary, then save the confirmed URL on the user. */
   uploadAvatar: async (uri: string, base64?: string | null): Promise<{ avatarUrl: string }> => {
-    const data = await uploadFile(`${API_BASE_URL}/users/avatar`, "avatar", uri, undefined, undefined, base64);
-    const updated = data?.data || data?.user || data;
-    if (!updated?.avatarUrl) throw new Error("The upload response did not contain a profile photo link. Please retry.");
+    const uploaded = await uploadFile('', 'file', uri, undefined, undefined, base64);
+    const response = await api.put('/users/me', { avatarUrl: uploaded.data.url });
+    const updated = response.data?.data;
+    if (!updated?.avatarUrl) throw new Error('Photo uploaded, but the profile could not be updated. Please retry.');
     return updated;
   },
 };
@@ -449,7 +447,7 @@ export const agentApi = {
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {
-  /** Upload using the shared JSON transport; never pass React Native FormData objects. */
+  /** Upload directly using the shared unsigned Cloudinary transport. */
   upload: async (file: { uri: string; name?: string; mimeType?: string; base64?: string | null }) => {
     const data = await uploadFile(`${API_BASE_URL}/uploads`, "file", file.uri, file.name, file.mimeType, file.base64);
     return { data };
