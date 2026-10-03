@@ -110,6 +110,8 @@ export const adminApi = {
 
 // Driver
 export const driverApi = {
+  getPerformance: (days = 30) => api.get("/driver/performance", { params: { days } }),
+  acknowledgeOffer: (rideId: string) => api.post(`/driver/offers/${rideId}/received`),
   getDashboard: () => api.get("/driver/dashboard"),
   getProfile: () => api.get("/driver/profile"),
   updateProfile: (data: any) => api.put("/driver/update-profile", data),

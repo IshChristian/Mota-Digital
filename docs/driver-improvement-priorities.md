@@ -16,9 +16,11 @@ Deploy the companion backend, keep historical pending records under manual audit
 
 Ride offers show server-estimated driver earnings and commission before acceptance, excluding fuel and operating costs. Google Routes road distance/duration is used when configured; failures retain the explicitly marked straight-line fallback. Separate car/moto tariffs remain a follow-up.
 
-## 4. Performance statistics — follow-up, not implemented here
+## 4. Performance statistics — implemented code; live validation needed
 
-Record delivered offers, accepted offers and driver-initiated cancellations. Show acceptance and cancellation rates with clear time windows and denominators. Verify duplicate and late events before presenting statistics.
+The driver profile links to Driving performance with 7/30/90 day rolling windows. Offers are recorded once when opened/acknowledged by the app. Acceptance is accepted offers / acknowledged offers; cancellation is driver cancellations / accepted offers. Passenger cancellations are separate. All counts use the same offer receipt cohort and its latest ride outcomes. Empty denominators show a dash. Older rides and failed acknowledgments are excluded; no historical delivery is inferred from dispatch attempts.
+
+Deploy the companion backend and verify the unique receipt index plus real app acknowledgments before release. Tests cover duplicate receipt handling, access eligibility, cohort counts and formulas, using mocked database operations. These statistics do not affect tiers or penalties. See driver-performance.md.
 
 ## 5. Tips and payout visibility — follow-up, not implemented here
 

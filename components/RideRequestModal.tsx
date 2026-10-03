@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { driverApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { Metric, StatusPill } from "@/components/driver/DriverUI";
 
@@ -51,6 +52,10 @@ export function RideRequestModal({
   const [action, setAction] = useState<"accept" | "decline" | null>(null);
 
   useEffect(() => setAction(null), [request]);
+  const receiptId = request?.id || request?._id;
+  useEffect(() => {
+    if (receiptId) void driverApi.acknowledgeOffer(receiptId).catch(() => console.warn('Offer receipt could not be recorded.'));
+  }, [receiptId]);
 
   if (!request) return null;
   const rideId = request.id || request._id;
