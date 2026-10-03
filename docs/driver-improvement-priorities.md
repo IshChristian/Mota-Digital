@@ -1,27 +1,37 @@
-# MOTA driver improvement order
+# MOTA recommendation roadmap
 
-## 1. Reliability and responsive screens — current change
+## 1. Reliability and onboarding — implemented code; live validation needed
 
-Selected photos now provide their JPEG data from ImagePicker directly. The authenticated backend decodes it and uploads through the Cloudinary SDK. This avoids the reported native file-copy/read failure. Multipart remains available for other upload callers. The backend must be deployed before the mobile update. Real-device capture and Cloudinary delivery require a live smoke test; automated tests mock those services.
+Uploads now go directly to Cloudinary using an unsigned preset. Configure EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET; see unsigned-cloudinary-uploads.md. Native upload uses Expo native multipart; web sends a data URI. The app requires a secure Cloudinary URL before reporting success. Validate real-device uploads and deployed backend profile persistence.
 
-Shared headers, settings containers, driver dashboard cards, verification cards and the ride-request sheet now allow wrapping/shrinking and use bounded tablet widths. Real-device visual verification is still needed at 320/360/390 px, landscape, tablet and enlarged system text.
+Responsive containers, wrapping dashboard cards, verification cards and ride-request sheets are implemented. Check small screens, landscape, tablets and enlarged system text on devices. Phone verification and KYC apply to both accounts; passengers do not pay registration fees.
 
-Availability, acceptance and payout flows remain existing implementations; this change does not claim to have verified them live.
+## 2. Referral transparency — implemented code; rollout checks needed
 
-## 2. Financial transparency — current change
+Drivers, passengers and agents can view/share codes and see invitation history. New eligible driver referrals use the configured reward at signup. Driver/agent referrers earn cash after the invitee completes phone verification, approved KYC, fee payment and registration approval. Passenger invitations do not earn cash or require registration payment. Wallet credit, ledger entry and referral completion commit together, with an idempotency key per referred user.
 
-The server includes commission and estimated take-home earnings on driver requests, realtime offers and ride details. The request sheet displays these before acceptance, plus duration when available. Take-home excludes fuel and other expenses. Rates come from backend configuration, not hard-coded mobile percentages.
+Deploy the companion backend, keep historical pending records under manual audit, and verify transactions on a MongoDB replica set before enabling financial writes. The amount currently configured is shown in the app; pending rewards are not wallet balances.
 
-## 3. Road-distance fares — current change
+## 3. Financial transparency and road-distance fares — implemented code
 
-The fare estimator uses Google Routes road distance and traffic duration when GOOGLE_ROUTES_API_KEY or GOOGLE_MAPS_API_KEY is configured. A missing key, timeout or unavailable route keeps the existing straight-line estimate and marks distanceSource as straight_line_fallback in the estimation response. Car/moto-specific tariff configuration remains a separate follow-up; this change preserves current tariff settings.
+Ride offers show server-estimated driver earnings and commission before acceptance, excluding fuel and operating costs. Google Routes road distance/duration is used when configured; failures retain the explicitly marked straight-line fallback. Separate car/moto tariffs remain a follow-up.
 
-## 4. Performance, tipping and payout visibility — next
+## 4. Performance statistics — follow-up, not implemented here
 
-Track delivered offers, acceptance and driver-initiated cancellations with clear denominators. Add tipping through server-verified payment settlement and transaction records. Provide payout progress and provider-minimum explanations. Test duplicate payment callbacks and reversals before release.
+Record delivered offers, accepted offers and driver-initiated cancellations. Show acceptance and cancellation rates with clear time windows and denominators. Verify duplicate and late events before presenting statistics.
 
-## 5. Planning and safety tools — after reliable core flows
+## 5. Tips and payout visibility — follow-up, not implemented here
 
-Add demand heatmaps using aggregated recent requests, then destination filtering based on real routes. Add automated trip anomaly monitoring and incident handling. Trip recording needs consent, retention controls and restricted support access. Vehicle-display integrations come after these core features.
+Add rider tips only through verified payment settlement. Link tips to the completed ride, preserve transaction records, and test duplicate callbacks, reversals and refunds. Show queued, reviewed, paid and failed payout states.
 
-No feature in stages 4–5 is marked implemented by this change.
+## 6. Demand heatmaps — follow-up, not implemented here
+
+Aggregate recent ride requests into location cells with minimum sample thresholds. Label freshness and distinguish demand from guaranteed income. Limit access and avoid exposing individual riders' locations.
+
+## 7. Destination filters — follow-up, not implemented here
+
+Match offers against an optional driver destination using actual routes and a documented detour limit. Show active filter state and expiry; provide a clear way to turn it off.
+
+## 8. Automated safety — follow-up, not implemented here
+
+Start with trip anomaly monitoring, rider/driver check-ins and reviewed incident escalation. Define false-positive handling and support response. Recording requires consent, retention limits and restricted access before release.

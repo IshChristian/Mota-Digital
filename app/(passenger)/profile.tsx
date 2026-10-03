@@ -49,6 +49,11 @@ export default function PassengerProfileScreen() {
       onPress: () => router.push("/(passenger)/wallet" as any),
     },
     {
+      icon: "gift" as const,
+      label: "Invite friends",
+      onPress: () => router.push("/referrals" as any),
+    },
+    {
       icon: "user" as const,
       label: "Personal Information",
       onPress: () => router.push("/(passenger)/profile/personal-info" as any),
