@@ -473,3 +473,5 @@ export const financeApi = {
   signConsent: (data: { consentType: string; version: string }) =>
     api.post("/finance/consent", data),
 };
+
+export const referralsApi = { getMine: (page = 1) => api.get("/referrals/me", { params: { page } }), checkRewards: () => api.post("/referrals/check-rewards") };

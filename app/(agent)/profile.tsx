@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const links = [
+  ["gift", "Invite friends", "/referrals"],
   ["user", "Account and data", "/account"],
   ["bell", "Notification settings", "/notification-settings"],
   ["smartphone", "Active sessions", "/sessions"],

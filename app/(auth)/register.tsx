@@ -191,7 +191,7 @@ export default function RegisterScreen() {
         <InputField
           label="Referral Code (Optional)"
           value={formData.referralCode}
-          onChangeText={(v: string) => update("referralCode", v)}
+          onChangeText={(v: string) => update("referralCode", v.trim().toUpperCase())}
           placeholder="MOTA-XXXX"
           s={s} colors={colors}
         />
