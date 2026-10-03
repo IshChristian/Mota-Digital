@@ -449,11 +449,11 @@ export const agentApi = {
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {
-  /** Upload a new file (requires FormData) */
-  upload: (data: FormData) =>
-    api.post("/uploads", data, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+  /** Upload using the shared JSON transport; never pass React Native FormData objects. */
+  upload: async (file: { uri: string; name?: string; mimeType?: string; base64?: string | null }) => {
+    const data = await uploadFile(`${API_BASE_URL}/uploads`, "file", file.uri, file.name, file.mimeType, file.base64);
+    return { data };
+  },
   /** Get upload metadata by ID */
   getById: (id: string) => api.get(`/uploads/${id}`),
   /** Delete an uploaded file */
