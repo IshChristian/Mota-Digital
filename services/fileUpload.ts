@@ -1,7 +1,5 @@
 import { Platform } from 'react-native';
-import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
-import { fetch as expoFetch } from 'expo/fetch';
 import { getStoredToken } from './secureStorage';
 
 const maxSize = 20 * 1024 * 1024;
@@ -19,12 +17,75 @@ function encodeBase64(bytes: Uint8Array): string {
   chunks.push(part);
   return chunks.join('');
 }
-/** All upload requests are JSON strings. No platform sends FormData parts. */
+// Native multipart is assembled by Expo's native uploader, never JS FormData.
+async function uploadNative(url: string, field: string, uri: string, filename: string, mimeType: string, token: string, pickerBase64?: string | null): Promise<any> {
+  let temporary: string | undefined;
+  let fileUri = uri;
+  let task: ReturnType<typeof FileSystem.createUploadTask> | undefined;
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Native uploads need a local file. Keep readable picker files in place.
+    let info: FileSystem.FileInfo | undefined;
+    if (uri.startsWith('file://')) {
+      try { info = await FileSystem.getInfoAsync(uri); } catch { /* recover below */ }
+    }
+    if (!info?.exists) {
+      if (!FileSystem.cacheDirectory) throw new Error('Upload storage is unavailable. Restart the app.');
+      temporary = `${FileSystem.cacheDirectory}upload-${Date.now()}-${Math.random().toString(36).slice(2)}-${filename}`;
+      if (pickerBase64) {
+        const size = Math.floor(pickerBase64.length * 3 / 4) - (pickerBase64.endsWith('==') ? 2 : pickerBase64.endsWith('=') ? 1 : 0);
+        if (size > maxSize) throw new Error('Choose a file smaller than 20 MB.');
+        // Picker base64 is JPEG; restore a native file only when its URI is inaccessible.
+        filename = filename.replace(/\.[^.]+$/, '') + '.jpg'; mimeType = 'image/jpeg';
+        temporary += '.jpg';
+        await FileSystem.writeAsStringAsync(temporary, pickerBase64, { encoding: FileSystem.EncodingType.Base64 });
+      } else {
+        try { await FileSystem.copyAsync({ from: uri, to: temporary }); }
+        catch { throw new Error('Could not read the selected file. Select it again and allow photo access.'); }
+      }
+      fileUri = temporary;
+      info = await FileSystem.getInfoAsync(fileUri);
+    }
+    if (!info.exists || info.isDirectory || !info.size) throw new Error('This file is empty or unavailable. Choose another file.');
+    if (info.size > maxSize) throw new Error('Choose a file smaller than 20 MB.');
+    task = FileSystem.createUploadTask(url, fileUri, {
+      httpMethod: 'POST', uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: field, mimeType,
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        void task?.cancelAsync().catch(() => undefined);
+        reject(new Error('The upload timed out. Check your connection and retry.'));
+      }, 120000);
+    });
+    const response = await Promise.race([task.uploadAsync(), timeout]);
+    if (!response) throw new Error('The upload was cancelled. Please retry.');
+    let payload: any;
+    try { payload = JSON.parse(response.body); } catch { payload = null; }
+    if (response.status < 200 || response.status >= 300) {
+      if (response.status === 401) throw new Error('Your session has expired. Sign in again before uploading.');
+      if (response.status === 413) throw new Error('Choose a file smaller than 20 MB.');
+      throw new Error(payload?.message || `Upload failed (${response.status}). Please retry.`);
+    }
+    if (!payload) throw new Error('The upload server returned an invalid response. Please retry.');
+    return payload;
+  } catch (error) {
+    if (timedOut) throw new Error('The upload timed out. Check your connection and retry.');
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (temporary) await FileSystem.deleteAsync(temporary, { idempotent: true }).catch(() => undefined);
+  }
+}
 export async function uploadFile(url: string, field: string, uri: string, selectedName?: string, selectedMimeType?: string, selectedBase64?: string | null): Promise<any> {
   const token = await getStoredToken();
   if (!token) throw new Error('Sign in again before uploading this file.');
   let filename = (selectedName || uri.split(/[?#]/)[0].split('/').pop() || 'upload.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
   let mimeType = selectedMimeType || types[filename.split('.').pop()?.toLowerCase() || ''] || 'application/octet-stream';
+  if (Platform.OS !== 'web') return uploadNative(url, field, uri, filename, mimeType, token, selectedBase64);
   let base64 = selectedBase64 || '';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120000);
@@ -38,17 +99,11 @@ export async function uploadFile(url: string, field: string, uri: string, select
       const bytes = new Uint8Array(await source.arrayBuffer());
       if (bytes.length > maxSize) throw new Error('Choose a file smaller than 20 MB.');
       base64 = encodeBase64(bytes);
-    } else {
-      try { base64 = await new File(uri).base64(); }
-      catch {
-        try { base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }); }
-        catch { throw new Error('Could not read the selected file. Select it again and allow photo access.'); }
-      }
     }
     if (!base64) throw new Error('This file is empty. Choose another file.');
     const size = Math.floor(base64.length * 3 / 4) - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
     if (size > maxSize) throw new Error('Choose a file smaller than 20 MB.');
-    const response = await (Platform.OS === 'web' ? fetch : expoFetch)(url, {
+    const response = await fetch(url, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ fieldName: field, fileName: filename, mimeType, fileBase64: base64 }), signal: controller.signal,
     });
