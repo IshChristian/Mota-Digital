@@ -205,6 +205,11 @@ export default function ProfileScreen() {
         {/* Account */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Account</Text>
+          <TouchableOpacity accessibilityRole="button" style={s.row} onPress={() => router.push("/driver-performance" as any)}>
+            <Feather name="bar-chart-2" size={20} color={colors.primary} />
+            <Text style={s.rowText}>Driving performance</Text>
+            <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" style={s.row} onPress={() => router.push("/referrals" as any)}>
             <Feather name="gift" size={20} color={colors.primary} />
             <Text style={s.rowText}>Invite friends</Text>
