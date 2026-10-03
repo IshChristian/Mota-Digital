@@ -280,8 +280,8 @@ export const usersApi = {
    * Upload avatar via backend multipart endpoint.
    * The backend handles storage and returns the updated user with avatarUrl.
    */
-  uploadAvatar: async (uri: string): Promise<{ avatarUrl: string }> => {
-    const data = await uploadFile(`${API_BASE_URL}/users/avatar`, "avatar", uri);
+  uploadAvatar: async (uri: string, base64?: string | null): Promise<{ avatarUrl: string }> => {
+    const data = await uploadFile(`${API_BASE_URL}/users/avatar`, "avatar", uri, undefined, undefined, base64);
     const updated = data?.data || data?.user || data;
     if (!updated?.avatarUrl) throw new Error("The upload response did not contain a profile photo link. Please retry.");
     return updated;

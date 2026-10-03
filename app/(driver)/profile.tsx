@@ -96,7 +96,7 @@ export default function ProfileScreen() {
         );
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({ base64: true,
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
@@ -107,7 +107,7 @@ export default function ProfileScreen() {
       setAvatarUploading(true);
 
       // Use backend's multipart avatar endpoint
-      const updated = await usersApi.uploadAvatar(asset.uri);
+      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64);
       if (user && token) {
         await login(token, {
           ...user,

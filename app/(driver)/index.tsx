@@ -130,7 +130,8 @@ export default function DashboardScreen() {
       }}
       contentContainerStyle={{
         paddingTop: insets.top + 16,
-        paddingBottom: 100,
+        paddingBottom: insets.bottom + 120,
+        width: "100%", maxWidth: 960, alignSelf: "center",
       }}
       refreshControl={
         <RefreshControl
@@ -143,7 +144,7 @@ export default function DashboardScreen() {
     >
       {/* Header */}
       <View style={s.header}>
-        <View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Image
             source={
               isDark
@@ -514,6 +515,7 @@ const styles = (colors: any, isDark: boolean) =>
       color: colors.textPrimary,
     },
     headerActions: {
+      flexShrink: 1, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "45%",
       flexDirection: "row",
       gap: 12,
     },
@@ -678,8 +680,8 @@ const styles = (colors: any, isDark: boolean) =>
     actionBtn: {
       alignItems: "center",
       justifyContent: "center",
-      width: "30%",
-      minWidth: 88,
+      flexGrow: 1, flexBasis: 88,
+      minWidth: 0,
       minHeight: 106,
       paddingHorizontal: 6,
       paddingVertical: 10,
@@ -707,7 +709,7 @@ const styles = (colors: any, isDark: boolean) =>
       gap: 12,
     },
     statCard: {
-      width: "48%",
+      flexGrow: 1, flexBasis: 140, minWidth: 0,
       padding: 16,
       borderRadius: 16,
       borderWidth: 1,

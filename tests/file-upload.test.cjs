@@ -14,6 +14,7 @@ function load(file, dependencies, globals = {}) {
 function uploader(options = {}) {
   const calls = [];
   const api = load('services/fileUpload.ts', {
+    'expo/fetch': { fetch: options.fetch || fetch },
     'react-native': { Platform: { OS: options.platform || 'ios' } },
     'expo-file-system/legacy': {
       cacheDirectory:'file:///cache/', FileSystemUploadType:{MULTIPART:1},
@@ -36,3 +37,5 @@ test('read failure is actionable and cleans temporary file',async()=>{const {upl
 for(const size of [0,21*1024*1024])test('rejects invalid size '+size+' before native upload',async()=>{const {upload,calls}=uploader({size});await assert.rejects(upload('url','file','uri'),/empty|20 MB/);assert.ok(!calls.some(c=>c[0]==='upload'));});
 for(const [status,body,expected] of [[401,'{}',/expired/],[502,'{"message":"Cloudinary upload failed"}',/Cloudinary/],[201,'html',/invalid response/]])test('handles response status '+status+' with '+body,async()=>{const {upload,calls}=uploader({result:{status,body}});await assert.rejects(upload('url','file','uri'),expected);assert.equal(calls.at(-1)[0],'delete');});
 test('document upload requires secure URL',async()=>{const api=load('services/cloudinary.ts',{'./api':{API_BASE_URL:'url'},'./fileUpload':{uploadFile:async()=>({data:{url:'http://bad'}})}});await assert.rejects(api.uploadToCloudinary('uri'),/secure file link/);});
+
+test('picker image bytes bypass an inaccessible asset URI and native copy',async()=>{let sent;const {upload,calls}=uploader({readError:true,fetch:async(url,options)=>{sent=options;return new Response(JSON.stringify({data:{url:'https://res.cloudinary.com/test/image/upload/id.jpg'}}),{status:201});}});const r=await upload('url','file','unreadable://photo','photo.heic','image/heic','AP+AKg==');assert.match(r.data.url,/^https:/);assert.equal(calls.length,0);const body=JSON.parse(sent.body);assert.equal(body.fileBase64,'AP+AKg==');assert.equal(body.mimeType,'image/jpeg');assert.equal(body.fileName,'photo.jpg');assert.equal(sent.headers.Authorization,'Bearer test-token');});

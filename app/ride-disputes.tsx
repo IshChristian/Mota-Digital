@@ -32,13 +32,13 @@ export default function RideDisputes() {
       setMessage("Allow photo access to attach evidence.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ base64: true, mediaTypes: ["images"], quality: 0.8 });
     if (result.canceled) return;
     setBusy(true);
     setMessage("");
     try {
       const asset = result.assets[0];
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || "evidence.jpg", asset.mimeType || "image/jpeg");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || "evidence.jpg", asset.mimeType || "image/jpeg", asset.base64);
       setEvidence(url);
       setMessage("Evidence attached.");
     } catch (e: any) {

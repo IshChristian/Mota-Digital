@@ -22,11 +22,11 @@ export default function PassengerProfileScreen() {
     if (photoBusy) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== "granted") return Alert.alert("Photo permission", "Allow access to select a profile photo.");
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ base64: true, mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
     if (result.canceled) return;
     setPhotoBusy(true);
     try {
-      const updated = await usersApi.uploadAvatar(result.assets[0].uri);
+      const updated = await usersApi.uploadAvatar(result.assets[0].uri, result.assets[0].base64);
       await updateUser({ avatarUrl: updated.avatarUrl });
       Alert.alert("Photo updated", "Your profile photo is ready.");
     } catch (error) { Alert.alert("Photo upload failed", getApiErrorMessage(error)); }
