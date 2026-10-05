@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createDriverAutoOnline } from '../services/driverAutoOnline';
+import { Alert } from '../components/GlobalAlert';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import axios from 'axios';
-import { usersApi, algorithmApi, authApi, getApiErrorMessage } from '../services/api';
+import { usersApi, driverApi, algorithmApi, authApi, getApiErrorMessage } from '../services/api';
 import {
   clearSensitiveSession,
   getSensitiveJson,
@@ -67,6 +69,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const autoOnline = useRef<ReturnType<typeof createDriverAutoOnline> | null>(null);
+  if (!autoOnline.current) autoOnline.current = createDriverAutoOnline();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [riderStatus, setRiderStatus] = useState<RiderStatus | null>(null);
@@ -99,6 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!(account?.id || account?._id) || !account?.role) throw new Error('Account information is incomplete. Please retry.');
       if (await getStoredToken() !== expectedToken) throw new Error('Your session changed. Please sign in again.');
       const resolved = { ...account, id: String(account.id || account._id) };
+      try {
+        const online = await autoOnline.current!.run(resolved, expectedToken, getStoredToken, () => driverApi.updateAvailability({ isOnline: true }));
+        if (online === true) resolved.isOnline = true;
+      } catch (error) {
+        if (await getStoredToken() === expectedToken) Alert.alert('Unable to go online automatically', getApiErrorMessage(error));
+      }
+      if (await getStoredToken() !== expectedToken) throw new Error('Your session changed. Please sign in again.');
       await storeSensitiveJson('user', resolved);
       setUser(resolved);
       setHasDriverProfile(resolved.hasDriverProfile === true);
@@ -155,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (newToken: string, newUser: User) => {
+    autoOnline.current!.reset();
     await storeToken(newToken);
     setRiderStatus(null);
     await storeSensitiveJson('riderStatus', null);
@@ -170,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    autoOnline.current!.reset();
     await authApi.logout().catch((error) => console.warn('Unable to revoke remote session', error));
     await unregisterPushNotifications().catch((error) => console.warn('Unable to unregister push token', error));
     await clearSensitiveSession();

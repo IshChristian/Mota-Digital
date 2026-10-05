@@ -31,7 +31,7 @@ export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(user?.isOnline === true);
   const [toggling, setToggling] = useState(false);
   const [availabilityFeedback, setAvailabilityFeedback] = useState<{ type: AlertType; title: string; message: string } | null>(null);
 
@@ -45,16 +45,17 @@ export default function DashboardScreen() {
 
   // Only use the unified backend dashboard API
   const { data: dashData, refetch: refetchDash } = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: ["dashboard", user?.id],
     queryFn: async () => {
       const res = await driverApi.getDashboard();
-      if (res.data?.isOnline !== undefined) {
-        setIsOnline(res.data.isOnline);
-      }
       return res.data;
     },
     refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    if (typeof dashData?.isOnline === "boolean") setIsOnline(dashData.isOnline);
+  }, [dashData?.isOnline]);
 
   // Fetch real wallet data for accurate balance & today's net
   const { data: walletData, refetch: refetchWallet } = useQuery({
