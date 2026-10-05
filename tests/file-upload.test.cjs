@@ -26,10 +26,7 @@ function load(file, dependencies, globals = {}) {
       clearTimeout,
       Uint8Array,
       process: {
-        env: {
-          EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: "test",
-          EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: "mota_unsigned",
-        },
+        env: {},
       },
       FormData: class {
         constructor() {
@@ -84,6 +81,23 @@ function uploader(options = {}) {
       {
         "react-native": { Platform: { OS: options.platform || "ios" } },
         "expo-file-system/legacy": native,
+        "./uploadAuthorization": {
+          getUploadAuthorization: async () => {
+            if (options.authorizationError)
+              throw Error(options.authorizationError);
+            return {
+              cloudName: "test",
+              apiKey: "public-key",
+              signature: "a".repeat(40),
+              params: {
+                timestamp: 123,
+                folder: "mota_uploads/user",
+                public_id: "file-id",
+                overwrite: false,
+              },
+            };
+          },
+        },
       },
       { fetch },
     ).uploadFile,
@@ -107,7 +121,12 @@ for (const platform of ["ios", "android", "web"])
       "application/x-www-form-urlencoded",
     );
     const body = new URLSearchParams(config.body);
-    assert.equal(body.get("upload_preset"), "mota_unsigned");
+    assert.equal(body.get("upload_preset"), null);
+    assert.equal(body.get("api_key"), "public-key");
+    assert.equal(body.get("signature"), "a".repeat(40));
+    assert.equal(body.get("timestamp"), "123");
+    assert.equal(body.get("folder"), "mota_uploads/user");
+    assert.equal(body.get("overwrite"), "false");
     assert.equal(body.get("file"), "data:application/pdf;base64," + encoded);
     assert.deepEqual(
       Buffer.from(body.get("file").split(",")[1], "base64"),
@@ -139,7 +158,7 @@ test("picker base64 recovers unreadable image URI", async () => {
     "file:///missing",
     "photo.heic",
     "image/heic",
-    Buffer.from([255,216,255,0]).toString("base64"),
+    Buffer.from([255, 216, 255, 0]).toString("base64"),
   );
   assert.equal(
     calls.some((c) => c[0] === "read" || c[0] === "info"),
@@ -193,7 +212,7 @@ for (const [option, expected] of [
     );
   });
 for (const [status, body, expected] of [
-  [401, "{}", /unsigned preset/],
+  [401, "{}", /signed upload/],
   [413, "{}", /20 MB/],
   [400, '{"error":{"message":"Upload preset not found"}}', /preset not found/],
   [502, '{"message":"Cloudinary upload failed"}', /Cloudinary/],
@@ -211,18 +230,14 @@ for (const [status, body, expected] of [
       expected,
     );
   });
-test("missing configuration fails before file access", async () => {
-  const module = load(
-    "services/fileUpload.ts",
-    {
-      "react-native": { Platform: { OS: "ios" } },
-      "expo-file-system/legacy": {},
-    },
-    { process: { env: {} } },
-  );
-  await assert.rejects(
-    module.uploadFile("ignored", "file", "file:///doc"),
-    /not configured/,
+test("signature authorization errors stop the Cloudinary request", async () => {
+  const { upload, calls } = uploader({
+    authorizationError: "Upload storage is not configured on the MOTA server",
+  });
+  await assert.rejects(upload("ignored", "file", "file:///doc"), /MOTA server/);
+  assert.equal(
+    calls.some((call) => call[0] === "request"),
+    false,
   );
 });
 test("invalid base64 rejected", async () => {
@@ -248,12 +263,45 @@ test("Cloudinary wrapper requires a secure URL", async () => {
   await assert.rejects(api.uploadToCloudinary("uri"), /secure file link/);
 });
 
-test('PNG base64 remains PNG rather than being labelled JPEG',async()=>{
- const {upload,calls}=uploader();await upload('ignored','file','file:///photo','photo.png','image/png','iVBORw0KGgo=');
- assert.match(new URLSearchParams(calls.find(c=>c[0]==='request')[2].body).get('file'),/^data:image\/png;base64,/);
+test("PNG base64 remains PNG rather than being labelled JPEG", async () => {
+  const { upload, calls } = uploader();
+  await upload(
+    "ignored",
+    "file",
+    "file:///photo",
+    "photo.png",
+    "image/png",
+    "iVBORw0KGgo=",
+  );
+  assert.match(
+    new URLSearchParams(calls.find((c) => c[0] === "request")[2].body).get(
+      "file",
+    ),
+    /^data:image\/png;base64,/,
+  );
 });
-test('unknown picker MIME uses the document extension, unknown formats use binary MIME',async()=>{
- for (const [name,mime] of [['report.docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document'],['archive.zip','application/zip'],['custom.xyz','application/octet-stream']]) {
- const {upload,calls}=uploader();await upload('ignored','file','file:///document',name,'application/octet-stream');assert.equal(new URLSearchParams(calls.find(c=>c[0]==='request')[2].body).get('file'),'data:'+mime+';base64,'+encoded);
- }
+test("unknown picker MIME uses the document extension, unknown formats use binary MIME", async () => {
+  for (const [name, mime] of [
+    [
+      "report.docx",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ],
+    ["archive.zip", "application/zip"],
+    ["custom.xyz", "application/octet-stream"],
+  ]) {
+    const { upload, calls } = uploader();
+    await upload(
+      "ignored",
+      "file",
+      "file:///document",
+      name,
+      "application/octet-stream",
+    );
+    assert.equal(
+      new URLSearchParams(calls.find((c) => c[0] === "request")[2].body).get(
+        "file",
+      ),
+      "data:" + mime + ";base64," + encoded,
+    );
+  }
 });

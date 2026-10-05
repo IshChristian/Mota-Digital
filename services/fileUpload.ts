@@ -1,3 +1,4 @@
+import { getUploadAuthorization } from "./uploadAuthorization";
 import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 
@@ -14,12 +15,20 @@ const types: Record<string, string> = {
   tif: "image/tiff",
   tiff: "image/tiff",
   pdf: "application/pdf",
-  txt: "text/plain", csv: "text/csv", json: "application/json", zip: "application/zip",
-  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav",
-
+  txt: "text/plain",
+  csv: "text/csv",
+  json: "application/json",
+  zip: "application/zip",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
 };
 // Avoid Blob/FormData and btoa assumptions across Expo and browser implementations.
 function encodeBase64(bytes: Uint8Array): string {
@@ -107,21 +116,15 @@ export async function uploadFile(
   selectedMimeType?: string,
   selectedBase64?: string | null,
 ): Promise<any> {
-  const cloud = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
-  const preset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim();
-  if (!cloud || !/^[a-zA-Z0-9_-]+$/.test(cloud) || !preset)
-    throw new Error(
-      "Uploads are not configured. Set the Cloudinary cloud name and unsigned upload preset.",
-    );
-  url = `https://api.cloudinary.com/v1_1/${cloud}/auto/upload`;
-  field = "file";
   let filename = (
     selectedName ||
     uri.split(/[?#]/)[0].split("/").pop() ||
     "upload.jpg"
   ).replace(/[^a-zA-Z0-9._-]/g, "_");
   let mimeType =
-    (selectedMimeType && selectedMimeType !== "application/octet-stream" ? selectedMimeType : undefined) ||
+    (selectedMimeType && selectedMimeType !== "application/octet-stream"
+      ? selectedMimeType
+      : undefined) ||
     types[filename.split(".").pop()?.toLowerCase() || ""] ||
     "application/octet-stream";
   let base64 = selectedBase64 || "";
@@ -130,9 +133,9 @@ export async function uploadFile(
   try {
     // ImagePicker may return JPEG bytes for a HEIC source. Detect bytes rather
     // than relabelling every supplied image (including real PNGs) as JPEG.
-    if (base64.startsWith('/9j/')) mimeType = 'image/jpeg';
-    else if (base64.startsWith('iVBORw0KGgo')) mimeType = 'image/png';
-    else if (base64.startsWith('R0lGOD')) mimeType = 'image/gif';
+    if (base64.startsWith("/9j/")) mimeType = "image/jpeg";
+    else if (base64.startsWith("iVBORw0KGgo")) mimeType = "image/png";
+    else if (base64.startsWith("R0lGOD")) mimeType = "image/gif";
     if (!base64 && Platform.OS !== "web") base64 = await readNative(uri);
     if (!base64 && Platform.OS === "web") {
       const source = await fetch(uri, { signal: controller.signal });
@@ -150,13 +153,27 @@ export async function uploadFile(
       Math.floor((base64.length * 3) / 4) -
       (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
     if (size > maxSize) throw new Error("Choose a file smaller than 20 MB.");
+    const authorization = await getUploadAuthorization(controller.signal);
+    const cloud = authorization.cloudName;
+    url = `https://api.cloudinary.com/v1_1/${cloud}/auto/upload`;
+    const signedFields = {
+      ...authorization.params,
+      api_key: authorization.apiKey,
+      signature: authorization.signature,
+    };
+    const signedBody = Object.entries(signedFields)
+      .map(
+        ([key, value]) =>
+          `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+      )
+      .join("&");
     const response = await fetch(url, {
       method: "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: `upload_preset=${encodeURIComponent(preset)}&file=${encodeURIComponent(`data:${mimeType};base64,${base64}`)}`,
+      body: `${signedBody}&file=${encodeURIComponent(`data:${mimeType};base64,${base64}`)}`,
       signal: controller.signal,
     });
     const text = await response.text();
@@ -169,7 +186,7 @@ export async function uploadFile(
     if (!response.ok) {
       if (response.status === 401)
         throw new Error(
-          "Cloudinary rejected the unsigned preset. Check its configuration.",
+          "Cloudinary rejected the signed upload. Check the backend Cloudinary credentials and server clock.",
         );
       if (response.status === 413)
         throw new Error("Choose a file smaller than 20 MB.");
