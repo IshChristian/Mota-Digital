@@ -26,7 +26,7 @@ export default function PaymentRegistrationScreen() {
     email?: string;
   }>();
   const { colors } = useTheme();
-  const { user, updateUser } = useAuth();
+  const { user, refreshAccount } = useAuth();
 
   const displayName = params.firstName && params.lastName
     ? `${params.firstName} ${params.lastName}`
@@ -73,7 +73,7 @@ export default function PaymentRegistrationScreen() {
               
               if (user) {
                 const verified = await authApi.registrationStatus({ userId: user.id });
-                if (verified.data?.paid === true) await updateUser({ registrationPaid: true });
+                if (verified.data?.paid === true) await refreshAccount();
                 else { setSuccess(false); setError("Payment was received but confirmation is still pending. Refresh your setup status shortly."); }
               }
             } else if (status === 'failed') {
@@ -91,7 +91,7 @@ export default function PaymentRegistrationScreen() {
         // A missing reference is never proof of payment.
         if (user) {
           const profile = await authApi.registrationStatus({ userId: user.id }).catch(() => null);
-          if (profile?.data?.paid === true) await updateUser({ registrationPaid: true });
+          if (profile?.data?.paid === true) await refreshAccount();
           else { setSuccess(false); setError("Payment reference unavailable. Check your setup status before trying again."); }
         }
       }

@@ -31,12 +31,14 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, isAccountReady, accountError, refreshAccount, logout, user } = useAuth();
   const segments = useSegments() as string[];
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || (isAuthenticated && !isAccountReady)) return;
+
+    if (isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
@@ -46,7 +48,7 @@ function RootLayoutNav() {
 
     const needsPhoneVerification = isAuthenticated && user?.isVerified === false;
     const needsDriverReview = isAuthenticated && user?.role === "driver" &&
-      (user.isActive !== true || user.registrationPaid !== true || user.registrationStatus !== "approved" || user.kycLevel !== "full");
+      (user.isVerified !== true || user.isActive !== true || user.registrationPaid !== true || user.registrationStatus !== "approved" || user.kycLevel !== "full");
 
     if (!isAuthenticated && !inAuthGroup && !isPublicInformation) {
       router.replace("/(auth)/welcome" as any);
@@ -54,7 +56,7 @@ function RootLayoutNav() {
       if (needsPhoneVerification && user?.role !== "driver") {
         if (segments[1] !== "otp" && segments[1] !== "confirm-phone") router.replace("/(auth)/confirm-phone");
       } else if (needsDriverReview) {
-        const allowed = (segments[0] === "(auth)" && ["verification-progress", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||
+        const allowed = (segments[0] === "(auth)" && ["verification-progress", "confirm-phone", "otp", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||
           (segments[0] === "(driver)" && segments[1] === "kyc");
         if (!allowed) router.replace("/(auth)/verification-progress" as any);
       } else {
@@ -68,9 +70,10 @@ function RootLayoutNav() {
         }
       }
     }
-  }, [isAuthenticated, isLoading, segments, user]);
+  }, [isAuthenticated, isLoading, isAccountReady, segments, user]);
 
-  if (isLoading) return <WelcomeLoading />;
+  if (isLoading || (isAuthenticated && !isAccountReady)) return <WelcomeLoading error={accountError} onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
+  if (isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return <WelcomeLoading error="Your account is inactive. Contact MOTA support." onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
 
   return (
     <>
@@ -82,11 +85,12 @@ function RootLayoutNav() {
   );
 }
 
-function WelcomeLoading() {
+function WelcomeLoading({ error, onRetry, onSignOut }: { error?: string; onRetry?: () => void; onSignOut?: () => void }) {
   const { colors, isDark } = useTheme();
   return <View accessibilityLabel="Loading MOTA" style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
     <Image source={isDark ? require("@/assets/images/official-mota-black-logo-removebg-preview.png") : require("@/assets/images/official-mota-white-logo-removebg-preview.png")} resizeMode="contain" style={{ width: 220, height: 100 }} />
-    <Text accessibilityRole="text" style={{ color: colors.textSecondary, marginTop: 16 }}>Checking your account…</Text>
+    <Text accessibilityRole="text" style={{ color: colors.textSecondary, marginTop: 16 }}>{error || "Checking your account…"}</Text>
+    {error ? <><Text accessibilityRole="button" onPress={onRetry} style={{ color: colors.primary, padding: 20 }}>Retry account check</Text><Text accessibilityRole="button" onPress={onSignOut} style={{ color: colors.textSecondary, padding: 20 }}>Sign out</Text></> : null}
   </View>;
 }
 

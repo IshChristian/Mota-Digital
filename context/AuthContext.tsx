@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import axios from 'axios';
-import { usersApi, algorithmApi, driverApi, authApi, getApiErrorMessage } from '../services/api';
+import { usersApi, algorithmApi, authApi, getApiErrorMessage } from '../services/api';
 import {
   clearSensitiveSession,
   getSensitiveJson,
@@ -53,6 +53,9 @@ type AuthContextType = {
   riderStatus: RiderStatus | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAccountReady: boolean;
+  accountError: string;
+  refreshAccount: () => Promise<User>;
   hasDriverProfile: boolean;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
@@ -68,11 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [riderStatus, setRiderStatus] = useState<RiderStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccountReady, setIsAccountReady] = useState(false);
+  const [accountError, setAccountError] = useState('');
   const [hasDriverProfile, setHasDriverProfile] = useState(false);
 
   const fetchRiderStatus = async (): Promise<RiderStatus | null> => {
     try {
+      const expectedToken = await getStoredToken();
       const res = await algorithmApi.getRiderStatus();
+      if (!expectedToken || await getStoredToken() !== expectedToken) return null;
       const status = res.data?.data || res.data;
       setRiderStatus(status);
       await storeSensitiveJson('riderStatus', status);
@@ -83,29 +90,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Check whether a driver profile exists on the backend for the current user.
-   * A driver profile and approved KYC are separate server-side checks.
-   */
-  const checkDriverProfile = async (currentUser?: User | null) => {
-    if (currentUser?.role?.trim().toLowerCase() !== 'driver' || currentUser.isActive !== true) {
-      setHasDriverProfile(false);
-      return false;
-    }
-
+  const refreshAccount = async (): Promise<User> => {
+    const expectedToken = await getStoredToken();
     try {
-      const res = await driverApi.getProfile();
-      const profile = res.data?.data || res.data?.profile || res.data;
-      if (profile && (profile.plateNumber || profile.nid || profile._id)) {
-        setHasDriverProfile(true);
-        return true;
-      }
+      if (!expectedToken) throw new Error('Sign in to continue.');
+      const response = await usersApi.getMe();
+      const account = response.data?.data || response.data?.user || response.data;
+      if (!(account?.id || account?._id) || !account?.role) throw new Error('Account information is incomplete. Please retry.');
+      if (await getStoredToken() !== expectedToken) throw new Error('Your session changed. Please sign in again.');
+      const resolved = { ...account, id: String(account.id || account._id) };
+      await storeSensitiveJson('user', resolved);
+      setUser(resolved);
+      setHasDriverProfile(resolved.hasDriverProfile === true);
+      setAccountError('');
+      setIsAccountReady(true);
+      if (resolved.role === 'driver' && resolved.isActive && resolved.isVerified && resolved.registrationPaid) void fetchRiderStatus();
+      return resolved;
     } catch (error) {
-      if (!axios.isAxiosError(error) || error.response?.status !== 404) {
-        console.warn('Unable to check driver profile', error);
+      if (expectedToken && await getStoredToken() === expectedToken) {
+        setAccountError(getApiErrorMessage(error));
+        setIsAccountReady(false);
       }
+      throw error;
     }
-    return false;
   };
 
   useEffect(() => {
@@ -119,30 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const cachedStatus = await getSensitiveJson<RiderStatus>('riderStatus');
           if (cachedStatus) setRiderStatus(cachedStatus);
           try {
-            const res = await usersApi.getMe();
-            if (res.data?.user) {
-              resolvedUser = res.data.user;
-              setUser(resolvedUser);
-              await storeSensitiveJson('user', resolvedUser);
-            } else if (res.data?.data) {
-              resolvedUser = res.data.data;
-              setUser(resolvedUser);
-              await storeSensitiveJson('user', resolvedUser);
-            } else if (res.data) {
-              resolvedUser = res.data;
-              setUser(resolvedUser);
-              await storeSensitiveJson('user', resolvedUser);
-            }
-            // If kycLevel is not yet 'full', verify against the actual driver profile
-            if (resolvedUser?.role?.trim().toLowerCase() === 'driver' && resolvedUser.kycLevel !== 'full') {
-              await checkDriverProfile(resolvedUser);
-            } else if (resolvedUser?.role?.trim().toLowerCase() === 'driver' && resolvedUser.kycLevel === 'full') {
-              setHasDriverProfile(true);
-            } else {
-              setHasDriverProfile(false);
-            }
-            // Fetch rider status in background after user data loads
-            fetchRiderStatus();
+            await refreshAccount();
           } catch (apiErr) {
             // Only a confirmed authentication failure invalidates the session.
             if (axios.isAxiosError(apiErr) && apiErr.response?.status === 401) {
@@ -152,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setRiderStatus(null);
               setHasDriverProfile(false);
             } else {
-              console.warn(`Unable to refresh session; using secure cached state. ${getApiErrorMessage(apiErr)}`);
+              console.warn(`Unable to refresh session; account refresh is required before continuing. ${getApiErrorMessage(apiErr)}`);
             }
           }
         }
@@ -172,19 +156,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (newToken: string, newUser: User) => {
     await storeToken(newToken);
+    setRiderStatus(null);
+    await storeSensitiveJson('riderStatus', null);
     await storeSensitiveJson('user', newUser);
     setToken(newToken);
     setUser(newUser);
-    // Await the profile check so hasDriverProfile is resolved before routing evaluates
-    if (newUser.role?.trim().toLowerCase() !== 'driver') {
-      setHasDriverProfile(false);
-    } else if (newUser.kycLevel !== 'full') {
-      await checkDriverProfile(newUser);
-    } else {
-      setHasDriverProfile(true);
-    }
-    // Fetch rider status immediately after login
-    fetchRiderStatus();
+    setIsAccountReady(false);
+    await refreshAccount().catch(() => { /* Welcome displays the refresh error and retry action. */ });
   };
 
   const register = async (newToken: string, newUser: User) => {
@@ -199,6 +177,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRiderStatus(null);
     setHasDriverProfile(false);
+    setIsAccountReady(false);
+    setAccountError('');
   };
 
   const updateUser = async (updates: Partial<User>) => {
@@ -216,6 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       riderStatus,
       isAuthenticated: !!token,
       isLoading,
+      isAccountReady,
+      accountError,
+      refreshAccount,
       hasDriverProfile,
       login,
       logout,
