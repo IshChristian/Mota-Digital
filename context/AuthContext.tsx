@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (await getStoredToken() !== expectedToken) throw new Error('Your session changed. Please sign in again.');
       const resolved = { ...account, id: String(account.id || account._id) };
       try {
-        const online = await autoOnline.current!.run(resolved, expectedToken, getStoredToken, () => driverApi.updateAvailability({ isOnline: true }));
+        const online = await autoOnline.current!.run(resolved, expectedToken, getStoredToken, () => driverApi.updateAvailability({ isOnline: true, automatic: true }));
         if (online === true) resolved.isOnline = true;
       } catch (error) {
         if (await getStoredToken() === expectedToken) Alert.alert('Unable to go online automatically', getApiErrorMessage(error));

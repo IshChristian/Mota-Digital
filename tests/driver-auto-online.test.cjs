@@ -35,7 +35,12 @@ test("full KYC driver goes online once; refresh preserves manual offline", async
     true,
   );
   assert.equal(
-    await service.run(driver, "token", async () => "token", go),
+    await service.run(
+      { ...driver, availabilityManuallyOffline: true },
+      "token",
+      async () => "token",
+      go,
+    ),
     undefined,
   );
   assert.equal(calls, 1);
@@ -128,7 +133,7 @@ test("late result for an old session is ignored", async () => {
     undefined,
   );
 });
-test("failed online request is reported without a refresh retry loop", async () => {
+test("failed online request can retry on the next account refresh", async () => {
   const service = factory();
   let calls = 0;
   const go = async () => {
@@ -139,11 +144,11 @@ test("failed online request is reported without a refresh retry loop", async () 
     service.run(driver, "token", async () => "token", go),
     /Document expired/,
   );
-  assert.equal(
-    await service.run(driver, "token", async () => "token", go),
-    undefined,
+  await assert.rejects(
+    service.run(driver, "token", async () => "token", go),
+    /Document expired/,
   );
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 test("success is accepted only when backend confirms online", async () => {
   await assert.rejects(
@@ -155,4 +160,30 @@ test("success is accepted only when backend confirms online", async () => {
     ),
     /did not confirm/,
   );
+});
+test("restored manually-offline session stays offline", async () => {
+  let calls = 0;
+  await factory().run(
+    { ...driver, availabilityManuallyOffline: true },
+    "token",
+    async () => "token",
+    async () => {
+      calls++;
+      return { data: { isOnline: true } };
+    },
+  );
+  assert.equal(calls, 0);
+});
+test("already-online account does not send another availability request", async () => {
+  let calls = 0;
+  await factory().run(
+    { ...driver, isOnline: true },
+    "token",
+    async () => "token",
+    async () => {
+      calls++;
+      return { data: { isOnline: true } };
+    },
+  );
+  assert.equal(calls, 0);
 });

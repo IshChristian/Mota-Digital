@@ -24,7 +24,7 @@ import { useEffect } from "react";
 import { AppAlert, type AlertType } from "@/components/AppAlert";
 
 export default function DashboardScreen() {
-  const { user, riderStatus: cachedRiderStatus } = useAuth();
+  const { user, updateUser, riderStatus: cachedRiderStatus } = useAuth();
   const t = useT();
   const router = useExpoRouter();
   const insets = useSafeAreaInsets();
@@ -79,11 +79,13 @@ export default function DashboardScreen() {
     try {
       const newState = !isOnline;
       const response = await driverApi.updateAvailability({ isOnline: newState });
-      setIsOnline(Boolean(response.data?.isOnline));
+      if (response.data?.isOnline !== newState) throw new Error("The server did not confirm the availability change. Please retry.");
+      setIsOnline(newState);
+      await updateUser({ isOnline: newState, availabilityManuallyOffline: !newState });
       void refetchDash();
       setAvailabilityFeedback({ type: "success", title: newState ? "You're online" : "You're offline", message: newState ? "You can now receive ride requests." : "You won't receive new ride requests." });
     } catch (error: any) {
-      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message: error?.response?.data?.message || "Could not update your status. Check your connection and try again." });
+      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message: error?.response?.data?.message || error?.message || "Could not update your status. Check your connection and try again." });
     } finally {
       setToggling(false);
     }
