@@ -1,12 +1,14 @@
 type DriverAccount = {
   role: string;
+  isOnline?: boolean;
+  availabilityManuallyOffline?: boolean;
   kycLevel?: string;
   isActive?: boolean;
   isVerified?: boolean;
   registrationPaid?: boolean;
 };
 
-// One attempt per eligible login. Account refresh must not undo manual offline.
+// Reconcile confirmed account status while respecting saved manual offline.
 export function createDriverAutoOnline() {
   let attemptedToken: string | null = null;
   let pending: Promise<boolean | undefined> | null = null;
@@ -23,14 +25,15 @@ export function createDriverAutoOnline() {
     ): Promise<boolean | undefined> {
       if (
         account.role !== "driver" ||
+        account.isOnline === true ||
+        account.availabilityManuallyOffline === true ||
         account.kycLevel !== "full" ||
         !account.isActive ||
         !account.isVerified ||
         !account.registrationPaid
       )
         return Promise.resolve(undefined);
-      if (attemptedToken === token)
-        return pending ?? Promise.resolve(undefined);
+      if (attemptedToken === token && pending) return pending;
       attemptedToken = token;
       const request = (async () => {
         if ((await currentToken()) !== token) return undefined;

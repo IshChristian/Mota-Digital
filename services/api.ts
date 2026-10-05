@@ -123,7 +123,7 @@ export const driverApi = {
   payFine: (data: { fineId: string; paymentAmount: number }) =>
     api.post("/driver/pay-fine", data),
   requestFine: (data: any) => api.post("/driver/request-fine", data),
-  updateAvailability: (data: { isOnline: boolean }) =>
+  updateAvailability: (data: { isOnline: boolean; automatic?: boolean }) =>
     api.put("/driver/availability", data),
   updateLocation: (data: { latitude: number; longitude: number }) =>
     api.put("/driver/location", data),
