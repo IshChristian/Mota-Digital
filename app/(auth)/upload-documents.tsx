@@ -1,11 +1,20 @@
 import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Image, Platform } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  Image,
+  Platform,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "@/services/cloudinary";
 
 type DocType = "insuranceAttachment" | "permitAttachment";
@@ -33,27 +42,34 @@ export default function UploadDocumentsScreen() {
 
   const pickAndUpload = async (key: DocType) => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Please grant camera roll access to upload documents.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({ base64: true,
-        mediaTypes: ['images'],
-        quality: 0.85,
-        allowsEditing: false,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+        multiple: false,
       });
 
       if (result.canceled) return;
       const asset = result.assets[0];
 
-      setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
+      setDoc(key, {
+        uri: asset.uri,
+        url: undefined,
+        uploading: true,
+        error: undefined,
+      });
 
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined, asset.base64);
+      const url = await uploadToCloudinary(
+        asset.uri,
+        "mota-docs",
+        asset.name,
+        asset.mimeType || "application/octet-stream",
+      );
       setDoc(key, { url, uploading: false });
     } catch (err: any) {
-      setDoc(key, { uploading: false, error: err?.message || "Upload failed. Tap to retry." });
+      setDoc(key, {
+        uploading: false,
+        error: err?.message || "Upload failed. Tap to retry.",
+      });
     }
   };
 
@@ -106,12 +122,10 @@ export default function UploadDocumentsScreen() {
             {doc.error
               ? doc.error
               : done
-              ? "Uploaded successfully ✓"
-              : description}
+                ? "Uploaded successfully ✓"
+                : description}
           </Text>
-          {doc.uri && !doc.url && !doc.uploading && (
-            <Text style={s.uploadingText}>Uploading...</Text>
-          )}
+          {doc.uploading && <Text style={s.uploadingText}>Uploading...</Text>}
         </View>
         {!done && !doc.uploading && (
           <View style={s.uploadBtn}>
@@ -125,7 +139,10 @@ export default function UploadDocumentsScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={[
+        s.container,
+        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 },
+      ]}
     >
       <View style={s.headerRow}>
         <Text style={s.step}>Step 1 of 2</Text>
