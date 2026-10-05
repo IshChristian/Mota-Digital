@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking, ScrollView } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -223,7 +223,7 @@ export default function ActiveRideScreen() {
         </View>
       </View>
 
-      <ScrollView style={s.bottomSheet} contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+      <View style={s.bottomSheet}>
         {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         {/* State: Approaching */}
@@ -287,7 +287,7 @@ export default function ActiveRideScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -316,13 +316,13 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   floatingNavText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
   mapOverlay: { position: "absolute", bottom: 16, left: 16, right: 16, backgroundColor: colors.backgroundCard, padding: 12, borderRadius: 12, elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
   overlayText: { fontFamily: "Inter_600SemiBold", color: colors.textPrimary, fontSize: 13 },
-  bottomSheet: { backgroundColor: colors.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "55%", flexGrow: 0, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
+  bottomSheet: { backgroundColor: colors.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
   sheetTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 4 },
   sheetSub: { fontSize: 14, fontFamily: "Inter_500Medium", color: colors.textSecondary, marginBottom: 16 },
   actionsRow: { flexDirection: "row", gap: 16, marginBottom: 20 },
   iconBtn: { backgroundColor: `${colors.primary}15`, padding: 12, borderRadius: 12 },
-  primaryBtn: { backgroundColor: colors.primary, minHeight: 52, paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, alignItems: "center" },
-  primaryBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center", flexShrink: 1 },
+  primaryBtn: { backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  primaryBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
   pinInput: { backgroundColor: colors.inputBg, color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center", padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 20, letterSpacing: 10 },
   errorText: { color: "#E63946", fontFamily: "Inter_500Medium", marginBottom: 12, textAlign: "center" },
   fareBox: { backgroundColor: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.05)", padding: 16, borderRadius: 12, marginBottom: 20, alignItems: "center", borderWidth: 1, borderColor: isDark ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.3)" },

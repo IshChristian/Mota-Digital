@@ -393,13 +393,11 @@ export const transferApi = {
 
 // ─── Fuel Vouchers (Tier 3+) ────────────────────────────────────────────────
 export const fuelVoucherApi = {
-  /** Submit a MoMo fuel support request. */
-  claimMoMo: (key?: string) => api.post("/fuel-vouchers/claim-momo", {}, { headers: key ? { "Idempotency-Key": key } : {} }),
+  /** Claim a MoMo fuel voucher (1k RWF to MoMo for 1525#) */
+  claimMoMo: () => api.post("/fuel-vouchers/claim-momo"),
 
-  /** Request a QR voucher for approved MOTA partners. */
-  claimQR: (key?: string) => api.post("/fuel-vouchers/claim-qr", {}, { headers: key ? { "Idempotency-Key": key } : {} }),
-  getVoucher: (id: string) => api.get(`/fuel-vouchers/${id}`),
-  getStations: () => api.get("/fuel-vouchers/stations"),
+  /** Generate a QR fuel voucher for Rubis stations */
+  claimQR: () => api.post("/fuel-vouchers/claim-qr"),
 
   /** Get today's voucher usage/limits */
   getDailyStatus: () => api.get("/fuel-vouchers/daily-status"),

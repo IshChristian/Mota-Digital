@@ -10,7 +10,7 @@ import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OpenStreetMapView } from '@/components/OpenStreetMapView';
 import { GoogleMapWebView } from '@/components/GoogleMapWebView';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useT } from '@/context/I18nContext';
 import { formatPlace } from '@/utils/formatPlace';
 import { AppAlert } from '@/components/AppAlert';
@@ -252,7 +252,7 @@ export default function PassengerHomeScreen() {
           if (['accepted', 'approaching', 'arrived', 'start_requested', 'in_progress', 'stop_requested', 'awaiting_payment'].includes(status)) {
             setServerRideStatus(status);
             setServerPaymentStatus(ride.paymentStatus || 'pending');
-            setAcceptedDriver([ride.driver, ride.driverId, ride.assignedDriver].find(value => value && typeof value === 'object') || null);
+            setAcceptedDriver(ride.driverId || ride.driver || ride.assignedDriver);
             // The status endpoint supplies the driver's location timestamp after acceptance.
             setRideState("accepted");
             clearInterval(interval);
@@ -290,7 +290,6 @@ export default function PassengerHomeScreen() {
           }
           setServerRideStatus(status);
           setServerPaymentStatus(ride.paymentStatus || 'pending');
-          setAcceptedDriver([ride.driver, ride.driverId, ride.assignedDriver].find(value => value && typeof value === 'object') || null);
           const location = ride.driverId?.lastLocation || ride.driver?.lastLocation;
           const capturedAt = Date.parse(ride.driverId?.lastLocationAt || ride.driver?.lastLocationAt || '');
           if (location?.latitude != null && location?.longitude != null && Number.isFinite(capturedAt) && Date.now() - capturedAt < 30000 && capturedAt <= Date.now() + 5000) {
@@ -422,7 +421,7 @@ export default function PassengerHomeScreen() {
     }
   };
 
-  const updateSchedule = (_event: unknown, value: Date) => {
+  const updateSchedule = (_event: DateTimePickerEvent, value?: Date) => {
     setSchedulePicker(null);
     if (!value) return;
     setScheduledAt(value);
@@ -568,7 +567,7 @@ export default function PassengerHomeScreen() {
       ) : null}
       {!mapReady ? <View style={[s.mapLoading, { pointerEvents: 'none' }]}><ActivityIndicator color={colors.primary} /><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'} map…</Text></View> : null}
       {mapError ? <TouchableOpacity style={s.mapError} onPress={() => { setMapError(null); setMapReady(false); setMapProvider(current => current === 'google' ? 'openstreetmap' : 'google'); }}><Text style={s.mapErrorText}>{mapError} • switch server</Text></TouchableOpacity> : null}
-      <View style={[s.mapServerSwitch, { top: insets.top + 88 }]}>
+      <View style={s.mapServerSwitch}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Use map server 1 OpenStreetMap" onPress={() => { setMapReady(false); setMapError(null); setMapProvider('openstreetmap'); }} style={[s.serverButton, mapProvider === 'openstreetmap' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>Server 1</Text><Text style={[s.serverCaption, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>OpenMap</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Use map server 2 Google Maps" onPress={() => { setMapReady(false); setMapError(null); setMapProvider('google'); }} style={[s.serverButton, mapProvider === 'google' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'google' && s.serverButtonTextActive]}>Server 2</Text><Text style={[s.serverCaption, mapProvider === 'google' && s.serverButtonTextActive]}>Google</Text></TouchableOpacity>
       </View>
@@ -581,8 +580,8 @@ export default function PassengerHomeScreen() {
             <Feather name="arrow-left" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center', marginRight: 40 }}>
-             <Text style={s.navTitle}>{serverRideStatus === 'awaiting_payment' ? 'Payment confirmation' : serverRideStatus === 'stop_requested' ? 'Confirm arrival' : serverRideStatus === 'in_progress' ? 'Ride in progress' : 'Your driver is coming'}</Text>
-             <Text style={s.navSubtitle}>{['in_progress', 'stop_requested', 'awaiting_payment'].includes(serverRideStatus) ? 'Your current ride' : 'Preparing your pickup'}</Text>
+             <Text style={s.navTitle}>Ride in progress</Text>
+             <Text style={s.navSubtitle}>Heading to destination</Text>
           </View>
         </View>
       ) : (
@@ -638,7 +637,6 @@ export default function PassengerHomeScreen() {
             <View style={s.sheetHandle} />
             <Text style={s.sheetHint}>Swipe up for ride options · down to view more map</Text>
           </View>
-          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
 
           {rideState === "idle" && (
             <View style={s.idleState}>
@@ -840,7 +838,7 @@ export default function PassengerHomeScreen() {
                     </View>
                   </View>
                 )}
-                {schedulePicker ? <DateTimePicker value={scheduledAt} mode={schedulePicker} minimumDate={new Date()} minuteInterval={5} onValueChange={updateSchedule} onDismiss={() => setSchedulePicker(null)} /> : null}
+                {schedulePicker ? <DateTimePicker value={scheduledAt} mode={schedulePicker} minimumDate={new Date()} minuteInterval={5} onChange={updateSchedule} /> : null}
               </View>
               
               <View style={[s.whiteCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}><Feather name="credit-card" size={20} color={colors.primary} /><View style={{ marginLeft: 12, flex: 1 }}><Text style={s.payText}>Payment from MOTA Wallet</Text><Text style={s.cardSub}>Your balance is verified before submitting the request.</Text></View></View>
@@ -882,8 +880,8 @@ export default function PassengerHomeScreen() {
           {rideState === "accepted" && (
             <View style={s.cardStack}>
               <View style={s.whiteCard}>
-                 <Text style={s.cardTitle}>Driver: {acceptedDriver?.firstName || 'Assigned driver'} {acceptedDriver?.lastName || ''}</Text>
-                 <Text style={s.cardSub}>Plate: {acceptedDriver?.plate || acceptedDriver?.plateNumber || 'Not provided'} • {vehicleType === 'car' ? '🚗' : '🏍️'} MOTA {vehicleType === 'car' ? 'Car' : 'Standard'}</Text>
+                 <Text style={s.cardTitle}>Driver: {acceptedDriver?.firstName || 'Your Rider'} {acceptedDriver?.lastName || ''}</Text>
+                 <Text style={s.cardSub}>Plate: {acceptedDriver?.plate || 'N/A'} • {vehicleType === 'car' ? '🚗' : '🏍️'} MOTA {vehicleType === 'car' ? 'Car' : 'Standard'}</Text>
                  <Text style={[s.cardSub, { marginTop: 8 }]}>Destination: {destination}</Text>
                  <Text accessibilityLiveRegion="polite" style={[s.cardSub, { marginTop: 8 }]}>{driverPos && trackingNow - driverPos.updatedAt < 30000 ? "Driver location updating" : "Waiting for a current driver location"}</Text>
                  {!!rideNotice && <Text accessibilityRole="alert" style={[s.cardSub, { color: '#991B1B', marginTop: 8 }]}>{rideNotice}</Text>}
@@ -913,18 +911,17 @@ export default function PassengerHomeScreen() {
                    </View>
                  </View>
 
-                 {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { try { if (rideId) await ridesApi.confirmStart(rideId); } catch (error: any) { setScreenFeedback({ title: 'Start could not be confirmed', message: error?.response?.data?.message || error?.message || 'Please retry.' }); } }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
+                 {serverRideStatus === 'start_requested' && <TouchableOpacity style={[s.primaryBtn, { marginTop: 18 }]} onPress={async () => { if (rideId) await ridesApi.confirmStart(rideId); }}><Text style={s.primaryBtnText}>Confirm Start Ride</Text></TouchableOpacity>}
                  {serverRideStatus === 'stop_requested' && <TouchableOpacity disabled={confirmingStop} style={[s.primaryBtn, { marginTop: 18, opacity: confirmingStop ? .6 : 1 }]} onPress={() => void handleConfirmStop()}><Text style={s.primaryBtnText}>{confirmingStop ? 'Confirming…' : 'Confirm Destination Reached'}</Text></TouchableOpacity>}
                  {serverRideStatus === 'awaiting_payment' && <View style={[s.whiteCard, { marginTop: 18 }]}><Text style={s.cardTitle}>{serverPaymentStatus === 'successful' ? 'Payment confirmed' : 'Awaiting payment confirmation'}</Text><Text style={s.cardSub}>{serverPaymentStatus === 'successful' ? 'Your fare has been confirmed. The driver can now finish the ride.' : 'Your ride has ended. Payment is still pending confirmation.'}</Text></View>}
 
-                 <View style={{ gap: 12, marginTop: 12 }}>
-                   {['accepted', 'approaching', 'arrived'].includes(serverRideStatus) ? <TouchableOpacity style={[s.primaryBtn, { backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Cancel request</Text></TouchableOpacity> : null}
-                   <TouchableOpacity style={[s.primaryBtn, { marginTop: 0 }]} onPress={() => rideId && router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id: rideId } } as any)}><Text style={s.primaryBtnText}>View ride details</Text></TouchableOpacity>
+                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                   {['accepted', 'approaching', 'arrived'].includes(serverRideStatus) ? <TouchableOpacity style={[s.primaryBtn, { flex: 1, backgroundColor: '#F3F4F6', marginTop: 0 }]} onPress={handleCancel}><Text style={[s.primaryBtnText, { color: '#111827' }]}>Cancel request</Text></TouchableOpacity> : null}
+                   <TouchableOpacity style={[s.primaryBtn, { flex: 1, marginTop: 0 }]} onPress={() => rideId && router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id: rideId } } as any)}><Text style={s.primaryBtnText}>View ride details</Text></TouchableOpacity>
                  </View>
               </View>
             </View>
           )}
-          </ScrollView>
         </LinearGradient>
       </Animated.View>
       <Modal transparent visible={cancelModalVisible} animationType="fade" onRequestClose={() => setCancelModalVisible(false)}>
@@ -980,7 +977,7 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   mapLoadingText: { color: '#111827', fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   mapError: { position: 'absolute', top: '45%', alignSelf: 'center', backgroundColor: '#991B1B', borderRadius: 12, padding: 12, zIndex: 20 },
   mapErrorText: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  mapServerSwitch: { position: 'absolute', top: 98, right: 16, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 14, padding: 4, zIndex: 30, elevation: 10 },
+  mapServerSwitch: { position: 'absolute', top: 98, right: 16, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 14, padding: 4, zIndex: 50, elevation: 10 },
   serverButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, alignItems: 'center', minWidth: 74 },
   serverButtonActive: { backgroundColor: '#111827' },
   serverButtonText: { color: '#111827', fontFamily: 'Inter_700Bold', fontSize: 12 },
@@ -1020,10 +1017,10 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   bottomSheetGradient: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 8, paddingHorizontal: 20 },
   sheetHandleArea: { minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingTop: 5 },
   sheetHandle: { width: 46, height: 5, backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 3 },
-  sheetHint: { textAlign: 'center', paddingHorizontal: 12, flexShrink: 1, color: 'rgba(255,255,255,0.82)', fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 7, marginBottom: 6 },
+  sheetHint: { color: 'rgba(255,255,255,0.82)', fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 7, marginBottom: 6 },
   
   idleState: { paddingBottom: 10 },
-  formHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, marginBottom: 18 },
+  formHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 18 },
   greetingText: { fontSize: 23, fontFamily: 'Inter_700Bold', color: '#fff' },
   guideText: { color: 'rgba(255,255,255,.82)', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4 },
   clearButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,.45)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9 },
@@ -1036,7 +1033,7 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   vcSub: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter_500Medium', color: '#4B5563', marginTop: 4, flexShrink: 1 },
   
   searchBarContainer: { width: '100%', marginBottom: 10 },
-  searchBarInputBox: { backgroundColor: '#fff', minHeight: 60, paddingVertical: 8, borderRadius: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  searchBarInputBox: { backgroundColor: '#fff', height: 60, borderRadius: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
   searchInput: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", color: '#111827' },
   searchBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, marginLeft: 8 },
   searchBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
@@ -1085,6 +1082,6 @@ const styles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   modalButton: { flex: 1, height: 50 },
 
-  primaryBtn: { backgroundColor: colors.primary, minHeight: 56, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 30, alignItems: "center", justifyContent: "center", marginTop: 24, flexDirection: 'row' },
-  primaryBtnText: { color: "#fff", fontSize: 16, textAlign: "center", flexShrink: 1, fontFamily: "Inter_700Bold" },
+  primaryBtn: { backgroundColor: colors.primary, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginTop: 24, flexDirection: 'row' },
+  primaryBtnText: { color: "#fff", fontSize: 18, fontFamily: "Inter_700Bold" },
 });

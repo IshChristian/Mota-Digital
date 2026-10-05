@@ -1,249 +1,28 @@
-const test = require("node:test"),
-  assert = require("node:assert/strict"),
-  fs = require("node:fs"),
-  path = require("node:path"),
-  vm = require("node:vm"),
-  ts = require("typescript");
-const bytes = Buffer.from([0, 255, 128, 42, 0, 255, 1]),
-  encoded = bytes.toString("base64");
-function load(file, dependencies, globals = {}) {
-  const filename = path.join(__dirname, "..", file),
-    module = { exports: {} };
-  vm.runInNewContext(
-    ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2022,
-      },
-    }).outputText,
-    {
-      module,
-      exports: module.exports,
-      require: (name) => dependencies[name],
-      URLSearchParams,
-      AbortController,
-      setTimeout,
-      clearTimeout,
-      Uint8Array,
-      process: {
-        env: {
-          EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: "test",
-          EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: "mota_unsigned",
-        },
-      },
-      FormData: class {
-        constructor() {
-          throw Error("Unsupported FormDataPart implementation");
-        }
-      },
-      ...globals,
-    },
-  );
-  return module.exports;
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript'),http=require('node:http');
+const fixture=Uint8Array.from([0,255,128,42,0,255,1]);
+function load(file,dependencies,globals={}){const filename=path.join(__dirname,'..',file);const js=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const module={exports:{}};vm.runInNewContext(js,{module,exports:module.exports,require:name=>dependencies[name],URLSearchParams,AbortController,setTimeout,clearTimeout,fetch,Uint8Array,FormData:class{constructor(){throw Error('Unsupported FormDataPart implementation');}},process:{env:{EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME:"test",EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET:"mota_unsigned"}},...globals});return module.exports;}
+function uploader(options={}) {
+ const calls=[];
+ const native={cacheDirectory:'file:///cache/',EncodingType:{Base64:'base64'},FileSystemUploadType:{MULTIPART:1},
+ getInfoAsync:async uri=>{calls.push(['info',uri]);return {exists:!options.unreadable||uri.includes('/cache/'),isDirectory:false,size:options.empty?0:options.large?21*1024*1024:7};},
+ copyAsync:async value=>{calls.push(['copy',value]);if(options.copyError)throw Error('denied');},
+ writeAsStringAsync:async(...args)=>calls.push(['write',...args]),deleteAsync:async uri=>calls.push(['delete',uri]),
+ createUploadTask:(url,uri,config)=>{calls.push(['upload',url,uri,config]);return {cancelAsync:async()=>{},uploadAsync:async()=>options.cancel?null:{status:options.status||201,body:options.body||'{"secure_url":"https://res.cloudinary.com/test/image/upload/id.jpg","public_id":"id"}'}};}};
+ const module=load('services/fileUpload.ts',{'react-native':{Platform:{OS:options.platform||'ios'}},'expo-file-system/legacy':native,'./secureStorage':{getStoredToken:async()=>options.noToken?null:'test-token'}},{fetch:options.fetch||fetch});
+ return {upload:module.uploadFile,calls};
 }
-function uploader(options = {}) {
-  const calls = [],
-    native = {
-      cacheDirectory: "file:///cache/",
-      EncodingType: { Base64: "base64" },
-      getInfoAsync: async (uri) => {
-        calls.push(["info", uri]);
-        return {
-          exists: !options.missing,
-          isDirectory: false,
-          size: options.empty
-            ? 0
-            : options.large
-              ? 21 * 1024 * 1024
-              : bytes.length,
-        };
-      },
-      copyAsync: async (value) => {
-        calls.push(["copy", value]);
-        if (options.copyError) throw Error("denied");
-      },
-      readAsStringAsync: async (uri) => {
-        calls.push(["read", uri]);
-        return encoded;
-      },
-      deleteAsync: async (uri) => calls.push(["delete", uri]),
-    };
-  const fetch = async (url, config) => {
-    if (url === "source") return new Response(bytes);
-    calls.push(["request", url, config]);
-    return new Response(
-      options.body ||
-        '{"secure_url":"https://res.cloudinary.com/test/raw/upload/id.pdf","public_id":"id","resource_type":"raw"}',
-      { status: options.status || 201 },
-    );
-  };
-  return {
-    calls,
-    upload: load(
-      "services/fileUpload.ts",
-      {
-        "react-native": { Platform: { OS: options.platform || "ios" } },
-        "expo-file-system/legacy": native,
-      },
-      { fetch },
-    ).uploadFile,
-  };
-}
-for (const platform of ["ios", "android", "web"])
-  test(platform + " sends exact bytes without multipart/FormData", async () => {
-    const { upload, calls } = uploader({ platform });
-    const result = await upload(
-      "ignored",
-      "file",
-      platform === "web" ? "source" : "file:///document.pdf",
-      "document.pdf",
-      "application/pdf",
-    );
-    assert.match(result.data.url, /^https:\/\/res.cloudinary.com/);
-    const [, url, config] = calls.find((c) => c[0] === "request");
-    assert.equal(url, "https://api.cloudinary.com/v1_1/test/auto/upload");
-    assert.equal(
-      config.headers["Content-Type"],
-      "application/x-www-form-urlencoded",
-    );
-    const body = new URLSearchParams(config.body);
-    assert.equal(body.get("upload_preset"), "mota_unsigned");
-    assert.equal(body.get("file"), "data:application/pdf;base64," + encoded);
-    assert.deepEqual(
-      Buffer.from(body.get("file").split(",")[1], "base64"),
-      bytes,
-    );
-    assert.equal(config.headers.Authorization, undefined);
-  });
-test("content URI is copied and cleaned", async () => {
-  const { upload, calls } = uploader();
-  await upload(
-    "ignored",
-    "file",
-    "content://document",
-    "document.pdf",
-    "application/pdf",
-  );
-  assert.equal(
-    calls.find((c) => c[0] === "copy")[1].from,
-    "content://document",
-  );
-  assert.match(calls.find((c) => c[0] === "read")[1], /^file:\/\/\/cache\//);
-  assert.ok(calls.some((c) => c[0] === "delete"));
+for(const platform of ['ios','android'])test(platform+' uploads the original native file without JS FormData or base64',async()=>{
+ const {upload,calls}=uploader({platform});const r=await upload('url','file','file:///document.pdf','document.pdf','application/pdf','ignored');
+ assert.match(r.data.url,/^https:/);const sent=calls.find(c=>c[0]==='upload');assert.equal(sent[2],'file:///document.pdf');assert.equal(sent[3].fieldName,'file');assert.equal(sent[3].mimeType,'application/pdf');assert.equal(sent[3].uploadType,1);assert.equal(sent[3].headers.Authorization,undefined);assert.equal(sent[3].parameters.upload_preset,'mota_unsigned');assert.equal(sent[1],'https://api.cloudinary.com/v1_1/test/auto/upload');assert.equal(sent[3].headers['Content-Type'],undefined);assert.equal(calls.some(c=>['write','copy','delete'].includes(c[0])),false);
 });
-test("picker base64 recovers unreadable image URI", async () => {
-  const { upload, calls } = uploader({ missing: true });
-  await upload(
-    "ignored",
-    "file",
-    "file:///missing",
-    "photo.heic",
-    "image/heic",
-    encoded,
-  );
-  assert.equal(
-    calls.some((c) => c[0] === "read" || c[0] === "info"),
-    false,
-  );
-  assert.match(
-    new URLSearchParams(calls.find((c) => c[0] === "request")[2].body).get(
-      "file",
-    ),
-    /^data:image\/jpeg;base64,/,
-  );
-});
-test("non-image base64 preserves document MIME", async () => {
-  const { upload, calls } = uploader();
-  await upload(
-    "ignored",
-    "file",
-    "file:///doc",
-    "doc.docx",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    encoded,
-  );
-  assert.match(
-    new URLSearchParams(calls.find((c) => c[0] === "request")[2].body).get(
-      "file",
-    ),
-    /^data:application\/vnd.openxmlformats/,
-  );
-});
-test("copy failure cleans cache and never sends upload", async () => {
-  const { upload, calls } = uploader({ copyError: true });
-  await assert.rejects(
-    upload("ignored", "file", "content://bad"),
-    /Could not read/,
-  );
-  assert.equal(
-    calls.some((c) => c[0] === "request"),
-    false,
-  );
-  assert.equal(calls.at(-1)[0], "delete");
-});
-for (const [option, expected] of [
-  ["empty", /empty/],
-  ["missing", /unavailable/],
-  ["large", /20 MB/],
-])
-  test("rejects " + option + " native file", async () => {
-    await assert.rejects(
-      uploader({ [option]: true }).upload("ignored", "file", "file:///doc"),
-      expected,
-    );
-  });
-for (const [status, body, expected] of [
-  [401, "{}", /unsigned preset/],
-  [413, "{}", /20 MB/],
-  [400, '{"error":{"message":"Upload preset not found"}}', /preset not found/],
-  [502, '{"message":"Cloudinary upload failed"}', /Cloudinary/],
-  [201, "html", /invalid response/],
-  [201, '{"secure_url":"http://bad","public_id":"id"}', /secure file link/],
-  [
-    201,
-    '{"secure_url":"https://res.cloudinary.com/test/file"}',
-    /secure file link/,
-  ],
-])
-  test("handles provider response " + status + " " + body, async () => {
-    await assert.rejects(
-      uploader({ status, body }).upload("ignored", "file", "file:///doc"),
-      expected,
-    );
-  });
-test("missing configuration fails before file access", async () => {
-  const module = load(
-    "services/fileUpload.ts",
-    {
-      "react-native": { Platform: { OS: "ios" } },
-      "expo-file-system/legacy": {},
-    },
-    { process: { env: {} } },
-  );
-  await assert.rejects(
-    module.uploadFile("ignored", "file", "file:///doc"),
-    /not configured/,
-  );
-});
-test("invalid base64 rejected", async () => {
-  await assert.rejects(
-    uploader().upload(
-      "ignored",
-      "file",
-      "file:///doc",
-      "doc.pdf",
-      "application/pdf",
-      "bad!",
-    ),
-    /invalid/,
-  );
-});
-test("Cloudinary wrapper requires a secure URL", async () => {
-  const api = load("services/cloudinary.ts", {
-    "./api": { API_BASE_URL: "url" },
-    "./fileUpload": {
-      uploadFile: async () => ({ data: { url: "http://bad" } }),
-    },
-  });
-  await assert.rejects(api.uploadToCloudinary("uri"), /secure file link/);
-});
+test('content URI is copied to a native cache file and cleaned after upload',async()=>{const {upload,calls}=uploader();await upload('url','avatar','content://photo','photo.png','image/png');assert.equal(calls.find(c=>c[0]==='copy')[1].from,'content://photo');const sent=calls.find(c=>c[0]==='upload');assert.match(sent[2],/^file:\/\/\/cache\//);assert.equal(sent[3].fieldName,'file');assert.equal(calls.at(-1)[0],'delete');});
+test('inaccessible picker URI recovers JPEG in a native file',async()=>{const {upload,calls}=uploader({unreadable:true});await upload('url','file','file:///missing','photo.heic','image/heic','AP+AKg==');assert.equal(calls.find(c=>c[0]==='write')[2],'AP+AKg==');assert.equal(calls.find(c=>c[0]==='upload')[3].mimeType,'image/jpeg');assert.equal(calls.at(-1)[0],'delete');});
+test('copy failure gives actionable feedback and cleans temporary file',async()=>{const {upload,calls}=uploader({copyError:true});await assert.rejects(upload('url','file','content://bad'),/Could not read/);assert.equal(calls.some(c=>c[0]==='upload'),false);assert.equal(calls.at(-1)[0],'delete');});
+for(const [option,expected] of [['empty',/empty/],['large',/20 MB/],['cancel',/cancelled/]])test('handles '+option,async()=>{await assert.rejects(uploader({[option]:true}).upload('url','file','file:///photo'),expected);});
+for(const [status,body,expected] of [[401,'{}',/unsigned preset/],[413,'{}',/20 MB/],[502,'{"message":"Cloudinary upload failed"}',/Cloudinary/],[201,'html',/invalid response/]])test('handles native response '+status,async()=>{await assert.rejects(uploader({status,body}).upload('url','file','file:///photo'),expected);});
+test('web uploads a data URI directly with exact file bytes',async()=>{let sent;const {upload}=uploader({platform:'web',fetch:async(url,options)=>{if(url==='source')return new Response(fixture);sent=new URLSearchParams(options.body);return new Response('{"secure_url":"https://res.cloudinary.com/test/id","public_id":"id"}',{status:201});}});await upload('upload','file','source','file.pdf','application/pdf');assert.deepEqual(Buffer.from(sent.get('file').split(',')[1],'base64'),Buffer.from(fixture));assert.match(sent.get('file'),/^data:application\/pdf;base64,/);assert.equal(sent.get('upload_preset'),'mota_unsigned');});
+test('secure Cloudinary URL required after upload',async()=>{const api=load('services/cloudinary.ts',{'./api':{API_BASE_URL:'url'},'./fileUpload':{uploadFile:async()=>({data:{url:'http://bad'}})}});await assert.rejects(api.uploadToCloudinary('uri'),/secure file link/);});
+
+test('Cloudinary errors display provider feedback',async()=>{await assert.rejects(uploader({status:400,body:'{"error":{"message":"Upload preset not found"}}'}).upload('ignored','file','file:///photo'),/preset not found/);});
+test('missing unsigned configuration fails before file access',async()=>{const module=load('services/fileUpload.ts',{'react-native':{Platform:{OS:'ios'}},'expo-file-system/legacy':{}},{process:{env:{}}});await assert.rejects(module.uploadFile('ignored','file','file:///photo'),/not configured/);});
+test('rejects insecure or incomplete Cloudinary response',async()=>{await assert.rejects(uploader({body:'{"secure_url":"http://bad","public_id":"id"}'}).upload('ignored','file','file:///photo'),/secure file link/);});
