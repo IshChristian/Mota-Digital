@@ -1,0 +1,51 @@
+--- a/build/fork/NavigationContainer.js
++++ b/build/fork/NavigationContainer.js
+@@ -11,6 +11,7 @@
+ const useDocumentTitle_1 = require("./useDocumentTitle");
+ const useLinking_1 = require("./useLinking");
+ const useThenable_1 = require("./useThenable");
++const { useMountedLinkingCallback } = require("./useMountedLinkingCallback");
+ const imperative_api_1 = require("../imperative-api");
+ const native_1 = require("../react-navigation/native");
+ const useLatestCallback_1 = __importDefault(require("../utils/useLatestCallback"));
+@@ -41,11 +42,12 @@
+     (0, useDocumentTitle_1.useDocumentTitle)(refContainer, documentTitle);
+     (0, imperative_api_1.useImperativeApiEmitter)(refContainer);
+     const [lastUnhandledLink, setLastUnhandledLink] = react_1.default.useState();
++    const onUnhandledLinking = useMountedLinkingCallback(setLastUnhandledLink);
+     const { getInitialState } = (0, useLinking_1.useLinking)(refContainer, {
+         enabled: isLinkingEnabled,
+         prefixes: [],
+         ...linking,
+-    }, setLastUnhandledLink);
++    }, onUnhandledLinking);
+     const linkingContext = react_1.default.useMemo(() => ({ options: linking }), [linking]);
+     const unhandledLinkingContext = react_1.default.useMemo(() => ({ lastUnhandledLink, setLastUnhandledLink }), [lastUnhandledLink, setLastUnhandledLink]);
+     const onReadyForLinkingHandling = (0, useLatestCallback_1.default)(() => {
+--- /dev/null
++++ b/build/fork/useMountedLinkingCallback.js
+@@ -0,0 +1,24 @@
++"use strict";
++const React = require("react");
++// Initial URL resolution can finish while React is still rendering/suspending.
++// Store that result without dispatching until this navigation container commits.
++function useMountedLinkingCallback(callback) {
++    const mounted = React.useRef(false);
++    const pending = React.useRef(null);
++    const latest = React.useRef(callback);
++    React.useEffect(() => { latest.current = callback; }, [callback]);
++    React.useEffect(() => {
++        mounted.current = true;
++        if (pending.current !== null) {
++            const value = pending.current.value;
++            pending.current = null;
++            latest.current(value);
++        }
++        return () => { mounted.current = false; };
++    }, []);
++    return React.useCallback((value) => {
++        if (mounted.current) latest.current(value);
++        else pending.current = { value };
++    }, []);
++}
++exports.useMountedLinkingCallback = useMountedLinkingCallback;
