@@ -279,8 +279,8 @@ export const usersApi = {
   deleteAccount: (password: string) =>
     api.delete("/users/account", { data: { password } }),
   /** Upload directly to Cloudinary, then save the confirmed URL on the user. */
-  uploadAvatar: async (uri: string, base64?: string | null): Promise<{ avatarUrl: string }> => {
-    const uploaded = await uploadFile('', 'file', uri, undefined, undefined, base64);
+  uploadAvatar: async (uri: string, base64?: string | null, filename?: string, mimeType?: string): Promise<{ avatarUrl: string }> => {
+    const uploaded = await uploadFile('', 'file', uri, filename, mimeType, base64);
     const response = await api.put('/users/me', { avatarUrl: uploaded.data.url });
     const updated = response.data?.data;
     if (!updated?.avatarUrl) throw new Error('Photo uploaded, but the profile could not be updated. Please retry.');

@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
+import { pickUploadDocument } from "@/services/documentPicker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { kycApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
@@ -77,18 +77,19 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   }, [kind, user?.nationalId]);
   const set = (key: string, value: string) =>
     setForm((v) => ({ ...v, [key]: value }));
+  const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const pick = async (key: string) => {
     if (busy) return;
     try {
       setUploadErrors((previous) => ({ ...previous, [key]: "" }));
-      const result = await DocumentPicker.getDocumentAsync({ type: "*/*", copyToCacheDirectory: true, multiple: false });
-      if (result.canceled) return;
+      const asset = await pickUploadDocument();
+      if (!asset) return;
       setBusy(true);
       setUploadingKey(key);
-      const asset = result.assets[0];
       if (!asset?.uri) throw new Error("No file was selected. Choose a document and retry.");
       const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.name || `${key}.bin`, asset.mimeType || "application/octet-stream");
       set(key, url);
+      setFileNames(previous => ({...previous,[key]:asset.name}));
       setNewUploads((previous) => ({ ...previous, [key]: true }));
       const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
       setMessage(`${label} uploaded successfully. Submit verification to save it for review.`);
@@ -130,6 +131,7 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : form[key] ? <Feather name="file-text" size={24} color={colors.primary} /> : <Feather name={uploadErrors[key] ? "alert-circle" : "upload"} size={22} color={uploadErrors[key] ? cError : colors.textSecondary} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.docTitle}>{label}</Text>
+        {fileNames[key] ? <Text style={s.docSub}>{fileNames[key]}</Text> : null}
         <Text style={[s.docSub, uploadErrors[key] ? s.errorText : form[key] ? s.successText : null]}>
           {uploadingKey === key ? "Uploading file…" : uploadErrors[key] ? `Upload failed: ${uploadErrors[key]} Tap to retry.` : form[key] ? newUploads[key] ? "✓ Upload complete · submit verification to save" : "✓ File uploaded · tap to replace" : "Tap to upload a photo or document (up to 20 MB)"}
         </Text>

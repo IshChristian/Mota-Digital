@@ -26,7 +26,7 @@ const clean = (value: unknown): string => typeof value === "string" && !["null",
 export default function PersonalInfoScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, login, token } = useAuth();
+  const { user, login, token, updateUser } = useAuth();
   const { colors } = useTheme();
 
   const [editing, setEditing] = useState(false);
@@ -94,6 +94,8 @@ export default function PersonalInfoScreen() {
   };
 
   const handleAvatarChange = async () => {
+    if (uploadingAvatar) return;
+    setUploadingAvatar(true);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -108,15 +110,9 @@ export default function PersonalInfoScreen() {
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      setUploadingAvatar(true);
 
-      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64);
-      if (user && token) {
-        await login(token, {
-          ...user,
-          avatarUrl: updated.avatarUrl,
-        });
-      }
+      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64, asset.fileName || undefined, asset.mimeType || undefined);
+      await updateUser({ avatarUrl: updated.avatarUrl });
       setAlert({ visible: true, type: "success", title: "Success", message: "Your profile photo has been updated." });
     } catch (err: any) {
       setAlert({ visible: true, type: "error", title: "Error", message: err.message || "Could not upload profile photo." });

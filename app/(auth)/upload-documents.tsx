@@ -14,12 +14,13 @@ import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as DocumentPicker from "expo-document-picker";
+import { pickUploadDocument } from "@/services/documentPicker";
 import { uploadToCloudinary } from "@/services/cloudinary";
 
 type DocType = "insuranceAttachment" | "permitAttachment";
 
 type DocState = {
+  name?: string;
   uri?: string;
   url?: string;
   uploading: boolean;
@@ -42,17 +43,12 @@ export default function UploadDocumentsScreen() {
 
   const pickAndUpload = async (key: DocType) => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-
-      if (result.canceled) return;
-      const asset = result.assets[0];
+      const asset = await pickUploadDocument();
+      if (!asset) return;
 
       setDoc(key, {
         uri: asset.uri,
+        name: asset.name,
         url: undefined,
         uploading: true,
         error: undefined,
@@ -126,6 +122,7 @@ export default function UploadDocumentsScreen() {
                 : description}
           </Text>
           {doc.uploading && <Text style={s.uploadingText}>Uploading...</Text>}
+          {doc.name ? <Text style={s.docDesc}>{doc.name}</Text> : null}
         </View>
         {!done && !doc.uploading && (
           <View style={s.uploadBtn}>

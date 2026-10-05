@@ -14,6 +14,12 @@ const types: Record<string, string> = {
   tif: "image/tiff",
   tiff: "image/tiff",
   pdf: "application/pdf",
+  txt: "text/plain", csv: "text/csv", json: "application/json", zip: "application/zip",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav",
+
 };
 // Avoid Blob/FormData and btoa assumptions across Expo and browser implementations.
 function encodeBase64(bytes: Uint8Array): string {
@@ -115,18 +121,18 @@ export async function uploadFile(
     "upload.jpg"
   ).replace(/[^a-zA-Z0-9._-]/g, "_");
   let mimeType =
-    selectedMimeType ||
+    (selectedMimeType && selectedMimeType !== "application/octet-stream" ? selectedMimeType : undefined) ||
     types[filename.split(".").pop()?.toLowerCase() || ""] ||
     "application/octet-stream";
   let base64 = selectedBase64 || "";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 120000);
   try {
-    if (base64 && mimeType.startsWith("image/")) {
-      // Expo ImagePicker returns JPEG base64, independently of the source extension.
-      filename = filename.replace(/\.[^.]+$/, "") + ".jpg";
-      mimeType = "image/jpeg";
-    }
+    // ImagePicker may return JPEG bytes for a HEIC source. Detect bytes rather
+    // than relabelling every supplied image (including real PNGs) as JPEG.
+    if (base64.startsWith('/9j/')) mimeType = 'image/jpeg';
+    else if (base64.startsWith('iVBORw0KGgo')) mimeType = 'image/png';
+    else if (base64.startsWith('R0lGOD')) mimeType = 'image/gif';
     if (!base64 && Platform.OS !== "web") base64 = await readNative(uri);
     if (!base64 && Platform.OS === "web") {
       const source = await fetch(uri, { signal: controller.signal });

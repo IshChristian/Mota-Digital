@@ -20,13 +20,14 @@ export default function PassengerProfileScreen() {
 
   const changePhoto = async () => {
     if (photoBusy) return;
+    setPhotoBusy(true);
+    try {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== "granted") return Alert.alert("Photo permission", "Allow access to select a profile photo.");
     const result = await ImagePicker.launchImageLibraryAsync({ base64: true, mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
     if (result.canceled) return;
-    setPhotoBusy(true);
-    try {
-      const updated = await usersApi.uploadAvatar(result.assets[0].uri, result.assets[0].base64);
+      const asset = result.assets[0];
+      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64, asset.fileName || undefined, asset.mimeType || undefined);
       await updateUser({ avatarUrl: updated.avatarUrl });
       Alert.alert("Photo updated", "Your profile photo is ready.");
     } catch (error) { Alert.alert("Photo upload failed", getApiErrorMessage(error)); }
