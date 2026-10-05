@@ -139,7 +139,7 @@ test("picker base64 recovers unreadable image URI", async () => {
     "file:///missing",
     "photo.heic",
     "image/heic",
-    encoded,
+    Buffer.from([255,216,255,0]).toString("base64"),
   );
   assert.equal(
     calls.some((c) => c[0] === "read" || c[0] === "info"),
@@ -246,4 +246,14 @@ test("Cloudinary wrapper requires a secure URL", async () => {
     },
   });
   await assert.rejects(api.uploadToCloudinary("uri"), /secure file link/);
+});
+
+test('PNG base64 remains PNG rather than being labelled JPEG',async()=>{
+ const {upload,calls}=uploader();await upload('ignored','file','file:///photo','photo.png','image/png','iVBORw0KGgo=');
+ assert.match(new URLSearchParams(calls.find(c=>c[0]==='request')[2].body).get('file'),/^data:image\/png;base64,/);
+});
+test('unknown picker MIME uses the document extension, unknown formats use binary MIME',async()=>{
+ for (const [name,mime] of [['report.docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document'],['archive.zip','application/zip'],['custom.xyz','application/octet-stream']]) {
+ const {upload,calls}=uploader();await upload('ignored','file','file:///document',name,'application/octet-stream');assert.equal(new URLSearchParams(calls.find(c=>c[0]==='request')[2].body).get('file'),'data:'+mime+';base64,'+encoded);
+ }
 });

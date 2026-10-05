@@ -12,9 +12,10 @@ import { driverApi, authApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
+import { pickUploadDocument } from "@/services/documentPicker";
 
 type DocState = {
+  name?: string;
   uri?: string;
   url?: string;
   uploading: boolean;
@@ -70,28 +71,12 @@ export default function CreateProfileScreen() {
     key: "insuranceAttachment" | "permitAttachment"
   ) => {
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission needed",
-          "Please grant camera roll access to upload documents."
-        );
-        return;
-      }
+      const asset = await pickUploadDocument();
+      if (!asset) return;
 
-      const result = await ImagePicker.launchImageLibraryAsync({ base64: true,
-        mediaTypes: ['images'],
-        quality: 0.85,
-        allowsEditing: false,
-      });
+      setDoc(key, { uri: asset.uri, name: asset.name, url: undefined, uploading: true, error: undefined });
 
-      if (result.canceled) return;
-      const asset = result.assets[0];
-
-      setDoc(key, { uri: asset.uri, uploading: true, error: undefined });
-
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || undefined, asset.mimeType || undefined, asset.base64);
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.name, asset.mimeType || undefined);
       setDoc(key, { url, uploading: false });
     } catch (err: any) {
       setDoc(key, { uploading: false, error: err?.message || "Upload failed. Tap to retry." });
@@ -211,6 +196,7 @@ export default function CreateProfileScreen() {
               ? "Uploaded successfully ✓"
               : description}
           </Text>
+          {doc.name ? <Text style={s.docDesc}>{doc.name}</Text> : null}
         </View>
         {!done && !doc.uploading && (
           <View style={s.uploadBtnSmall}>

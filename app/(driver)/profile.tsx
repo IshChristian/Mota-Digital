@@ -23,7 +23,7 @@ import { AppAlert } from "@/components/AppAlert";
 import { DriverHeader } from "@/components/driver/DriverUI";
 
 export default function ProfileScreen() {
-  const { user, logout, login, token } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { language, setLanguage } = useI18n();
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -85,6 +85,8 @@ export default function ProfileScreen() {
   };
 
   const handleAvatarChange = async () => {
+    if (avatarUploading) return;
+    setAvatarUploading(true);
     try {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -104,16 +106,10 @@ export default function ProfileScreen() {
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      setAvatarUploading(true);
 
-      // Use backend's multipart avatar endpoint
-      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64);
-      if (user && token) {
-        await login(token, {
-          ...user,
-          avatarUrl: updated.avatarUrl,
-        });
-      }
+      // Save the confirmed Cloudinary image URL to the account
+      const updated = await usersApi.uploadAvatar(asset.uri, asset.base64, asset.fileName || undefined, asset.mimeType || undefined);
+      await updateUser({ avatarUrl: updated.avatarUrl });
       showAlert(
         "success",
         "Photo Updated",

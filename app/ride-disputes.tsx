@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { pickUploadDocument } from "@/services/documentPicker";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
@@ -13,6 +13,7 @@ export default function RideDisputes() {
   const [plateNumber, setPlateNumber] = useState("");
   const [description, setDescription] = useState("");
   const [evidence, setEvidence] = useState<string | null>(null);
+  const [evidenceName, setEvidenceName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const load = useCallback(
@@ -27,20 +28,17 @@ export default function RideDisputes() {
     void load();
   }, [load]);
   const attachEvidence = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
-      setMessage("Allow photo access to attach evidence.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ base64: true, mediaTypes: ["images"], quality: 0.8 });
-    if (result.canceled) return;
+    if (busy) return;
     setBusy(true);
-    setMessage("");
+    setMessage("Selecting evidence…");
     try {
-      const asset = result.assets[0];
-      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.fileName || "evidence.jpg", asset.mimeType || "image/jpeg", asset.base64);
+      const asset = await pickUploadDocument();
+      if (!asset) { setMessage(""); return; }
+      setMessage("Uploading evidence…");
+      const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.name, asset.mimeType || undefined);
       setEvidence(url);
-      setMessage("Evidence attached.");
+      setEvidenceName(asset.name);
+      setMessage("Evidence uploaded successfully. Submit your request to save it.");
     } catch (e: any) {
       setMessage(e?.response?.data?.message || e?.message || "Evidence upload failed. Please try again.");
     } finally {
@@ -69,6 +67,7 @@ export default function RideDisputes() {
       setPlateNumber("");
       setDescription("");
       setEvidence(null);
+      setEvidenceName("");
       setMessage("Your request was submitted. Support will review it.");
       await load();
     } catch (e: any) {
@@ -105,7 +104,7 @@ export default function RideDisputes() {
         placeholderTextColor={colors.textSecondary}
       />
       <TouchableOpacity onPress={attachEvidence} disabled={busy} accessibilityRole="button" style={{ borderWidth: 1, borderColor: colors.border, padding: 14, borderRadius: 12 }}>
-        <Text style={{ color: colors.textPrimary }}>{evidence ? "Evidence photo attached · Change photo" : "Attach evidence photo (optional)"}</Text>
+        <Text style={{ color: colors.textPrimary }}>{evidence ? `Evidence uploaded: ${evidenceName || "file"} · Change file` : "Attach evidence file (optional, up to 20 MB)"}</Text>
       </TouchableOpacity>
       {!!message && <Text accessibilityRole="alert" style={{ color: colors.textPrimary }}>{message}</Text>}
       <TouchableOpacity
