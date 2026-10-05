@@ -1,6 +1,6 @@
 import { getUploadAuthorization } from "./uploadAuthorization";
 import { Platform } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
+import { readNativeUpload } from "./nativeFileReader";
 
 const maxSize = 20 * 1024 * 1024;
 const types: Record<string, string> = {
@@ -55,39 +55,6 @@ function encodeBase64(bytes: Uint8Array): string {
   chunks.push(part);
   return chunks.join("");
 }
-// Read native files as bytes encoded in Base64; never construct multipart objects.
-async function readNative(uri: string): Promise<string> {
-  let temporary: string | undefined;
-  try {
-    let fileUri = uri;
-    if (!uri.startsWith("file://")) {
-      if (!FileSystem.cacheDirectory)
-        throw new Error("Upload storage is unavailable. Restart the app.");
-      temporary = `${FileSystem.cacheDirectory}mota-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      try {
-        await FileSystem.copyAsync({ from: uri, to: temporary });
-      } catch {
-        throw new Error(
-          "Could not read this file. Select a downloaded copy and retry.",
-        );
-      }
-      fileUri = temporary;
-    }
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (!info.exists || info.isDirectory || !info.size)
-      throw new Error("This file is empty or unavailable. Select it again.");
-    if (info.size > maxSize)
-      throw new Error("Choose a file smaller than 20 MB.");
-    return await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  } finally {
-    if (temporary)
-      await FileSystem.deleteAsync(temporary, { idempotent: true }).catch(
-        () => undefined,
-      );
-  }
-}
 function confirmedUpload(payload: any, cloud: string): any {
   const url = payload?.secure_url;
   if (
@@ -136,7 +103,8 @@ export async function uploadFile(
     if (base64.startsWith("/9j/")) mimeType = "image/jpeg";
     else if (base64.startsWith("iVBORw0KGgo")) mimeType = "image/png";
     else if (base64.startsWith("R0lGOD")) mimeType = "image/gif";
-    if (!base64 && Platform.OS !== "web") base64 = await readNative(uri);
+    if (!base64 && Platform.OS !== "web")
+      base64 = await readNativeUpload(uri, maxSize);
     if (!base64 && Platform.OS === "web") {
       const source = await fetch(uri, { signal: controller.signal });
       if (!source.ok)

@@ -80,7 +80,24 @@ function uploader(options = {}) {
       "services/fileUpload.ts",
       {
         "react-native": { Platform: { OS: options.platform || "ios" } },
-        "expo-file-system/legacy": native,
+        "./nativeFileReader": {
+          readNativeUpload: load("services/nativeFileReader.ts", {
+            "expo-file-system/legacy": native,
+            "expo-file-system": {
+              File: class {
+                constructor(uri) {
+                  this.uri = uri;
+                }
+                get size() {
+                  return bytes.length;
+                }
+                async base64() {
+                  return native.readAsStringAsync(this.uri);
+                }
+              },
+            },
+          }).readNativeUpload,
+        },
         "./uploadAuthorization": {
           getUploadAuthorization: async () => {
             if (options.authorizationError)
