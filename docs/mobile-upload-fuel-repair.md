@@ -31,3 +31,9 @@ The responsive screen uses server availability, real QR receipts, history paging
 - Backend regression tests validate missing ride timestamps and fuel allocation/status/authorization.
 
 This workspace has no configured Cloudinary cloud/preset, device/emulator session or live MongoDB. A real-device staging check remains required: select JPEG and PDF, observe confirmed upload, submit KYC and retrieve the saved URL; confirm a legacy ride; request/reopen a QR voucher; have permitted staff redeem once and check savings/history. Check small screens and large accessibility fonts on-device. Automated model tests do not prove production MongoDB concurrency or a real fuel partner payout.
+
+## Fresh welcome and Continue
+
+Session restoration and login fetch the full safe account snapshot before routing. A failed fetch shows Retry and Sign out on the MOTA welcome loader instead of continuing from stale cached verification flags. Server state is shared through AuthContext, including actual KYC status, fee/activation flags and driver-profile existence. Verification, email completion and fee confirmation refresh the snapshot. Continue rechecks it and routes to the missing phone, document or fee step, or to home once required steps are complete. Email remains optional; drivers still pay registration fees and passengers do not.
+
+Full KYC automatically activates pending driver accounts on the backend. An explicitly disabled/suspended account remains disabled. A native rebuild is still required for the earlier document picker addition in this PR.

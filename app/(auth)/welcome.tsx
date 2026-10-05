@@ -10,12 +10,16 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
+import { accountContinuation } from "@/services/accountContinuation";
+import { Alert } from "@/components/GlobalAlert";
 import { Feather } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { isAuthenticated, refreshAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
 
@@ -46,6 +50,10 @@ export default function WelcomeScreen() {
 
       <Text style={s.title}>Choose how you want to use MOTA</Text>
 
+      {isAuthenticated ? <TouchableOpacity style={s.optionCard} onPress={async () => {
+        try { const account = await refreshAccount(); router.replace(accountContinuation(account) as any); }
+        catch (error:any) { Alert.alert("Account check failed", error?.message || "Please retry before continuing."); }
+      }}><Text style={s.optionTitle}>Continue with my account</Text></TouchableOpacity> : null}
       <View style={s.optionsContainer}>
         {/* Passenger Option */}
         <TouchableOpacity

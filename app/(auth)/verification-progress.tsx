@@ -5,12 +5,12 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { kycApi, usersApi } from "@/services/api";
+import { accountContinuation } from "@/services/accountContinuation";
 
 export default function VerificationProgress() {
-  const { user, updateUser, logout } = useAuth();
-  const updateUserRef = useRef(updateUser);
-  updateUserRef.current = updateUser;
+  const { user, refreshAccount, logout } = useAuth();
+  const refreshAccountRef = useRef(refreshAccount);
+  refreshAccountRef.current = refreshAccount;
   const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -21,12 +21,8 @@ export default function VerificationProgress() {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const profile = await usersApi.getMe();
-      if ((profile.data?.data || profile.data?.user)?.isVerified) {
-        const kyc = await kycApi.getMine();
-        setKycStatus(kyc.data?.data?.status || "not_submitted");
-      }
-      await updateUserRef.current(profile.data?.data || profile.data?.user || {});
+      const account = await refreshAccountRef.current();
+      setKycStatus(account.onboarding?.kycStatus || (account.kycLevel === "full" ? "approved" : "not_submitted"));
       setError("");
     } catch (e: any) {
       setError(e?.response?.data?.message || "Could not refresh verification status. Try again.");
@@ -39,7 +35,7 @@ export default function VerificationProgress() {
     { title: "Email address", done: !!user?.isEmailVerified, detail: user?.email ? "Optional — verify when ready" : "Optional — add an email later", route: user?.email ? "/(auth)/verify-email" : undefined },
     { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : user?.isVerified ? "Upload ID, selfie, licence and vehicle documents" : "Verify your phone before uploading documents", route: user?.isVerified ? "/(auth)/driver-kyc" : undefined },
     { title: "Registration fee", done: !!user?.registrationPaid, detail: "5,000 RWF via MoMo after KYC submission", route: ["submitted", "approved"].includes(kycStatus) ? "/(auth)/payment-registration" : undefined },
-    { title: "Account approval", done: user?.registrationStatus === "approved" && !!user?.isActive, detail: "An administrator reviews your driver account", route: undefined },
+    { title: "Account activation", done: user?.kycLevel === "full" && !!user?.isActive, detail: user?.activationBlocked || (user?.registrationStatus === "approved" && !user?.isActive) ? "Account disabled — contact MOTA support" : "Approved full KYC activates your driver account automatically", route: undefined },
   ];
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 32 }]}>
@@ -55,6 +51,12 @@ export default function VerificationProgress() {
     <TouchableOpacity onPress={() => void refresh()} style={[styles.button, { backgroundColor: colors.primary }]} disabled={refreshing}>
       {refreshing ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Refresh status</Text>}
     </TouchableOpacity>
+    <TouchableOpacity disabled={refreshing} onPress={async () => {
+      setRefreshing(true);
+      try { const account = await refreshAccountRef.current(); router.replace(accountContinuation(account) as any); }
+      catch (e:any) { setError(e?.message || "Unable to check your account. Retry before continuing."); }
+      finally { setRefreshing(false); }
+    }} style={[styles.button, { backgroundColor: colors.primary }]}><Text style={styles.buttonText}>{refreshing ? "Checking account…" : "Continue"}</Text></TouchableOpacity>
     <TouchableOpacity onPress={() => void logout()} style={styles.secondary}><Text style={{ color: colors.textSecondary }}>Sign out</Text></TouchableOpacity>
   </ScrollView>;
 }

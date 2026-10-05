@@ -20,7 +20,7 @@ export default function VerifyEmailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ email?: string }>();
   const { colors } = useTheme();
-  const { user, updateUser } = useAuth();
+  const { user, refreshAccount } = useAuth();
 
   const email = params.email || user?.email || "your email";
 
@@ -57,7 +57,7 @@ export default function VerifyEmailScreen() {
     setError("");
     try {
       await authApi.verifyEmailOtp({ email, otp: code });
-      await updateUser({ isEmailVerified: true });
+      await refreshAccount();
       router.back();
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid verification code");
