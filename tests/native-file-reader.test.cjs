@@ -136,3 +136,19 @@ for (const [options, expected] of [
       );
     },
   );
+
+test("screenshot four-slash DocumentPicker URI is normalized before reading", async () => {
+  const h = setup();
+  await h.read(
+    "file:////data/user/0/host.exp.exponent/cache/DocumentPicker/selected.jpg",
+  );
+  assert.equal(
+    h.calls.find((c) => c[0] === "modern")[1],
+    "file:///data/user/0/host.exp.exponent/cache/DocumentPicker/selected.jpg",
+  );
+});
+test("repeated leading slashes in absolute paths are normalized", async () => {
+  const h = setup();
+  await h.read("//data/cache/photo.jpg");
+  assert.equal(h.calls[0][1], "file:///data/cache/photo.jpg");
+});

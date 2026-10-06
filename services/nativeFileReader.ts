@@ -6,8 +6,8 @@ export async function readNativeUpload(
   maxBytes: number,
 ): Promise<string> {
   const uri = selectedUri.startsWith("/")
-    ? `file://${selectedUri}`
-    : selectedUri;
+    ? `file://${selectedUri.replace(/^\/+/, "/")}`
+    : selectedUri.replace(/^file:\/{3,}/i, "file:///");
   let temporary: string | undefined;
   const inspect = async (fileUri: string) => {
     let info;
@@ -32,7 +32,7 @@ export async function readNativeUpload(
   const copyToCache = async () => {
     if (!Legacy.cacheDirectory)
       throw new Error("Upload storage is unavailable. Restart the app.");
-    temporary = `${Legacy.cacheDirectory}mota-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    temporary = `${Legacy.cacheDirectory.replace(/^file:\/{3,}/i, "file:///")}mota-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
       await Legacy.copyAsync({ from: uri, to: temporary });
     } catch {
