@@ -1,0 +1,5 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const moduleExports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('services/notificationPage.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:moduleExports});const parse=moduleExports.notificationPage;
+test('empty inbox has one navigable page',()=>{assert.equal(parse({data:[],totalItems:0,totalPages:0}).totalPages,1)});
+test('keeps server totals when there are several pages',()=>{const value=parse({data:[{_id:'case'}],totalItems:65,totalPages:4});assert.equal(value.totalItems,65);assert.equal(value.totalPages,4);assert.equal(value.items.length,1)});
+test('malformed responses are errors instead of a false empty inbox',()=>{for(const value of [null,'<html>',{}, {data:[],totalItems:-1,totalPages:0},{data:{},totalItems:0,totalPages:0},{data:[],totalItems:0,totalPages:'1'}])assert.throws(()=>parse(value),/Could not read notifications/)});

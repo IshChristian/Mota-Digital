@@ -1,0 +1,14 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const moduleExports = {};
+const source = ts.transpileModule(fs.readFileSync('services/notificationDestination.ts', 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS}}).outputText;
+vm.runInNewContext(source, {exports:moduleExports});
+const route = moduleExports.notificationDestination;
+const id = 'a'.repeat(24);
+test('support notification opens case before related ride', () => assert.equal(route({supportCaseId:id,rideId:id},true), `/info/help?caseId=${id}`));
+test('passenger notification opens passenger ride details', () => assert.equal(route({rideId:id},true), `/(passenger)/ride-details/${id}`));
+test('driver notification opens active ride', () => assert.equal(route({rideId:id},false), `/active-ride?rideId=${id}`));
+test('untrusted identifiers cannot inject routes', () => assert.equal(route({supportCaseId:'../../settings',rideId:'bad?id=1'},false),undefined));

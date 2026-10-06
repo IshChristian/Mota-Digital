@@ -1,3 +1,4 @@
+import { NotificationBell } from "@/components/NotificationBell";
 import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image } from "react-native";
@@ -138,7 +139,7 @@ export default function PassengerProfileScreen() {
         contentContainerStyle={{ paddingBottom: 120, paddingTop: insets.top + 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <PassengerHeader title="Account" subtitle="Safety, payments, and support" action={photo ? <Image source={{ uri: photo }} style={{ width: 42, height: 42, borderRadius: 21 }} /> : <Feather name="user" size={24} color={colors.primary} />} />
+        <PassengerHeader title="Account" subtitle="Safety, payments, and support" action={<View style={{flexDirection:"row",alignItems:"center",gap:8}}><NotificationBell />{photo ? <Image source={{ uri: photo }} style={{ width: 42, height: 42, borderRadius: 21 }} /> : <Feather name="user" size={24} color={colors.primary} />}</View>} />
         {/* Profile Header */}
         <PassengerCard style={s.profileHeader}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change profile photo" disabled={photoBusy} onPress={() => void changePhoto()} style={s.avatar}>

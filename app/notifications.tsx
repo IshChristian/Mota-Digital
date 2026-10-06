@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,47 +8,63 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenHeader } from "@/components/ScreenHeader";
 
-import { notificationsApi } from "@/services/api";
+import { notificationPage } from "@/services/notificationPage";
+import { notificationsApi, getApiErrorMessage } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
+import { isPassengerRole } from "@/constants/roles";
+import { notificationDestination } from "@/services/notificationDestination";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
+  const client = useQueryClient();
+  const [page, setPage] = useState(1),
+    [unread, setUnread] = useState(false);
+  const actionLock = useRef(false);
+  const [actionError, setActionError] = useState("");
   const insets = useSafeAreaInsets();
   const t = useT();
   const { colors } = useTheme();
 
-  const { data, refetch, isFetching } = useQuery({
-    queryKey: ["notifications"],
+  const { data, refetch, isFetching, error } = useQuery({
+    queryKey: ["notifications", user?.id, "list", page, unread],
+    enabled: isAuthenticated,
     queryFn: async () => {
-      let apiNotifs: any[] = [];
-      try {
-        const res = await notificationsApi.getNotifications(1);
-        apiNotifs = res.data?.data || res.data?.notifications || [];
-      } catch (e) {}
-
-      let localNotifs: any[] = [];
-      try {
-        const localStr = await AsyncStorage.getItem("local_notifs");
-        if (localStr) localNotifs = JSON.parse(localStr);
-      } catch (e) {}
-
-      const all = [...localNotifs, ...apiNotifs];
-      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return all;
+      const res = await (unread
+        ? notificationsApi.getUnread(page)
+        : notificationsApi.getNotifications(page));
+      const parsed = notificationPage(res.data);
+      return {
+        ...parsed,
+        items: [...parsed.items].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        ),
+      };
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
+  useEffect(() => {
+    if (data && page > data.totalPages) setPage(data.totalPages);
+  }, [data?.totalPages, page]);
+  useEffect(() => {
+    setPage(1);
+    setActionError("");
+  }, [user?.id]);
   const s = styles(colors);
-  const all = data || [];
-  const promotional = (item: any) => item.metadata?.category === "promotion" || item.type === "promotion" || item.type === "promotional";
+  const all = data?.items || [];
+  const promotional = (item: any) =>
+    item.metadata?.category === "promotion" ||
+    item.type === "promotion" ||
+    item.type === "promotional";
   const sections = [
     { title: "Operational", data: all.filter((item) => !promotional(item)) },
     { title: "Promotional", data: all.filter(promotional) },
@@ -58,51 +74,180 @@ export default function NotificationsScreen() {
     <TouchableOpacity
       style={[s.notificationItem, !item.read && s.unreadItem]}
       onPress={async () => {
-        if (!item.read) {
-          if (String(item.id || "").startsWith("local-")) {
-            try {
-              const localStr = await AsyncStorage.getItem("local_notifs");
-              if (localStr) {
-                const localNotifs = JSON.parse(localStr);
-                const updated = localNotifs.map((n: any) => n.id === item.id ? { ...n, read: true } : n);
-                await AsyncStorage.setItem("local_notifs", JSON.stringify(updated));
-              }
-            } catch (e) {}
-          } else {
-            await notificationsApi.markRead(item._id || item.id);
-          }
-          refetch();
+        if (actionLock.current) return;
+        actionLock.current = true;
+        try {
+          setActionError("");
+          if (!item.read) await notificationsApi.markRead(item._id || item.id);
+          void client.invalidateQueries({
+            queryKey: ["notifications", user?.id],
+          });
+          const destination = notificationDestination(
+            item.metadata,
+            isPassengerRole(user?.role),
+          );
+          if (destination) router.push(destination as any);
+        } catch (e) {
+          setActionError(getApiErrorMessage(e));
+        } finally {
+          actionLock.current = false;
         }
       }}
     >
       <View style={s.iconContainer}>
-        <Feather name="bell" size={20} color={!item.read ? colors.primary : colors.textSecondary} />
+        <Feather
+          name="bell"
+          size={20}
+          color={!item.read ? colors.primary : colors.textSecondary}
+        />
       </View>
       <View style={s.content}>
         <Text style={[s.title, !item.read && s.unreadTitle]}>{item.title}</Text>
         <Text style={s.message}>{item.message}</Text>
-        <Text style={s.time}>{new Date(item.createdAt || Date.now()).toLocaleDateString()}</Text>
+        <Text style={s.time}>
+          {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <View style={s.container}>
-      <View style={{ paddingHorizontal: 18 }}><ScreenHeader title={t("notifications")} close /></View>
+      <View style={{ paddingHorizontal: 18 }}>
+        <ScreenHeader title={t("notifications")} close />
+      </View>
 
+      {(error || actionError) && (
+        <View accessibilityRole="alert" style={{ padding: 18 }}>
+          <Text style={{ color: colors.primary }}>
+            {actionError || getApiErrorMessage(error)}
+          </Text>
+          <TouchableOpacity onPress={() => void refetch()}>
+            <Text style={{ color: colors.primary, paddingVertical: 12 }}>
+              Retry notifications
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          paddingHorizontal: 18,
+          paddingBottom: 12,
+        }}
+      >
+        {[
+          [false, "All updates"],
+          [true, "Unread"],
+        ].map(([value, label]) => (
+          <TouchableOpacity
+            key={String(label)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: unread === value }}
+            onPress={() => {
+              setUnread(value as boolean);
+              setPage(1);
+            }}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: unread === value ? colors.primary : colors.border,
+              backgroundColor:
+                unread === value ? colors.backgroundCard : colors.background,
+              padding: 12,
+            }}
+          >
+            <Text
+              style={{
+                color: unread === value ? colors.primary : colors.textPrimary,
+              }}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <SectionList
         sections={sections}
-        keyExtractor={(item, index) => String(item._id || item.id || `${item.createdAt}-${index}`)}
+        keyExtractor={(item, index) =>
+          String(item._id || item.id || `${item.createdAt}-${index}`)
+        }
         renderItem={renderItem}
-        renderSectionHeader={({ section }) => <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 17, marginBottom: 12, marginTop: 10 }}>{section.title}</Text>}
+        renderSectionHeader={({ section }) => (
+          <Text
+            style={{
+              color: colors.textPrimary,
+              fontFamily: "Inter_700Bold",
+              fontSize: 17,
+              marginBottom: 12,
+              marginTop: 10,
+            }}
+          >
+            {section.title}
+          </Text>
+        )}
         contentContainerStyle={s.listContent}
         refreshing={isFetching}
         onRefresh={refetch}
+        ListFooterComponent={
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingVertical: 20,
+            }}
+          >
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isFetching || page <= 1}
+              onPress={() => setPage(page - 1)}
+            >
+              <Text
+                style={{
+                  color: page <= 1 ? colors.textSecondary : colors.primary,
+                }}
+              >
+                Previous
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ color: colors.textSecondary }}>
+              Page {page} of {data?.totalPages || 1}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isFetching || page >= (data?.totalPages || 1)}
+              onPress={() => setPage(page + 1)}
+            >
+              <Text
+                style={{
+                  color:
+                    page >= (data?.totalPages || 1)
+                      ? colors.textSecondary
+                      : colors.primary,
+                }}
+              >
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
+        }
         ListEmptyComponent={
           <View style={s.emptyState}>
-            <Feather name="bell-off" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
-            <Text style={s.emptyTitle}>No notifications</Text>
-            <Text style={s.emptyText}>You're all caught up!</Text>
+            <Feather
+              name="bell-off"
+              size={48}
+              color={colors.textSecondary}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={s.emptyTitle}>
+              {error ? "Notifications unavailable" : "No notifications"}
+            </Text>
+            <Text style={s.emptyText}>
+              Important account, support and payment updates appear here.
+            </Text>
           </View>
         }
       />
