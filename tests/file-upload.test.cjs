@@ -84,15 +84,19 @@ function uploader(options = {}) {
           readNativeUpload: load("services/nativeFileReader.ts", {
             "expo-file-system/legacy": native,
             "expo-file-system": {
+              Paths: {cache: "file:///cache/"},
               File: class {
-                constructor(uri) {
-                  this.uri = uri;
+                constructor(...parts) {
+                  this.uri = parts.join("");
                 }
                 get size() {
-                  return bytes.length;
+                  return options.large ? 21 * 1024 * 1024 : options.empty ? 0 : bytes.length;
                 }
+                copy(to) { calls.push(["copy", {from:this.uri,to:to.uri}]); if(options.copyError || options.missing) throw Error("permission"); }
+                delete() { calls.push(["delete",this.uri]); }
                 async base64() {
-                  return native.readAsStringAsync(this.uri);
+                  if(options.missing || options.copyError) throw Error("cannot open");
+                  return options.empty ? "" : native.readAsStringAsync(this.uri);
                 }
               },
             },
@@ -151,22 +155,7 @@ for (const platform of ["ios", "android", "web"])
     );
     assert.equal(config.headers.Authorization, undefined);
   });
-test("content URI is copied and cleaned", async () => {
-  const { upload, calls } = uploader();
-  await upload(
-    "ignored",
-    "file",
-    "content://document",
-    "document.pdf",
-    "application/pdf",
-  );
-  assert.equal(
-    calls.find((c) => c[0] === "copy")[1].from,
-    "content://document",
-  );
-  assert.match(calls.find((c) => c[0] === "read")[1], /^file:\/\/\/cache\//);
-  assert.ok(calls.some((c) => c[0] === "delete"));
-});
+test("content URI is read directly and returns secure Cloudinary URL", async()=>{const {upload,calls}=uploader();const response=await upload("ignored","file","content://provider/doc","doc.pdf");assert.match(response.data.url,/^https:\/\/res.cloudinary.com\//);assert.equal(calls.some(c=>c[0]==='copy'),false);});
 test("picker base64 recovers unreadable image URI", async () => {
   const { upload, calls } = uploader({ missing: true });
   await upload(
@@ -209,7 +198,7 @@ test("copy failure cleans cache and never sends upload", async () => {
   const { upload, calls } = uploader({ copyError: true });
   await assert.rejects(
     upload("ignored", "file", "content://bad"),
-    /Could not read/,
+    /Could not open/,
   );
   assert.equal(
     calls.some((c) => c[0] === "request"),
@@ -219,7 +208,7 @@ test("copy failure cleans cache and never sends upload", async () => {
 });
 for (const [option, expected] of [
   ["empty", /empty/],
-  ["missing", /unavailable/],
+  ["missing", /Could not open/],
   ["large", /20 MB/],
 ])
   test("rejects " + option + " native file", async () => {
