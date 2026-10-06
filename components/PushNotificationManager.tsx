@@ -1,8 +1,13 @@
-import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
 
-import { useAuth } from '@/context/AuthContext';
-import { registerForPushNotifications, supportsPushNotifications } from '@/services/pushNotifications';
+import { notificationDestination } from "@/services/notificationDestination";
+import { isPassengerRole } from "@/constants/roles";
+import { useAuth } from "@/context/AuthContext";
+import {
+  registerForPushNotifications,
+  supportsPushNotifications,
+} from "@/services/pushNotifications";
 
 export function PushNotificationManager() {
   const { isAuthenticated, user } = useAuth();
@@ -10,7 +15,9 @@ export function PushNotificationManager() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    registerForPushNotifications().catch((error) => console.warn('Unable to register push notifications', error));
+    registerForPushNotifications().catch((error) =>
+      console.warn("Unable to register push notifications", error),
+    );
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -19,24 +26,38 @@ export function PushNotificationManager() {
     let active = true;
     let removeListener: (() => void) | undefined;
 
-    import('expo-notifications').then((Notifications) => {
-      if (!active) return;
-      const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content.data ?? {};
-        const rideId = typeof data.rideId === 'string' ? data.rideId : null;
-        if (!rideId) return;
-        if (user?.role === 'passenger') router.push({ pathname: '/(passenger)/ride-details/[id]', params: { id: rideId } } as any);
-        else if (data.event === 'rideRequest') router.push(`/ride-request/${rideId}` as any);
-        else router.push({ pathname: '/active-ride', params: { rideId } } as any);
-      });
-      removeListener = () => subscription.remove();
-    }).catch((error) => console.warn('Unable to initialize notification response listener', error));
+    import("expo-notifications")
+      .then((Notifications) => {
+        if (!active) return;
+        const subscription =
+          Notifications.addNotificationResponseReceivedListener((response) => {
+            const data = response.notification.request.content.data ?? {};
+            if (!isAuthenticated) return;
+            const passenger = isPassengerRole(user?.role);
+            const destination = notificationDestination(data, passenger);
+            if (!destination) return;
+            if (
+              !data.supportCaseId &&
+              !passenger &&
+              data.event === "rideRequest"
+            )
+              router.push(`/ride-request/${data.rideId}` as any);
+            else router.push(destination as any);
+          });
+        removeListener = () => subscription.remove();
+      })
+      .catch((error) =>
+        console.warn(
+          "Unable to initialize notification response listener",
+          error,
+        ),
+      );
 
     return () => {
       active = false;
       removeListener?.();
     };
-  }, [router, user?.role]);
+  }, [router, user?.role, isAuthenticated]);
 
   return null;
 }

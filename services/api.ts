@@ -451,7 +451,7 @@ export const agentApi = {
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {
-  /** Upload directly using the shared unsigned Cloudinary transport. */
+  /** Upload directly using the shared signed Cloudinary transport. */
   upload: async (file: { uri: string; name?: string; mimeType?: string; base64?: string | null }) => {
     const data = await uploadFile(`${API_BASE_URL}/uploads`, "file", file.uri, file.name, file.mimeType, file.base64);
     return { data };
@@ -479,3 +479,11 @@ export const financeApi = {
 };
 
 export const referralsApi = { getMine: (page = 1) => api.get("/referrals/me", { params: { page } }), checkRewards: () => api.post("/referrals/check-rewards") };
+
+export const supportApi = {
+  list: (page = 1) => api.get('/support', {params:{page,limit:20}}),
+  details: (id: string) => api.get(`/support/${id}`),
+  create: (data: {subject:string;description:string;category:string;rideId?:string;attachments?:Array<{url:string;name:string}>}) => api.post('/support',data),
+  reply: (id: string,text: string) => api.post(`/support/${id}/messages`,{text}),
+  reopen: (id: string,text: string) => api.post(`/support/${id}/reopen`,{text}),
+};
