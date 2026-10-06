@@ -37,9 +37,9 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (isLoading || (isAuthenticated && !isAccountReady)) return;
-    if (segments[0] === "info") return;
+    if (segments[0] === "info" || (isAuthenticated && segments[0] === "notifications")) return;
 
-    if (segments[0] !== "info" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return;
+    if (segments[0] !== "info" && segments[0] !== "notifications" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
@@ -73,8 +73,8 @@ function RootLayoutNav() {
     }
   }, [isAuthenticated, isLoading, isAccountReady, segments, user]);
 
-  if (segments[0] !== "info" && (isLoading || (isAuthenticated && !isAccountReady))) return <WelcomeLoading error={accountError} onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
-  if (segments[0] !== "info" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return <WelcomeLoading error="Your account is inactive. Contact MOTA support." onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
+  if (segments[0] !== "info" && segments[0] !== "notifications" && (isLoading || (isAuthenticated && !isAccountReady))) return <WelcomeLoading error={accountError} onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
+  if (segments[0] !== "info" && segments[0] !== "notifications" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return <WelcomeLoading error="Your account is inactive. Contact MOTA support." onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
 
   return (
     <>

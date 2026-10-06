@@ -1,3 +1,4 @@
+import { NotificationBell } from "@/components/NotificationBell";
 import { showMessage } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
@@ -189,13 +190,7 @@ export default function DashboardScreen() {
           >
             <Feather name="credit-card" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.iconButton}
-            onPress={() => router.push("/notifications")}
-          >
-            <View style={s.badge} />
-            <Feather name="bell" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <NotificationBell />
         </View>
       </View>
 

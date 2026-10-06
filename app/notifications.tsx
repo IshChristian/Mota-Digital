@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,11 +8,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/components/ScreenHeader";
 
+import { notificationPage } from "@/services/notificationPage";
 import { notificationsApi, getApiErrorMessage } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { isPassengerRole } from "@/constants/roles";
@@ -23,27 +24,43 @@ import { useTheme } from "@/context/ThemeContext";
 export default function NotificationsScreen() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
+  const client = useQueryClient();
+  const [page, setPage] = useState(1),
+    [unread, setUnread] = useState(false);
+  const actionLock = useRef(false);
   const [actionError, setActionError] = useState("");
   const insets = useSafeAreaInsets();
   const t = useT();
   const { colors } = useTheme();
 
   const { data, refetch, isFetching, error } = useQuery({
-    queryKey: ["notifications", user?.id],
+    queryKey: ["notifications", user?.id, "list", page, unread],
     enabled: isAuthenticated,
     queryFn: async () => {
-      const res = await notificationsApi.getNotifications(1);
-      const all = res.data?.data || res.data?.notifications || [];
-      return [...all].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
+      const res = await (unread
+        ? notificationsApi.getUnread(page)
+        : notificationsApi.getNotifications(page));
+      const parsed = notificationPage(res.data);
+      return {
+        ...parsed,
+        items: [...parsed.items].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        ),
+      };
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
+  useEffect(() => {
+    if (data && page > data.totalPages) setPage(data.totalPages);
+  }, [data?.totalPages, page]);
+  useEffect(() => {
+    setPage(1);
+    setActionError("");
+  }, [user?.id]);
   const s = styles(colors);
-  const all = data || [];
+  const all = data?.items || [];
   const promotional = (item: any) =>
     item.metadata?.category === "promotion" ||
     item.type === "promotion" ||
@@ -57,10 +74,14 @@ export default function NotificationsScreen() {
     <TouchableOpacity
       style={[s.notificationItem, !item.read && s.unreadItem]}
       onPress={async () => {
+        if (actionLock.current) return;
+        actionLock.current = true;
         try {
           setActionError("");
           if (!item.read) await notificationsApi.markRead(item._id || item.id);
-          void refetch();
+          void client.invalidateQueries({
+            queryKey: ["notifications", user?.id],
+          });
           const destination = notificationDestination(
             item.metadata,
             isPassengerRole(user?.role),
@@ -68,6 +89,8 @@ export default function NotificationsScreen() {
           if (destination) router.push(destination as any);
         } catch (e) {
           setActionError(getApiErrorMessage(e));
+        } finally {
+          actionLock.current = false;
         }
       }}
     >
@@ -106,6 +129,45 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
         </View>
       )}
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 12,
+          paddingHorizontal: 18,
+          paddingBottom: 12,
+        }}
+      >
+        {[
+          [false, "All updates"],
+          [true, "Unread"],
+        ].map(([value, label]) => (
+          <TouchableOpacity
+            key={String(label)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: unread === value }}
+            onPress={() => {
+              setUnread(value as boolean);
+              setPage(1);
+            }}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: unread === value ? colors.primary : colors.border,
+              backgroundColor:
+                unread === value ? colors.backgroundCard : colors.background,
+              padding: 12,
+            }}
+          >
+            <Text
+              style={{
+                color: unread === value ? colors.primary : colors.textPrimary,
+              }}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <SectionList
         sections={sections}
         keyExtractor={(item, index) =>
@@ -128,6 +190,50 @@ export default function NotificationsScreen() {
         contentContainerStyle={s.listContent}
         refreshing={isFetching}
         onRefresh={refetch}
+        ListFooterComponent={
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingVertical: 20,
+            }}
+          >
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isFetching || page <= 1}
+              onPress={() => setPage(page - 1)}
+            >
+              <Text
+                style={{
+                  color: page <= 1 ? colors.textSecondary : colors.primary,
+                }}
+              >
+                Previous
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ color: colors.textSecondary }}>
+              Page {page} of {data?.totalPages || 1}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={isFetching || page >= (data?.totalPages || 1)}
+              onPress={() => setPage(page + 1)}
+            >
+              <Text
+                style={{
+                  color:
+                    page >= (data?.totalPages || 1)
+                      ? colors.textSecondary
+                      : colors.primary,
+                }}
+              >
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
+        }
         ListEmptyComponent={
           <View style={s.emptyState}>
             <Feather
