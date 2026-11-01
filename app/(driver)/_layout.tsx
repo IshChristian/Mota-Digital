@@ -12,6 +12,7 @@ import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, ridesApi, driverApi } from "@/services/api";
+import { canTrackDriverLocation, createDriverLocationPublisher } from "@/services/driverLocationTracking";
 import { RideRequestModal } from "@/components/RideRequestModal";
 
 export default function TabLayout() {
@@ -21,7 +22,8 @@ export default function TabLayout() {
   const safeAreaInsets = useSafeAreaInsets();
   const t = useT();
   const { colors, isDark } = useTheme();
-  const { token, user } = useAuth();
+  const { token, user, refreshAccount } = useAuth();
+  const [locationRetry, setLocationRetry] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
@@ -46,58 +48,50 @@ export default function TabLayout() {
     }
   };
 
-  // Real-time GPS Location tracking for Driver
+  const trackingAllowed = canTrackDriverLocation(user, token);
+
+  // Only authenticated, activated drivers start GPS publishing.
   useEffect(() => {
-    let sub: any;
+    if (!trackingAllowed) return;
+    let disposed = false;
+    let sub: Location.LocationSubscription | undefined;
+    const publisher = createDriverLocationPublisher(
+      coordinates => driverApi.updateLocation(coordinates),
+      message => {
+        sub?.remove();
+        Alert.alert('Location sharing paused', message, [{text: 'Close', style: 'cancel'}, {text: 'Refresh account', onPress: () => { void refreshAccount().then(() => { if (!disposed) setLocationRetry(value => value + 1); }).catch(() => { if (!disposed) showMessage('Could not refresh your account. Check your connection or sign in again.'); }); }}]);
+      },
+      () => showMessage('Location update delayed. Check your connection; MOTA will retry on the next location update.'),
+    );
     (async () => {
       try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          setLocationStatus("denied");
-          Alert.alert(
-            "GPS Permission Required",
-            "Please allow GPS location access to receive nearby passenger ride requests.",
-          );
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (disposed) return;
+        if (status !== 'granted') {
+          setLocationStatus('denied');
+          Alert.alert('GPS Permission Required', 'Please allow GPS location access to receive nearby passenger ride requests.');
           return;
         }
-
-        let isServicesEnabled = await Location.hasServicesEnabledAsync();
-        if (!isServicesEnabled) {
-          setLocationStatus("off");
-          Alert.alert(
-            "GPS Services Disabled",
-            "Please turn on location services on your device to receive ride requests.",
-          );
-        } else {
-          setLocationStatus("granted");
+        if (!await Location.hasServicesEnabledAsync()) {
+          if (!disposed) { setLocationStatus('off'); Alert.alert('GPS Services Disabled', 'Please turn on location services to receive ride requests.'); }
+          return;
         }
-
-        sub = await Location.watchPositionAsync(
+        if (disposed) return;
+        setLocationStatus('granted');
+        const subscription = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, distanceInterval: 10 },
-          (loc) => {
-            setLocationStatus("granted");
-            void driverApi
-              .updateLocation({
-                latitude: loc.coords.latitude,
-                longitude: loc.coords.longitude,
-              })
-              .catch((error) =>
-                console.warn("Unable to update driver location", error),
-              );
-          },
+          loc => { if (!disposed) void publisher.publish({ latitude: loc.coords.latitude, longitude: loc.coords.longitude }); },
         );
-      } catch (err) {
-        setLocationStatus("off");
+        if (disposed || publisher.isStopped()) subscription.remove(); else sub = subscription;
+      } catch {
+        if (!disposed) setLocationStatus('off');
       }
     })();
-
-    return () => {
-      if (sub) sub.remove();
-    };
-  }, []);
+    return () => { disposed = true; publisher.stop(); sub?.remove(); };
+  }, [trackingAllowed, token, user?.id, locationRetry]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !trackingAllowed) return;
 
     // Use SSE for real-time ride requests
     const url = `${API_BASE_URL.replace("/api", "")}/realtime/driver-events`;
@@ -122,7 +116,7 @@ export default function TabLayout() {
       es.removeAllEventListeners();
       es.close();
     };
-  }, [token]);
+  }, [token, trackingAllowed]);
 
   const handleAcceptRide = async (id: string) => {
     try {
