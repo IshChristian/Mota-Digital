@@ -3,14 +3,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from '../i18n/en';
 import rw from '../i18n/rw';
 import fr from '../i18n/fr';
+import sw from '../i18n/sw';
 
 const translations: Record<string, any> = {
   en,
   rw,
   fr,
+  sw,
 };
 
-type Language = 'en' | 'rw' | 'fr';
+/** Languages offered in Account → Language (native names). */
+export const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'rw', label: 'Kinyarwanda' },
+  { code: 'sw', label: 'Kiswahili' },
+  { code: 'fr', label: 'Français' },
+] as const;
+
+export type Language = 'en' | 'rw' | 'fr' | 'sw';
 
 type I18nContextType = {
   language: Language;
@@ -28,7 +38,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     async function loadLang() {
       try {
         const stored = await AsyncStorage.getItem('app_language');
-        if (stored && ['en', 'rw', 'fr'].includes(stored)) {
+        if (stored && ['en', 'rw', 'fr', 'sw'].includes(stored)) {
           setLanguageState(stored as Language);
         }
       } catch (e) {
@@ -46,17 +56,9 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   };
 
   const t = (key: string, params?: Record<string, string>) => {
-    const keys = key.split('.');
-    let value = translations[language];
-    for (const k of keys) {
-      if (value && typeof value === 'object') {
-        value = value[k];
-      } else {
-        value = undefined;
-        break;
-      }
-    }
-    
+    const lookup = (lang: string) => key.split('.').reduce<any>((node, k) => (node && typeof node === 'object' ? node[k] : undefined), translations[lang]);
+    // Missing Kinyarwanda/French strings fall back to English, never to the raw key.
+    const value = lookup(language) ?? lookup('en');
     let result = (value as string) || key;
     if (params && typeof result === 'string') {
       Object.keys(params).forEach(p => {

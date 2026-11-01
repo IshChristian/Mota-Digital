@@ -5,13 +5,13 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import EventSource from "react-native-sse";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
-import * as Location from "expo-location";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL, ridesApi, driverApi } from "@/services/api";
+import { ridesApi } from "@/services/api";
+import { startDriverTracking, stopBackgroundTracking } from "@/services/driverLocation";
+import { useRealtimeEvent } from "@/hooks/useRealtime";
 import { RideRequestModal } from "@/components/RideRequestModal";
 
 export default function TabLayout() {
@@ -21,7 +21,7 @@ export default function TabLayout() {
   const safeAreaInsets = useSafeAreaInsets();
   const t = useT();
   const { colors, isDark } = useTheme();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
@@ -46,83 +46,40 @@ export default function TabLayout() {
     }
   };
 
-  // Real-time GPS Location tracking for Driver
+  // Location sharing: background updates while online or on a ride (keeps
+  // working with the screen locked); foreground-only if background is refused.
+  const shouldTrack = Boolean(user?.isOnline);
   useEffect(() => {
-    let sub: any;
-    (async () => {
-      try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          setLocationStatus("denied");
-          Alert.alert(
-            "GPS Permission Required",
-            "Please allow GPS location access to receive nearby passenger ride requests.",
-          );
-          return;
-        }
-
-        let isServicesEnabled = await Location.hasServicesEnabledAsync();
-        if (!isServicesEnabled) {
-          setLocationStatus("off");
-          Alert.alert(
-            "GPS Services Disabled",
-            "Please turn on location services on your device to receive ride requests.",
-          );
-        } else {
-          setLocationStatus("granted");
-        }
-
-        sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, distanceInterval: 10 },
-          (loc) => {
-            setLocationStatus("granted");
-            void driverApi
-              .updateLocation({
-                latitude: loc.coords.latitude,
-                longitude: loc.coords.longitude,
-              })
-              .catch((error) =>
-                console.warn("Unable to update driver location", error),
-              );
-          },
-        );
-      } catch (err) {
-        setLocationStatus("off");
+    if (!shouldTrack) { void stopBackgroundTracking(); return; }
+    let stop = () => {};
+    let cancelled = false;
+    startDriverTracking().then((result) => {
+      if (cancelled) { result.stop(); return; }
+      stop = result.stop;
+      setLocationStatus(result.mode === "denied" ? "denied" : result.mode === "off" ? "off" : "granted");
+      if (result.mode === "foreground") {
+        Alert.alert("Allow location \"All the time\"", "MOTA can only share your position while the app is open. Choose \"Allow all the time\" in Settings so passengers can track you with the screen locked.");
       }
-    })();
+    }).catch(() => setLocationStatus("off"));
+    return () => { cancelled = true; stop(); };
+  }, [shouldTrack]);
 
-    return () => {
-      if (sub) sub.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!token) return;
-
-    // Use SSE for real-time ride requests
-    const url = `${API_BASE_URL.replace("/api", "")}/realtime/driver-events`;
-    const es = new EventSource(url, {
-      headers: { Authorization: `Bearer ${token}` },
+  // Ride offers arrive on the shared live connection.
+  useRealtimeEvent("ride_request", (request) => {
+    setIncomingRequest(request);
+    void playLoudNotificationSound();
+  });
+  useRealtimeEvent("rideAssigned", (data) => {
+    setIncomingRequest(null);
+    requestSound.pause();
+    if (data?.rideId) router.push({ pathname: "/active-ride", params: { rideId: String(data.rideId) } } as any);
+  });
+  useRealtimeEvent("ride_request_closed", (data) => {
+    setIncomingRequest((current: any) => {
+      if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { requestSound.pause(); return null; }
+      return current;
     });
-
-    // @ts-ignore
-    es.addEventListener("ride_request", (event: any) => {
-      if (event.data) {
-        try {
-          const req = JSON.parse(event.data);
-          setIncomingRequest(req);
-          playLoudNotificationSound();
-        } catch (e) {
-          console.error("Failed to parse ride_request", e);
-        }
-      }
-    });
-
-    return () => {
-      es.removeAllEventListeners();
-      es.close();
-    };
-  }, [token]);
+  });
 
   const handleAcceptRide = async (id: string) => {
     try {

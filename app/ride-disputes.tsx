@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
-import { pickUploadDocument } from "@/services/documentPicker";
+import { chooseUploadFile } from "@/services/uploadSource";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
@@ -32,7 +32,7 @@ export default function RideDisputes() {
     setBusy(true);
     setMessage("Selecting evidence…");
     try {
-      const asset = await pickUploadDocument();
+      const asset = await chooseUploadFile();
       if (!asset) { setMessage(""); return; }
       setMessage("Uploading evidence…");
       const url = await uploadToCloudinary(asset.uri, "mota-docs", asset.name, asset.mimeType || undefined);

@@ -66,8 +66,8 @@ export default function NotificationsScreen() {
     item.type === "promotion" ||
     item.type === "promotional";
   const sections = [
-    { title: "Operational", data: all.filter((item) => !promotional(item)) },
-    { title: "Promotional", data: all.filter(promotional) },
+    { title: t("notif.operational"), data: all.filter((item) => !promotional(item)) },
+    { title: t("notif.promotional"), data: all.filter(promotional) },
   ].filter((section) => section.data.length);
 
   const renderItem = ({ item }: { item: any }) => (
@@ -124,7 +124,7 @@ export default function NotificationsScreen() {
           </Text>
           <TouchableOpacity onPress={() => void refetch()}>
             <Text style={{ color: colors.primary, paddingVertical: 12 }}>
-              Retry notifications
+              {t("notif.retry")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -138,8 +138,8 @@ export default function NotificationsScreen() {
         }}
       >
         {[
-          [false, "All updates"],
-          [true, "Unread"],
+          [false, t("notif.all")],
+          [true, t("notif.unread")],
         ].map(([value, label]) => (
           <TouchableOpacity
             key={String(label)}
@@ -210,11 +210,11 @@ export default function NotificationsScreen() {
                   color: page <= 1 ? colors.textSecondary : colors.primary,
                 }}
               >
-                Previous
+                {t("notif.previous")}
               </Text>
             </TouchableOpacity>
             <Text style={{ color: colors.textSecondary }}>
-              Page {page} of {data?.totalPages || 1}
+              {t("notif.page")} {page} of {data?.totalPages || 1}
             </Text>
             <TouchableOpacity
               accessibilityRole="button"
@@ -229,7 +229,7 @@ export default function NotificationsScreen() {
                       : colors.primary,
                 }}
               >
-                Next
+                {t("notif.next")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -243,10 +243,10 @@ export default function NotificationsScreen() {
               style={{ marginBottom: 16 }}
             />
             <Text style={s.emptyTitle}>
-              {error ? "Notifications unavailable" : "No notifications"}
+              {error ? t("notif.unavailable") : t("notif.none")}
             </Text>
             <Text style={s.emptyText}>
-              Important account, support and payment updates appear here.
+              {t("notif.none_body")}
             </Text>
           </View>
         }

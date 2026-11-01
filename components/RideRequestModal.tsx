@@ -9,8 +9,9 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { driverApi } from "@/services/api";
+import { driverApi, ridesApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 import { Metric, StatusPill } from "@/components/driver/DriverUI";
 
 type RideRequest = {
@@ -30,6 +31,11 @@ type RideRequest = {
   scheduledDate?: string;
   estimatedDistanceKm?: number;
   estimatedDurationMin?: number;
+  maximumFare?: number;
+  rideType?: "ride" | "parcel";
+  vehicleType?: "motor" | "car";
+  paymentMethod?: "cash" | "momo" | "wallet";
+  parcel?: { size?: string; description?: string };
 };
 
 interface RideRequestModalProps {
@@ -49,9 +55,12 @@ export function RideRequestModal({
   onDecline,
 }: RideRequestModalProps) {
   const { colors } = useTheme();
-  const [action, setAction] = useState<"accept" | "decline" | null>(null);
+  const t = useT();
+  const [action, setAction] = useState<"accept" | "decline" | "counter" | null>(null);
+  const [counterSent, setCounterSent] = useState<number | null>(null);
+  const [counterError, setCounterError] = useState("");
 
-  useEffect(() => setAction(null), [request]);
+  useEffect(() => { setAction(null); setCounterSent(null); setCounterError(""); }, [request]);
   const receiptId = request?.id || request?._id;
   useEffect(() => {
     if (receiptId) void driverApi.acknowledgeOffer(receiptId).catch(() => console.warn('Offer receipt could not be recorded.'));
@@ -59,8 +68,8 @@ export function RideRequestModal({
 
   if (!request) return null;
   const rideId = request.id || request._id;
-  const pickup = place(request.pickup, "Pickup location");
-  const destination = place(request.destination, "Destination");
+  const pickup = place(request.pickup, t("drive.pickup_location"));
+  const destination = place(request.destination, t("drive.destination"));
   const tripDistance =
     request.estimatedDistanceKm ??
     (typeof request.destination === "object"
@@ -70,7 +79,7 @@ export function RideRequestModal({
     typeof request.pickup === "object" ? request.pickup?.distanceKm : undefined;
   const scheduled = request.scheduledTime
     ? `${request.scheduledDate || ""} ${request.scheduledTime}`.trim()
-    : "As soon as possible";
+    : t("drive.asap");
 
   const submit = async (next: "accept" | "decline") => {
     if (!rideId || action) return;
@@ -95,10 +104,8 @@ export function RideRequestModal({
           >
             <View style={styles.titleRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <StatusPill label="New ride request" tone="warning" />
-                <Text style={[styles.title, { color: colors.textPrimary }]}>
-                  Review before accepting
-                </Text>
+                <StatusPill label={request.rideType === "parcel" ? t("drive.new_parcel") : t("drive.new_request")} tone="warning" />
+                <Text style={[styles.title, { color: colors.textPrimary }]}>{t("drive.review")}</Text>
               </View>
               <View
                 style={[
@@ -132,9 +139,7 @@ export function RideRequestModal({
                   <View>
                     <Text
                       style={[styles.label, { color: colors.textSecondary }]}
-                    >
-                      PICKUP
-                    </Text>
+                    >{t("drive.pickup").toUpperCase()}</Text>
                     <Text style={[styles.place, { color: colors.textPrimary }]}>
                       {pickup}
                     </Text>
@@ -142,9 +147,7 @@ export function RideRequestModal({
                   <View>
                     <Text
                       style={[styles.label, { color: colors.textSecondary }]}
-                    >
-                      DESTINATION
-                    </Text>
+                    >{t("drive.destination").toUpperCase()}</Text>
                     <Text style={[styles.place, { color: colors.textPrimary }]}>
                       {destination}
                     </Text>
@@ -155,7 +158,7 @@ export function RideRequestModal({
 
             <View style={styles.metrics}>
               <Metric
-                label="To pickup"
+                label={t("drive.to_pickup_dist")}
                 value={
                   pickupDistance === undefined
                     ? "—"
@@ -164,7 +167,7 @@ export function RideRequestModal({
                 icon="navigation"
               />
               <Metric
-                label="Trip"
+                label={t("drive.trip")}
                 value={
                   tripDistance === undefined
                     ? "—"
@@ -173,7 +176,7 @@ export function RideRequestModal({
                 icon="map"
               />
               <Metric
-                label="Passengers"
+                label={t("drive.passengers")}
                 value={String(request.passengers || 1)}
                 icon="users"
               />
@@ -182,9 +185,7 @@ export function RideRequestModal({
             <View style={[styles.schedule, { borderColor: colors.border }]}>
               <Feather name="clock" size={18} color={colors.primary} />
               <View>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  REQUESTED TIME
-                </Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>{t("drive.requested_time").toUpperCase()}</Text>
                 <Text
                   style={[styles.scheduleValue, { color: colors.textPrimary }]}
                 >
@@ -202,9 +203,7 @@ export function RideRequestModal({
                 },
               ]}
             >
-              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>
-                Passenger offer
-              </Text>
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>{t("drive.passenger_offer")}</Text>
               <Text style={[styles.fare, { color: colors.success }]}>
                 {Number(
                   request.offeredFare ?? request.fare ?? 0,
@@ -214,16 +213,50 @@ export function RideRequestModal({
             </View>
 
             {typeof request.driverEarning === "number" ? <View style={[styles.routeCard, { backgroundColor: colors.backgroundCard }]}>
-              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Estimated take-home after platform commission</Text>
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>{t("drive.take_home")}</Text>
               <Text style={[styles.fare, { color: colors.success }]}>{request.driverEarning.toLocaleString()} RWF</Text>
-              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Commission: {Number(request.commissionAmount || 0).toLocaleString()} RWF · Before fuel and other costs</Text>
-              {request.estimatedDurationMin ? <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Estimated trip time: {request.estimatedDurationMin} minutes</Text> : null}
+              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>{t("drive.commission_line", { amount: Number(request.commissionAmount || 0).toLocaleString() })}</Text>
+              {request.estimatedDurationMin ? <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>{t("drive.trip_time", { min: String(request.estimatedDurationMin) })}</Text> : null}
             </View> : null}
+            {request.rideType === "parcel" || request.paymentMethod ? (
+              <View style={[styles.schedule, { borderColor: colors.border }]}>
+                <Feather name={request.rideType === "parcel" ? "package" : "credit-card"} size={18} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  {request.rideType === "parcel" ? <Text style={[styles.scheduleValue, { color: colors.textPrimary }]}>{t("drive.parcel", { size: request.parcel?.size || "small" })}{request.parcel?.description ? ` · ${request.parcel.description}` : ""}</Text> : null}
+                  {request.rideType === "parcel" ? <Text style={[styles.label, { color: colors.textSecondary }]}>{t("drive.recipient_code_note").toUpperCase()}</Text> : null}
+                  {request.paymentMethod ? <Text style={[styles.label, { color: colors.textSecondary }]}>{t(request.paymentMethod === "cash" ? "drive.pay_cash" : request.paymentMethod === "momo" ? "drive.pay_momo" : "drive.pay_wallet").toUpperCase()}</Text> : null}
+                </View>
+              </View>
+            ) : null}
+
+            {rideId && request.maximumFare && Number(request.offeredFare ?? 0) < request.maximumFare ? (
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>{t("drive.propose").toUpperCase()}</Text>
+                {counterSent ? (
+                  <Text style={{ color: colors.success }}>{t("drive.offered", { amount: counterSent.toLocaleString() })}</Text>
+                ) : (
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {[200, 500, 1000].map((by) => {
+                      const amount = Math.min(request.maximumFare!, Number(request.offeredFare ?? 0) + by);
+                      return (
+                        <TouchableOpacity key={by} accessibilityRole="button" accessibilityLabel={`Offer ${amount} RWF`} disabled={action !== null} onPress={async () => {
+                          setAction("counter"); setCounterError("");
+                          try { await ridesApi.counterOffer(rideId, amount); setCounterSent(amount); }
+                          catch (e) { setCounterError(getApiErrorMessage(e)); }
+                          finally { setAction(null); }
+                        }} style={[styles.button, { flex: 1, backgroundColor: colors.backgroundElevated, opacity: action ? 0.55 : 1 }]}>
+                          <Text style={[styles.secondaryText, { color: colors.textPrimary }]}>{amount.toLocaleString()}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+                {counterError ? <Text style={[styles.error, { color: colors.error }]}>{counterError}</Text> : null}
+              </View>
+            ) : null}
+
             {!rideId ? (
-              <Text style={[styles.error, { color: colors.error }]}>
-                This request is missing its ride identifier. Refresh requests
-                before continuing.
-              </Text>
+              <Text style={[styles.error, { color: colors.error }]}>{t("drive.missing_id")}</Text>
             ) : null}
 
             <View style={styles.actions}>
@@ -247,9 +280,7 @@ export function RideRequestModal({
                       styles.secondaryText,
                       { color: colors.textPrimary },
                     ]}
-                  >
-                    Decline
-                  </Text>
+                  >{t("drive.decline")}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
@@ -270,7 +301,7 @@ export function RideRequestModal({
                 ) : (
                   <>
                     <Feather name="check" size={18} color="#fff" />
-                    <Text style={styles.acceptText}>Accept ride</Text>
+                    <Text style={styles.acceptText}>{t("drive.accept_ride")}</Text>
                   </>
                 )}
               </TouchableOpacity>

@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 import { useAuth } from "@/context/AuthContext";
 import { accountContinuation } from "@/services/accountContinuation";
 import { Alert } from "@/components/GlobalAlert";
@@ -18,6 +19,7 @@ import { Feather } from "@expo/vector-icons";
 const { width } = Dimensions.get("window");
 
 export default function WelcomeScreen() {
+  const t = useT();
   const router = useRouter();
   const { isAuthenticated, refreshAccount } = useAuth();
   const insets = useSafeAreaInsets();
@@ -45,15 +47,15 @@ export default function WelcomeScreen() {
     >
       <View style={s.header}>
         <Image source={logoSource} style={s.logo} resizeMode="contain" />
-        <Text style={s.tagline}>Move. Earn. Grow.</Text>
+        <Text style={s.tagline}>{t("auth.tagline")}</Text>
       </View>
 
-      <Text style={s.title}>Choose how you want to use MOTA</Text>
+      <Text style={s.title}>{t("auth.choose_use")}</Text>
 
       {isAuthenticated ? <TouchableOpacity style={s.optionCard} onPress={async () => {
         try { const account = await refreshAccount(); router.replace(accountContinuation(account) as any); }
-        catch (error:any) { Alert.alert("Account check failed", error?.message || "Please retry before continuing."); }
-      }}><Text style={s.optionTitle}>Continue with my account</Text></TouchableOpacity> : null}
+        catch (error:any) { Alert.alert(t("auth.check_failed"), error?.message || t("auth.retry_first")); }
+      }}><Text style={s.optionTitle}>{t("auth.continue_account")}</Text></TouchableOpacity> : null}
       <View style={s.optionsContainer}>
         {/* Passenger Option */}
         <TouchableOpacity
@@ -65,9 +67,9 @@ export default function WelcomeScreen() {
             <Feather name="navigation" size={32} color={colors.primary} />
           </View>
           <View style={s.optionTextContent}>
-            <Text style={s.optionTitle}>Rider / Passenger</Text>
+            <Text style={s.optionTitle}>{t("auth.rider_passenger")}</Text>
             <Text style={s.optionDesc}>
-              Get fast, safe rides with fair price negotiation.
+              {t("auth.rider_desc")}
             </Text>
           </View>
           <Feather name="arrow-right" size={20} color={colors.textSecondary} />
@@ -83,9 +85,9 @@ export default function WelcomeScreen() {
             <Feather name="truck" size={32} color="#10B981" />
           </View>
           <View style={s.optionTextContent}>
-            <Text style={s.optionTitle}>Moto Driver</Text>
+            <Text style={s.optionTitle}>{t("auth.moto_driver")}</Text>
             <Text style={s.optionDesc}>
-              Earn more, manage loans, get fuel vouchers.
+              {t("auth.driver_desc")}
             </Text>
           </View>
           <Feather name="arrow-right" size={20} color={colors.textSecondary} />
@@ -97,22 +99,22 @@ export default function WelcomeScreen() {
           <TouchableOpacity
             onPress={() => router.push("/(auth)/onboarding" as any)}
           >
-            <Text style={s.loginLink}>See how MOTA works</Text>
+            <Text style={s.loginLink}>{t("auth.how_it_works")}</Text>
           </TouchableOpacity>
           <View style={{ flexDirection: "row" }}>
-            <Text style={s.footerText}>Already have an account? </Text>
+            <Text style={s.footerText}>{t("auth.have_account")} </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-              <Text style={s.loginLink}>Log In</Text>
+              <Text style={s.loginLink}>{t("auth.log_in")}</Text>
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: "row", gap: 18 }}>
             <TouchableOpacity
               onPress={() => router.push("/info/privacy" as any)}
             >
-              <Text style={s.footerText}>Privacy</Text>
+              <Text style={s.footerText}>{t("auth.privacy")}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/info/terms" as any)}>
-              <Text style={s.footerText}>Terms</Text>
+              <Text style={s.footerText}>{t("auth.terms")}</Text>
             </TouchableOpacity>
           </View>
         </View>

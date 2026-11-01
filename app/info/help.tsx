@@ -16,7 +16,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { Alert } from "@/components/GlobalAlert";
 import { supportApi, uploadsApi, getApiErrorMessage } from "@/services/api";
-import { pickUploadDocument } from "@/services/documentPicker";
+import { chooseUploadFile } from "@/services/uploadSource";
 const categories = [
   ["account_kyc", "Account & verification"],
   ["upload", "File upload"],
@@ -405,7 +405,7 @@ export default function Help() {
                     void perform(async () => {
                       if (attachments.length >= 5)
                         throw Error("Attach up to five files.");
-                      const file = await pickUploadDocument();
+                      const file = await chooseUploadFile();
                       if (!file) return;
                       const result = await uploadsApi.upload({
                         uri: file.uri,

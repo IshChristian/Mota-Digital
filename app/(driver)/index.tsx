@@ -1,4 +1,5 @@
 import { NotificationBell } from "@/components/NotificationBell";
+import { useRealtimeEvent } from "@/hooks/useRealtime";
 import { showMessage } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
@@ -51,7 +52,7 @@ export default function DashboardScreen() {
       const res = await driverApi.getDashboard();
       return res.data;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000, // live events below refresh sooner
   });
 
   useEffect(() => {
@@ -65,8 +66,15 @@ export default function DashboardScreen() {
       const res = await walletApi.getBalance();
       return res.data;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000, // live events below refresh sooner
   });
+
+  // Earnings, wallet and ride state change on these server events; no need to poll every few seconds.
+  const refreshLive = () => { void refetchDash(); void refetchWallet(); };
+  useRealtimeEvent("rideUpdate", refreshLive);
+  useRealtimeEvent("paymentUpdate", refreshLive);
+  useRealtimeEvent("walletUpdate", refreshLive);
+  useRealtimeEvent("rideAssigned", refreshLive);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -80,13 +88,13 @@ export default function DashboardScreen() {
     try {
       const newState = !isOnline;
       const response = await driverApi.updateAvailability({ isOnline: newState });
-      if (response.data?.isOnline !== newState) throw new Error("The server did not confirm the availability change. Please retry.");
+      if (response.data?.isOnline !== newState) throw new Error(t("home.server_unconfirmed"));
       setIsOnline(newState);
       await updateUser({ isOnline: newState, availabilityManuallyOffline: !newState });
       void refetchDash();
-      setAvailabilityFeedback({ type: "success", title: newState ? "You're online" : "You're offline", message: newState ? "You can now receive ride requests." : "You won't receive new ride requests." });
+      setAvailabilityFeedback({ type: "success", title: newState ? t("home.now_online") : t("home.now_offline"), message: newState ? t("home.can_receive") : t("home.wont_receive") });
     } catch (error: any) {
-      setAvailabilityFeedback({ type: "error", title: "Availability unchanged", message: error?.response?.data?.message || error?.message || "Could not update your status. Check your connection and try again." });
+      setAvailabilityFeedback({ type: "error", title: t("home.unchanged"), message: error?.response?.data?.message || error?.message || t("home.update_failed") });
     } finally {
       setToggling(false);
     }
@@ -204,13 +212,13 @@ export default function DashboardScreen() {
                 { backgroundColor: isOnline ? "#10B981" : "#6B7280" },
               ]}
             />
-            <Text style={s.statusText}>{isOnline ? "ONLINE" : "OFFLINE"}</Text>
+            <Text style={s.statusText}>{isOnline ? t("home.online") : t("home.offline")}</Text>
           </View>
         </View>
         <Text style={s.availabilityMessage}>
           {isOnline
-            ? "You're available for rides."
-            : "You won't receive ride requests."}
+            ? t("home.available")
+            : t("home.not_receiving")}
         </Text>
         <TouchableOpacity
           style={[
@@ -221,7 +229,7 @@ export default function DashboardScreen() {
           disabled={toggling}
         >
           <Text style={s.toggleBtnText}>
-            {toggling ? "UPDATING..." : isOnline ? "GO OFFLINE" : "GO ONLINE"}
+            {toggling ? t("home.updating") : isOnline ? t("home.go_offline") : t("home.go_online")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -230,8 +238,7 @@ export default function DashboardScreen() {
         <View style={s.migrationBanner}>
           <Feather name="star" size={20} color="#FFD700" />
           <Text style={s.migrationText}>
-            Pay for 5 more rides digitally to unlock the Keep Me in Bank savings
-            account!
+            {t("home.savings_unlock")}
           </Text>
         </View>
       )}
@@ -249,7 +256,7 @@ export default function DashboardScreen() {
         </View>
         {cycleNumber > 0 && (
           <View style={s.cycleTag}>
-            <Text style={s.cycleText}>Cycle {cycleNumber}</Text>
+            <Text style={s.cycleText}>{t("home.cycle")} {cycleNumber}</Text>
           </View>
         )}
       </View>
@@ -264,7 +271,7 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <View style={s.walletRight}>
-            <Text style={s.earningsLabel}>Today's Balance</Text>
+            <Text style={s.earningsLabel}>{t("home.todays_balance")}</Text>
             <Text
               style={[
                 s.earningsAmount,
@@ -280,7 +287,7 @@ export default function DashboardScreen() {
 
       {/* Quick Actions */}
       <View style={s.quickActionsWrapper}>
-        <Text style={s.quickActionsTitle}>Driver services</Text>
+        <Text style={s.quickActionsTitle}>{t("home.services")}</Text>
         <View style={s.quickActionsContent}>
           <TouchableOpacity
             style={s.actionBtn}
@@ -291,7 +298,7 @@ export default function DashboardScreen() {
             >
               <Feather name="map" size={24} color={colors.primary} />
             </View>
-            <Text style={s.actionText}>Ride history</Text>
+            <Text style={s.actionText}>{t("home.ride_history")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -303,7 +310,7 @@ export default function DashboardScreen() {
             >
               <Feather name="trending-up" size={24} color={colors.success} />
             </View>
-            <Text style={s.actionText}>Finance</Text>
+            <Text style={s.actionText}>{t("home.finance")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -318,7 +325,7 @@ export default function DashboardScreen() {
             >
               <Feather name="pocket" size={24} color={Colors.accent} />
             </View>
-            <Text style={s.actionText}>Savings</Text>
+            <Text style={s.actionText}>{t("home.savings")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -356,7 +363,7 @@ export default function DashboardScreen() {
             >
               <Feather name="send" size={24} color={colors.success} />
             </View>
-            <Text style={s.actionText}>Send</Text>
+            <Text style={s.actionText}>{t("home.send")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -396,7 +403,7 @@ export default function DashboardScreen() {
               >
                 <Feather name="zap" size={24} color="#FFD700" />
               </View>
-              <Text style={s.actionText}>Fuel</Text>
+              <Text style={s.actionText}>{t("home.fuel")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -461,7 +468,7 @@ export default function DashboardScreen() {
       {/* Trophies Section */}
       {trophies.length > 0 && (
         <View style={s.trophySection}>
-          <Text style={s.sectionTitle}>🏆 Trophies</Text>
+          <Text style={s.sectionTitle}>{t("home.trophies")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={s.trophyRow}>
               {trophies.map((trophy: string, idx: number) => (
@@ -478,7 +485,7 @@ export default function DashboardScreen() {
       {/* Features Unlocked */}
       {featuresUnlocked.length > 0 && (
         <View style={s.featuresSection}>
-          <Text style={s.sectionTitle}>🔓 Unlocked Features</Text>
+          <Text style={s.sectionTitle}>{t("home.unlocked")}</Text>
           {featuresUnlocked.map((feature: string, idx: number) => (
             <View key={idx} style={s.featureItem}>
               <Feather name="check-circle" size={16} color={colors.success} />

@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { ridesApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 import { RideMap } from "@/components/RideMap";
 import {
   DriverCard,
@@ -31,6 +32,7 @@ function coordinate(value: unknown) {
 export default function DriverRequestsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const t = useT();
   const [manualRefresh, setManualRefresh] = useState(false);
   const query = useQuery({
     queryKey: ["driver-ride-requests"],
@@ -78,9 +80,9 @@ export default function DriverRequestsScreen() {
         ListHeaderComponent={
           <View style={styles.headerContent}>
             <DriverHeader
-              title="Nearby requests"
-              subtitle="Live passenger requests close to your current location."
-              action={<StatusPill label="Live" tone="success" />}
+              title={t("drive.nearby_title")}
+              subtitle={t("drive.nearby_sub")}
+              action={<StatusPill label={t("drive.live")} tone="success" />}
             />
             {requestPoints.length ? (
               <DriverCard style={styles.mapCard}>
@@ -106,14 +108,10 @@ export default function DriverRequestsScreen() {
             ) : null}
             {query.isError ? (
               <DriverCard>
-                <Text style={[styles.errorTitle, { color: colors.error }]}>
-                  Requests unavailable
-                </Text>
+                <Text style={[styles.errorTitle, { color: colors.error }]}>{t("drive.unavailable_title")}</Text>
                 <Text
                   style={[styles.errorCopy, { color: colors.textSecondary }]}
-                >
-                  We could not refresh nearby rides. Pull down to try again.
-                </Text>
+                >{t("drive.unavailable_body")}</Text>
               </DriverCard>
             ) : null}
           </View>
@@ -128,18 +126,18 @@ export default function DriverRequestsScreen() {
           ) : (
             <EmptyState
               icon="radio"
-              title="No requests nearby"
-              message="Stay online and keep location enabled. New requests will appear automatically."
+              title={t("drive.none_title")}
+              message={t("drive.none_body")}
             />
           )
         }
         renderItem={({ item }: any) => {
           const pickup =
-            item.pickup?.name || item.pickup?.address || "Pickup location";
+            item.pickup?.name || item.pickup?.address || t("drive.pickup_location");
           const destination =
             item.destination?.name ||
             item.destination?.address ||
-            "Destination";
+            t("drive.destination");
           return (
             <TouchableOpacity
               accessibilityRole="button"
@@ -154,7 +152,7 @@ export default function DriverRequestsScreen() {
             >
               <DriverCard style={styles.requestCard}>
                 <View style={styles.requestTop}>
-                  <StatusPill label="New request" tone="warning" />
+                  <StatusPill label={t("drive.new_request")} tone="warning" />
                   <Text style={[styles.fare, { color: colors.textPrimary }]}>
                     {Number(
                       item.offeredFare || item.fare || 0,
@@ -190,9 +188,7 @@ export default function DriverRequestsScreen() {
                           styles.routeLabel,
                           { color: colors.textSecondary },
                         ]}
-                      >
-                        PICKUP
-                      </Text>
+                      >{t("drive.pickup").toUpperCase()}</Text>
                       <Text
                         style={[styles.place, { color: colors.textPrimary }]}
                         numberOfLines={2}
@@ -206,9 +202,7 @@ export default function DriverRequestsScreen() {
                           styles.routeLabel,
                           { color: colors.textSecondary },
                         ]}
-                      >
-                        DESTINATION
-                      </Text>
+                      >{t("drive.destination").toUpperCase()}</Text>
                       <Text
                         style={[styles.place, { color: colors.textPrimary }]}
                         numberOfLines={2}
@@ -222,17 +216,17 @@ export default function DriverRequestsScreen() {
                   style={[styles.metrics, { borderTopColor: colors.border }]}
                 >
                   <Metric
-                    label="Distance"
+                    label={t("drive.distance")}
                     value={`${item.estimatedDistanceKm ?? "—"} km`}
                     icon="navigation"
                   />
                   <Metric
-                    label="Est. time"
+                    label={t("drive.est_time")}
                     value={`${item.estimatedDurationMin ?? "—"} min`}
                     icon="clock"
                   />
                   <Metric
-                    label="Passengers"
+                    label={t("drive.passengers")}
                     value={String(item.passengers || 1)}
                     icon="users"
                   />

@@ -39,7 +39,7 @@ export default function ConfirmPhoneScreen() {
   const handleSendOtp = async () => {
     const normalizedPhone = normalizeRwandaPhone(phone);
     if (!normalizedPhone) {
-      setError("Please enter a valid phone number");
+      setError(t("auth.phone_required"));
       return;
     }
     setLoading(true);
@@ -68,7 +68,7 @@ export default function ConfirmPhoneScreen() {
         );
         router.replace("/(auth)/login");
       } else {
-        setError(err.response?.data?.message || "Failed to send OTP. Please try again.");
+        setError(err.response?.data?.message || t("auth.send_failed"));
       }
     } finally {
       setLoading(false);
@@ -92,9 +92,9 @@ export default function ConfirmPhoneScreen() {
 
         <View style={s.header}>
           <Image source={logoSource} style={s.logo} resizeMode="contain" />
-          <Text style={s.title}>Confirm Phone Number</Text>
+          <Text style={s.title}>{t("auth.confirm_phone")}</Text>
           <Text style={s.subtitle}>
-            Please confirm your phone number to receive a verification code.
+            {t("auth.confirm_phone_body")}
           </Text>
         </View>
 
@@ -102,8 +102,8 @@ export default function ConfirmPhoneScreen() {
           {error ? <Text style={s.errorText}>{error}</Text> : null}
 
           <View style={s.inputGroup}>
-            <Text style={s.label}>Phone Number</Text>
-            <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Phone number to verify" />
+            <Text style={s.label}>{t("auth.phone_number")}</Text>
+            <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel={t("auth.phone_to_verify")} />
           </View>
 
           <TouchableOpacity
@@ -114,7 +114,7 @@ export default function ConfirmPhoneScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={s.buttonText}>Send Code</Text>
+              <Text style={s.buttonText}>{t("auth.send_code")}</Text>
             )}
           </TouchableOpacity>
         </View>

@@ -43,7 +43,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     const loginIdentifier = identifierType === "phone" ? normalizeRwandaPhone(identifier) : identifier.trim().toLowerCase();
     if (!loginIdentifier || !password) {
-      setError("Please fill all fields");
+      setError(t("auth.fill_all"));
       return;
     }
     setLoading(true);
@@ -113,7 +113,7 @@ export default function LoginScreen() {
           // User is already verified — the 403 is for another reason (isActive: false)
           setError(
             errData.message ||
-            "Your account is verified but not yet active. Please contact support."
+            t("auth.inactive")
           );
         } else {
           // User genuinely needs phone verification
@@ -150,7 +150,7 @@ export default function LoginScreen() {
 
         <View style={s.header}>
           <Image source={logoSource} style={s.logo} resizeMode="contain" />
-          <Text style={s.subtitle}>Move. Earn. Grow.</Text>
+          <Text style={s.subtitle}>{t("auth.tagline")}</Text>
         </View>
 
         <View style={s.form}>
@@ -160,19 +160,19 @@ export default function LoginScreen() {
             <View style={s.loginTypeRow}>
               {(["phone", "email"] as const).map((type) => (
                 <TouchableOpacity key={type} onPress={() => { setIdentifierType(type); setIdentifier(""); }} style={[s.loginType, identifierType === type && { backgroundColor: colors.primary }]}>
-                  <Text style={[s.loginTypeText, { color: identifierType === type ? "#fff" : colors.textSecondary }]}>{type === "phone" ? "Phone" : "Email"}</Text>
+                  <Text style={[s.loginTypeText, { color: identifierType === type ? "#fff" : colors.textSecondary }]}>{type === "phone" ? t("auth.phone") : t("auth.email")}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             {identifierType === "phone" ? (
-              <RwandaPhoneInput value={identifier} onChangeText={setIdentifier} accessibilityLabel="Login phone number" />
+              <RwandaPhoneInput value={identifier} onChangeText={setIdentifier} accessibilityLabel={t("auth.login_phone")} />
             ) : (
               <TextInput style={s.input} placeholder="you@example.com" placeholderTextColor={colors.textTertiary} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
             )}
           </View>
 
           <View style={s.inputGroup}>
-            <Text style={s.label}>Password</Text>
+            <Text style={s.label}>{t("auth.password")}</Text>
             <View style={s.passwordContainer}>
               <TextInput
                 style={s.passwordInput}
@@ -204,11 +204,11 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 12 }} onPress={() => router.push('/(auth)/forgot-password' as any)}>
-            <Text style={s.link}>Forgot password?</Text>
+            <Text style={s.link}>{t("auth.forgot")}</Text>
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Don't have an account? </Text>
+            <Text style={s.footerText}>{t("auth.no_account")} </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
               <Text style={s.link}>{t("register")}</Text>
             </TouchableOpacity>

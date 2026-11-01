@@ -1,476 +1,235 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Clipboard from "expo-clipboard";
-import { Feather } from "@expo/vector-icons";
+import QRCode from "react-native-qrcode-svg";
+import * as Location from "expo-location";
+import { useTheme, type ThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
-import { fuelVoucherApi } from "@/services/api";
+import { useT } from "@/context/I18nContext";
+import { fuelVoucherApi, getApiErrorMessage } from "@/services/api";
 import { Alert } from "@/components/GlobalAlert";
 
-type Voucher = {
-  id: string;
-  code: string;
-  type: "qr" | "momo";
-  amount: number;
-  status: string;
-  issuedAt: string;
-  expiresAt: string;
-  qrImage?: string;
-};
-type Daily = {
-  momoUsed: number;
-  qrUsed: number;
-  momoLimit: number;
-  qrLimit: number;
-  amount: number;
-};
-type Station = {
-  id: string;
-  name: string;
-  address: string;
-  acceptsQr: boolean;
-};
-const message = (error: any) =>
-  error?.response?.data?.message ||
-  error?.message ||
-  "Please check your connection and retry.";
-const money = (value: number) => `${value.toLocaleString()} RWF`;
-const date = (value: string) => {
-  const d = new Date(value);
-  return Number.isFinite(+d) ? d.toLocaleString() : "Unavailable";
-};
+type Voucher = { id: string; code: string; type: "qr" | "momo"; source: "request" | "reward"; amount: number; status: string; note?: string; qrCode?: string; issuedAt: string; expiresAt?: string; redeemedAt?: string };
+type Daily = { eligible: boolean; reason?: string; tier?: string; minTier: string; amount: number; momoEnabled: boolean; qrUsed: number; momoUsed: number; qrLimit: number; momoLimit: number; resetsAt: string };
+type Station = { id: string; name: string; address: string; acceptsQr: boolean; distanceKm?: number | null };
+
+const money = (n: number) => `${Math.round(n).toLocaleString()} RWF`;
+const time = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+const newKey = (type: string) => `fuel_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 export default function FuelVouchersScreen() {
-  const router = useRouter(),
-    insets = useSafeAreaInsets(),
-    { colors } = useTheme(),
-    { user } = useAuth(),
-    client = useQueryClient();
-  const account = user?._id || user?.id,
-    enabled = user?.role === "driver" && !!account;
-  const [page, setPage] = useState(1),
-    [busy, setBusy] = useState(false),
-    [selected, setSelected] = useState<Voucher | null>(null);
-  const locked = useRef(false),
-    keys = useRef<Partial<Record<"qr" | "momo", string>>>({});
-  const activeAccount = useRef(account);
-  useEffect(() => {
-    activeAccount.current = account;
-    setSelected(null);
-    setPage(1);
-    keys.current = {};
-  }, [account]);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { user } = useAuth();
+  const t = useT();
+  const client = useQueryClient();
+  const s = styles(colors);
+  const account = user?.id || user?._id;
   const prefix = ["fuel", account];
-  const daily = useQuery({
-    queryKey: [...prefix, "daily"],
-    enabled,
-    queryFn: async () =>
-      (await fuelVoucherApi.getDailyStatus()).data.data as Daily,
-  });
-  const history = useQuery({
-    queryKey: [...prefix, "history", page],
-    enabled,
-    queryFn: async () =>
-      (await fuelVoucherApi.getHistory(page, 20)).data.data as {
-        vouchers: Voucher[];
-        total: number;
-      },
-  });
-  const savings = useQuery({
-    queryKey: [...prefix, "savings"],
-    enabled,
-    queryFn: async () =>
-      (await fuelVoucherApi.getWeeklySavings()).data.data as {
-        weekTotal: number;
-      },
-  });
+  const [page, setPage] = useState(1);
+  const [busy, setBusy] = useState<null | "qr" | "momo">(null);
+  const [selected, setSelected] = useState<Voucher | null>(null);
+  // One key per pending request: a retry after a timeout replays instead of creating a second voucher.
+  const keys = useRef<Partial<Record<"qr" | "momo", string>>>({});
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    Location.getLastKnownPositionAsync().then((p) => p && setHere({ lat: p.coords.latitude, lng: p.coords.longitude })).catch(() => {});
+  }, []);
+
+  const daily = useQuery({ queryKey: [...prefix, "daily"], enabled: !!account, queryFn: async () => (await fuelVoucherApi.getDailyStatus()).data.data as Daily });
+  const history = useQuery({ queryKey: [...prefix, "history", page], enabled: !!account, queryFn: async () => (await fuelVoucherApi.getHistory(page, 20)).data.data as { vouchers: Voucher[]; total: number } });
+  const savings = useQuery({ queryKey: [...prefix, "savings"], enabled: !!account, queryFn: async () => (await fuelVoucherApi.getWeeklySavings()).data.data as { weekTotal: number } });
   const stations = useQuery({
-    queryKey: [...prefix, "stations"],
-    enabled,
-    queryFn: async () =>
-      (await fuelVoucherApi.getStations()).data.data as Station[],
+    queryKey: [...prefix, "stations", here?.lat.toFixed(2), here?.lng.toFixed(2)],
+    enabled: !!account,
+    queryFn: async () => (here ? (await fuelVoucherApi.getNearbyStations(here.lat, here.lng)).data.data : (await fuelVoucherApi.getStations()).data.data) as Station[],
   });
   const refresh = () => client.invalidateQueries({ queryKey: prefix });
+
   const request = async (type: "qr" | "momo") => {
-    if (locked.current || !daily.data || daily.isError) return;
-    locked.current = true;
-    setBusy(true);
-    keys.current[type] ||=
-      `fuel_${Date.now()}_${Math.random().toString(36).slice(2)}_${type}`;
+    if (busy) return;
+    setBusy(type);
+    keys.current[type] ||= newKey(type);
     try {
-      const response = await (type === "qr"
-        ? fuelVoucherApi.claimQR(keys.current[type])
-        : fuelVoucherApi.claimMoMo(keys.current[type]));
-      const voucher: Voucher = response.data.data;
-      if (!voucher?.id || !voucher.code || !voucher.status)
-        throw new Error(
-          "The server did not return a confirmed voucher. Retry to recover your request.",
-        );
-      if (activeAccount.current !== account) return;
+      const voucher = (await (type === "qr" ? fuelVoucherApi.claimQR(keys.current[type]) : fuelVoucherApi.claimMoMo(keys.current[type]))).data.data as Voucher;
       delete keys.current[type];
       setSelected(voucher);
       await refresh();
-    } catch (error) {
-      Alert.alert("Fuel request could not be confirmed", message(error));
+    } catch (error: any) {
+      // A definite refusal (limit, eligibility) can't succeed on retry, so start fresh next time.
+      if (error?.response?.status && error.response.status < 500) delete keys.current[type];
+      Alert.alert(t("fuel.failed"), getApiErrorMessage(error));
     } finally {
-      locked.current = false;
-      setBusy(false);
+      setBusy(null);
     }
   };
-  const openVoucher = async (voucher: Voucher) => {
-    if (locked.current) return;
-    locked.current = true;
-    setBusy(true);
-    try {
-      const result = (await fuelVoucherApi.getVoucher(voucher.id)).data.data;
-      if (activeAccount.current === account) setSelected(result);
-    } catch (error) {
-      Alert.alert("Unable to open voucher", message(error));
-    } finally {
-      locked.current = false;
-      setBusy(false);
-    }
+
+  const open = async (v: Voucher) => {
+    try { setSelected((await fuelVoucherApi.getVoucher(v.id)).data.data); }
+    catch { setSelected(v); }
   };
-  const s = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    content: {
-      padding: 20,
-      gap: 20,
-      paddingTop: insets.top + 12,
-      paddingBottom: insets.bottom + 30,
-      width: "100%",
-      maxWidth: 720,
-      alignSelf: "center",
-    },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      flexWrap: "wrap",
-    },
-    card: {
-      backgroundColor: colors.backgroundCard,
-      borderRadius: 20,
-      padding: 20,
-      gap: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    title: {
-      fontSize: 30,
-      fontWeight: "700",
-      color: colors.textPrimary,
-      flexShrink: 1,
-    },
-    heading: { fontSize: 21, fontWeight: "700", color: colors.textPrimary },
-    text: { fontSize: 16, lineHeight: 24, color: colors.textSecondary },
-    button: {
-      minHeight: 50,
-      padding: 14,
-      borderRadius: 14,
-      backgroundColor: colors.primary,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    buttonText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "700",
-      textAlign: "center",
-      flexShrink: 1,
-    },
-    status: {
-      color: colors.primary,
-      fontSize: 14,
-      fontWeight: "700",
-      textTransform: "capitalize",
-    },
-    overlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: "rgba(0,0,0,.6)",
-    },
-    sheet: {
-      maxHeight: "90%",
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      backgroundColor: colors.backgroundCard,
-    },
-    qr: {
-      width: 240,
-      height: 240,
-      maxWidth: "100%",
-      alignSelf: "center",
-      backgroundColor: "#fff",
-    },
-    code: {
-      fontSize: 19,
-      color: colors.textPrimary,
-      fontWeight: "700",
-      textAlign: "center",
-    },
-  });
-  const button = (label: string, onPress: () => void, disabled = false) => (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[s.button, disabled && { opacity: 0.45 }]}
-    >
-      <Text style={s.buttonText}>{label}</Text>
-    </TouchableOpacity>
-  );
+
+  const statusLabel = (status: string) => t(`fuel.status_${status}`);
+  const d = daily.data;
+
   return (
     <View style={s.screen}>
-      <ScrollView
-        refreshControl={
-          <RefreshControl
-            refreshing={daily.isRefetching}
-            onRefresh={() => void refresh()}
-          />
-        }
-        contentContainerStyle={s.content}
-      >
-        <TouchableOpacity
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          style={{ minHeight: 44, justifyContent: "center" }}
-        >
-          <Feather name="arrow-left" size={26} color={colors.textPrimary} />
+      <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 32 }]}
+        refreshControl={<RefreshControl refreshing={daily.isRefetching} onRefresh={() => void refresh()} tintColor={colors.primary} />}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={s.back}>
+          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={s.title}>MOTA fuel service</Text>
-        <Text style={s.text}>
-          Request fuel support, view your vouchers and track confirmed
-          redemptions.
-        </Text>
-        {!enabled ? (
+        <Text accessibilityRole="header" style={s.title}>{t("fuel.title")}</Text>
+        <Text style={s.text}>{t("fuel.subtitle")}</Text>
+
+        {daily.isPending ? <ActivityIndicator color={colors.primary} /> : daily.isError ? (
           <View style={s.card}>
-            <Text style={s.heading}>Driver service</Text>
-            <Text style={s.text}>
-              Fuel support is available from an active driver account.
-            </Text>
+            <Text style={s.text}>{getApiErrorMessage(daily.error)}</Text>
+            <Button s={s} label={t("retry")} onPress={() => void daily.refetch()} />
           </View>
-        ) : (
+        ) : d && !d.eligible ? (
+          <View style={[s.card, { borderColor: `${colors.primary}55` }]}>
+            <View style={s.row}><Feather name="lock" size={18} color={colors.primary} /><Text style={s.heading}>{t("fuel.not_eligible")}</Text></View>
+            <Text style={s.text}>{d.reason}</Text>
+          </View>
+        ) : d ? (
           <>
-            <View style={s.card}>
-              <Text style={s.heading}>Today's fuel support</Text>
-              <Text style={s.text}>
-                Daily limits reset at midnight in Kigali. Voucher values and
-                availability come from MOTA.
-              </Text>
-              {daily.isPending ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : daily.isError ? (
-                <>
-                  <Text style={s.text}>{message(daily.error)}</Text>
-                  {button("Retry availability", () => void daily.refetch())}
-                </>
-              ) : daily.data ? (
-                (["qr", "momo"] as const).map((type) => {
-                  const remaining = Math.max(
-                    0,
-                    daily.data![`${type}Limit`] - daily.data![`${type}Used`],
-                  );
-                  return (
-                    <View key={type} style={{ gap: 10, paddingVertical: 10 }}>
-                      <Text style={s.heading}>
-                        {type === "qr"
-                          ? "Station QR voucher"
-                          : "MoMo support request"}
-                      </Text>
-                      <Text style={s.text}>
-                        {money(daily.data!.amount)} · {remaining} requests
-                        remaining
-                      </Text>
-                      <Text style={s.text}>
-                        {type === "qr"
-                          ? "Show the confirmed QR code at an approved partner. An authorized attendant confirms redemption."
-                          : "Submit a request for MOTA review. Pending requests are not a completed MoMo payment."}
-                      </Text>
-                      {button(
-                        busy
-                          ? "Please wait…"
-                          : type === "qr"
-                            ? "Request QR voucher"
-                            : "Request MoMo support",
-                        () => void request(type),
-                        busy || remaining === 0,
-                      )}
-                    </View>
-                  );
-                })
-              ) : null}
-            </View>
-            <View style={s.card}>
-              <Text style={s.heading}>Confirmed fuel savings</Text>
-              {savings.isPending ? (
-                <ActivityIndicator />
-              ) : savings.isError ? (
-                <>
-                  {<Text style={s.text}>Savings could not be loaded.</Text>}
-                  {button("Retry savings", () => void savings.refetch())}
-                </>
-              ) : (
-                <Text style={s.title}>
-                  {money(savings.data?.weekTotal || 0)}
-                </Text>
-              )}
-              <Text style={s.text}>
-                Redeemed vouchers in the last 7 days. Pending requests do not
-                count.
-              </Text>
-            </View>
-            <View style={s.card}>
-              <Text style={s.heading}>Voucher history</Text>
-              {history.isPending ? (
-                <ActivityIndicator />
-              ) : history.isError ? (
-                <>
-                  <Text style={s.text}>{message(history.error)}</Text>
-                  {button("Retry history", () => void history.refetch())}
-                </>
-              ) : !history.data?.vouchers.length ? (
-                <Text style={s.text}>Your fuel requests will appear here.</Text>
-              ) : (
-                history.data.vouchers.map((voucher) => (
-                  <TouchableOpacity
-                    key={voucher.id}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    onPress={() => void openVoucher(voucher)}
-                    style={{
-                      paddingVertical: 14,
-                      gap: 6,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                    }}
-                  >
-                    <Text style={s.heading}>
-                      {voucher.type === "qr" ? "QR voucher" : "MoMo request"} ·{" "}
-                      {money(voucher.amount)}
-                    </Text>
-                    <Text style={s.status}>{voucher.status}</Text>
-                    <Text style={s.text}>{date(voucher.issuedAt)}</Text>
-                    <Text style={s.text}>View details →</Text>
-                  </TouchableOpacity>
-                ))
-              )}
-              <Text style={s.text}>Page {page}</Text>
-              {page > 1 && button("Previous page", () => setPage((p) => p - 1))}
-              {history.data &&
-                page * 20 < history.data.total &&
-                button("Next page", () => setPage((p) => p + 1))}
-            </View>
-            <View style={s.card}>
-              <Text style={s.heading}>Approved fuel partners</Text>
-              {stations.isPending ? (
-                <ActivityIndicator />
-              ) : stations.isError ? (
-                <>
-                  <Text style={s.text}>
-                    Partner information could not be loaded.
-                  </Text>
-                  {button("Retry partners", () => void stations.refetch())}
-                </>
-              ) : !stations.data?.length ? (
-                <Text style={s.text}>
-                  No partner stations are currently listed. Contact MOTA support
-                  before travelling to redeem a voucher.
-                </Text>
-              ) : (
-                stations.data.map((station) => (
-                  <View key={station.id}>
-                    <Text style={s.heading}>{station.name}</Text>
-                    <Text style={s.text}>{station.address}</Text>
-                    <Text style={s.status}>
-                      {station.acceptsQr
-                        ? "Accepts MOTA QR"
-                        : "Contact station for availability"}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </View>
+            <Text style={s.small}>{t("fuel.today")} · {t("fuel.resets")}</Text>
+            <Option s={s} colors={colors} icon="maximize" title={t("fuel.qr_title")} help={t("fuel.qr_help")} amount={money(d.amount)}
+              left={t("fuel.left", { count: String(Math.max(0, d.qrLimit - d.qrUsed)), limit: String(d.qrLimit) })}
+              action={t("fuel.request_qr")} busy={busy === "qr"} disabled={!!busy || d.qrUsed >= d.qrLimit} onPress={() => void request("qr")} />
+            {d.momoEnabled ? (
+              <Option s={s} colors={colors} icon="smartphone" title={t("fuel.momo_title")} help={t("fuel.momo_help")} amount={money(d.amount)}
+                left={t("fuel.left", { count: String(Math.max(0, d.momoLimit - d.momoUsed)), limit: String(d.momoLimit) })}
+                action={t("fuel.request_momo")} busy={busy === "momo"} disabled={!!busy || d.momoUsed >= d.momoLimit} onPress={() => void request("momo")} />
+            ) : <View style={s.card}><Text style={s.text}>{t("fuel.momo_off")}</Text></View>}
           </>
-        )}
-      </ScrollView>
-      <Modal
-        visible={!!selected}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelected(null)}
-      >
-        <View style={s.overlay}>
-          <View style={s.sheet}>
-            <ScrollView
-              contentContainerStyle={{
-                padding: 24,
-                paddingBottom: insets.bottom + 24,
-                gap: 16,
-              }}
-            >
-              <Text style={s.heading}>
-                {selected?.type === "qr"
-                  ? "Your fuel voucher"
-                  : "MoMo request received"}
-              </Text>
-              <Text style={s.status}>{selected?.status}</Text>
-              {selected?.qrImage && selected.status === "active" && (
-                <Image
-                  accessibilityLabel="Confirmed fuel voucher QR code"
-                  source={{ uri: selected.qrImage }}
-                  style={s.qr}
-                  resizeMode="contain"
-                />
-              )}
-              <Text selectable style={s.code}>
-                {selected?.code}
-              </Text>
-              <Text style={s.text}>
-                {selected ? money(selected.amount) : ""}
-              </Text>
-              <Text style={s.text}>
-                Expires: {selected ? date(selected.expiresAt) : ""}
-              </Text>
-              <Text style={s.text}>
-                {selected?.status === "pending"
-                  ? "MOTA will review this request. No MoMo payment has been confirmed yet."
-                  : selected?.status === "active"
-                    ? "Show this code to an authorized fuel partner. Keep it private until redemption."
-                    : "This voucher cannot be used again."}
-              </Text>
-              {button("Copy voucher code", () => {
-                if (selected)
-                  void Clipboard.setStringAsync(selected.code)
-                    .then(() =>
-                      Alert.alert(
-                        "Code copied",
-                        "Your voucher code is ready to paste.",
-                      ),
-                    )
-                    .catch((error) =>
-                      Alert.alert("Unable to copy", message(error)),
-                    );
-              })}
-              {button("Done", () => setSelected(null))}
-            </ScrollView>
-          </View>
+        ) : null}
+
+        <View style={s.card}>
+          <Text style={s.small}>{t("fuel.savings")}</Text>
+          <Text style={[s.title, { color: colors.success }]}>{savings.data ? money(savings.data.weekTotal) : "—"}</Text>
         </View>
+
+        <View style={s.card}>
+          <Text style={s.heading}>{t("fuel.history")}</Text>
+          {history.isPending ? <ActivityIndicator color={colors.primary} /> : !history.data?.vouchers.length ? (
+            <Text style={s.text}>{t("fuel.empty")}</Text>
+          ) : history.data.vouchers.map((v) => (
+            <TouchableOpacity key={v.id} accessibilityRole="button" onPress={() => void open(v)} style={s.listRow}>
+              <Feather name={v.type === "qr" ? "maximize" : "smartphone"} size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowTitle}>{v.type === "qr" ? t("fuel.qr_title") : t("fuel.momo_title")} · {money(v.amount)}{v.source === "reward" ? ` · ${t("fuel.reward")}` : ""}</Text>
+                <Text style={s.small}>{new Date(v.issuedAt).toLocaleString()}</Text>
+              </View>
+              <Text style={[s.badge, { color: ["redeemed", "paid"].includes(v.status) ? colors.success : ["expired", "returned"].includes(v.status) ? colors.textSecondary : colors.primary }]}>{statusLabel(v.status)}</Text>
+            </TouchableOpacity>
+          ))}
+          {history.data && history.data.total > 20 ? (
+            <View style={s.row}>
+              <Button s={s} secondary label={t("fuel.previous")} disabled={page <= 1} onPress={() => setPage((p) => p - 1)} />
+              <Button s={s} secondary label={t("fuel.next")} disabled={page * 20 >= history.data.total} onPress={() => setPage((p) => p + 1)} />
+            </View>
+          ) : null}
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.heading}>{t("fuel.stations")}</Text>
+          {stations.isPending ? <ActivityIndicator color={colors.primary} /> : !stations.data?.length ? (
+            <Text style={s.text}>{t("fuel.no_stations")}</Text>
+          ) : stations.data.map((st) => (
+            <View key={st.id} style={s.listRow}>
+              <Feather name="map-pin" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowTitle}>{st.name}</Text>
+                <Text style={s.small}>{st.address}{st.distanceKm != null ? ` · ${t("fuel.away", { km: String(st.distanceKm) })}` : ""}</Text>
+              </View>
+              {st.acceptsQr ? <Text style={[s.badge, { color: colors.success }]}>{t("fuel.accepts_qr")}</Text> : null}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      <Modal transparent visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
+        <Pressable style={s.backdrop} onPress={() => setSelected(null)}>
+          <Pressable style={s.sheet} onPress={() => {}}>
+            {selected ? (
+              <>
+                <Text style={s.heading}>{selected.type === "qr" ? t("fuel.qr_title") : t("fuel.momo_title")} · {money(selected.amount)}</Text>
+                <Text style={[s.badge, { alignSelf: "flex-start", color: colors.primary }]}>{statusLabel(selected.status)}</Text>
+                {selected.type === "qr" && selected.status === "active" && selected.qrCode ? (
+                  <>
+                    <Text style={s.text}>{t("fuel.show_attendant")}</Text>
+                    <View style={s.qrBox}><QRCode value={selected.qrCode} size={220} /></View>
+                    <Text selectable style={s.code}>{selected.code}</Text>
+                    {selected.expiresAt ? <Text style={[s.small, { textAlign: "center" }]}>{t("fuel.expires", { time: time(selected.expiresAt) })}</Text> : null}
+                  </>
+                ) : (
+                  <>
+                    <Text style={s.small}>{t("fuel.code")}: {selected.code}</Text>
+                    {selected.note ? <Text style={s.text}>{selected.note}</Text> : null}
+                  </>
+                )}
+                <Button s={s} label={t("fuel.close")} onPress={() => setSelected(null)} />
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
 }
+
+function Option({ s, colors, icon, title, help, amount, left, action, busy, disabled, onPress }: { s: ReturnType<typeof styles>; colors: ThemeColors; icon: React.ComponentProps<typeof Feather>["name"]; title: string; help: string; amount: string; left: string; action: string; busy: boolean; disabled: boolean; onPress: () => void }) {
+  return (
+    <View style={s.card}>
+      <View style={s.row}>
+        <View style={s.icon}><Feather name={icon} size={20} color={colors.primary} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.heading}>{title}</Text>
+          <Text style={s.small}>{amount} · {left}</Text>
+        </View>
+      </View>
+      <Text style={s.text}>{help}</Text>
+      <Button s={s} label={action} busy={busy} disabled={disabled} onPress={onPress} />
+    </View>
+  );
+}
+
+function Button({ s, label, onPress, disabled, busy, secondary }: { s: ReturnType<typeof styles>; label: string; onPress: () => void; disabled?: boolean; busy?: boolean; secondary?: boolean }) {
+  return (
+    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !!disabled, busy: !!busy }} disabled={disabled || busy} onPress={onPress}
+      style={[secondary ? s.secondary : s.button, { flex: secondary ? 1 : undefined }, (disabled || busy) && { opacity: 0.45 }]}>
+      {busy ? <ActivityIndicator color="#fff" /> : <Text style={secondary ? s.secondaryText : s.buttonText}>{label}</Text>}
+    </TouchableOpacity>
+  );
+}
+
+const styles = (c: ThemeColors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: c.background },
+  content: { paddingHorizontal: 16, gap: 14, width: "100%", maxWidth: 720, alignSelf: "center" },
+  back: { width: 44, height: 44, justifyContent: "center" },
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: c.textPrimary },
+  heading: { fontSize: 17, fontFamily: "Inter_700Bold", color: c.textPrimary },
+  text: { fontSize: 15, lineHeight: 22, color: c.textSecondary },
+  small: { fontSize: 13, color: c.textSecondary },
+  card: { backgroundColor: c.backgroundCard, borderRadius: 18, padding: 16, gap: 10, borderWidth: 1, borderColor: c.border },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  icon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: `${c.primary}18` },
+  button: { minHeight: 50, borderRadius: 14, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
+  buttonText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  secondary: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  secondaryText: { color: c.textPrimary, fontFamily: "Inter_600SemiBold" },
+  listRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+  rowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: c.textPrimary },
+  badge: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  backdrop: { flex: 1, backgroundColor: c.overlay, justifyContent: "flex-end" },
+  sheet: { backgroundColor: c.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12 },
+  qrBox: { alignSelf: "center", backgroundColor: "#fff", padding: 16, borderRadius: 16 },
+  code: { textAlign: "center", fontSize: 18, fontFamily: "Inter_700Bold", color: c.textPrimary, letterSpacing: 1 },
+});

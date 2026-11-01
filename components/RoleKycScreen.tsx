@@ -1,5 +1,5 @@
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -11,7 +11,8 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { pickUploadDocument } from "@/services/documentPicker";
+import { chooseUploadFile } from "@/services/uploadSource";
+import { Alert } from "@/components/GlobalAlert";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { kycApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
@@ -34,6 +35,15 @@ const driverDocuments = [
   ["technicalInspectionDocument", "Technical inspection certificate"],
 ] as const;
 const optionalDriverDocuments = [["vocationalCardDocument", "Driver vocational card (optional)"]] as const;
+// Each required document's expiry field (renewal opens 30 days before expiry).
+const EXPIRY_OF: Record<string, string> = {
+  drivingLicenseDocument: "drivingLicenseExpiresAt",
+  transportPermitDocument: "transportPermitExpiresAt",
+  insuranceDocument: "insuranceExpiresAt",
+  vehicleRegistrationDocument: "vehicleRegistrationExpiresAt",
+  technicalInspectionDocument: "technicalInspectionExpiresAt",
+};
+type Renewal = { due: boolean; expired: Array<{ expiryField: string; documentField: string; expiresAt: string | null }>; expiringSoon: Array<{ expiryField: string; documentField: string; expiresAt: string }>; windowDays: number };
 
 export function RoleKycScreen({ kind }: { kind: Kind }) {
   const { user } = useAuth();
@@ -49,6 +59,11 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [newUploads, setNewUploads] = useState<Record<string, boolean>>({});
   const [dateField, setDateField] = useState<string | null>(null);
+  const [renewal, setRenewal] = useState<Renewal | null>(null);
+  // The record exactly as loaded. Renewal is decided from these saved dates, not from the
+  // form being edited (picking the new expiry date must not re-lock the screen).
+  const [loaded, setLoaded] = useState<Record<string, string>>({});
+  const lockedRef = useRef(false);
   const today = new Date(new Date().setHours(0, 0, 0, 0));
   const dateValue = (key: string) => {
     const value = form[key] ? new Date(form[key].slice(0, 10) + "T12:00:00") : today;
@@ -71,6 +86,8 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
         });
         setStatus(data.status || "not_submitted");
         setRemarks(data.remarks || "");
+        setRenewal(r.data.renewal || null);
+        setLoaded(Object.fromEntries(Object.entries(data).filter(([, v]) => typeof v === "string")) as Record<string, string>);
       })
       .catch((e) => setMessage(e?.response?.data?.message || e.message))
       .finally(() => setBusy(false));
@@ -80,9 +97,15 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
   const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const pick = async (key: string) => {
     if (busy) return;
+    if (lockedRef.current) {
+      // Never ignore a tap silently: say why the document can't be changed.
+      Alert.alert("Documents already approved", "Your documents are approved and still valid. You can upload a renewed document from 30 days before it expires, or contact MOTA support for a correction.");
+      return;
+    }
     try {
       setUploadErrors((previous) => ({ ...previous, [key]: "" }));
-      const asset = await pickUploadDocument();
+      const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
+      const asset = await chooseUploadFile(label);
       if (!asset) return;
       setBusy(true);
       setUploadingKey(key);
@@ -91,7 +114,6 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
       set(key, url);
       setFileNames(previous => ({...previous,[key]:asset.name}));
       setNewUploads((previous) => ({ ...previous, [key]: true }));
-      const label = [...commonDocuments, ...driverDocuments, ...optionalDriverDocuments].find(([field]) => field === key)?.[1] || "Document";
       setMessage(`${label} uploaded successfully. Submit verification to save it for review.`);
     } catch (e: any) {
       const error = e?.message || "Document upload failed. Tap to retry.";
@@ -107,17 +129,35 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     const missing = docs.find(([key]) => !form[key]);
     if (!form.nationalIdNumber?.trim() || missing) {
       setMessage(`Complete National ID number and ${missing?.[1] || "required documents"} before submitting.`);
+      Alert.alert("Missing information", `Complete National ID number and ${missing?.[1] || "required documents"} before submitting.`);
       return;
+    }
+    if (kind === "driver") {
+      const stale = docs.find(([key]) => EXPIRY_OF[key] && (!form[EXPIRY_OF[key] || "vocationalCardExpiresAt"] || new Date(form[EXPIRY_OF[key] || "vocationalCardExpiresAt"].slice(0, 10) + "T23:59:59") < new Date()));
+      if (stale) {
+        setMessage(`${stale[1]} has expired. Upload the new document and set its new expiry date before submitting.`);
+        Alert.alert("New expiry date needed", `${stale[1]} has expired. Upload the new document and set its new expiry date before submitting.`);
+        return;
+      }
+      if (form.vocationalCardDocument && form.vocationalCardExpiresAt && new Date(form.vocationalCardExpiresAt.slice(0, 10) + "T23:59:59") < new Date()) {
+        setMessage("Driver vocational card has expired. Upload the new card and set its new expiry date, or remove it.");
+        return;
+      }
     }
     setBusy(true);
     setMessage("");
     try {
       const response = await kycApi.submitMine(form);
       setStatus(response.data.data.status);
+      setRenewal(null);
+      setLoaded(Object.fromEntries(Object.entries(response.data.data || {}).filter(([, v]) => typeof v === "string")) as Record<string, string>);
       setNewUploads({});
       setMessage(response.data.message);
+      Alert.alert("Sent for review", response.data.message);
     } catch (e: any) {
-      setMessage(e?.response?.data?.message || "KYC submission failed.");
+      const text = e?.response?.data?.message || "KYC submission failed. Check your connection and try again.";
+      setMessage(text);
+      Alert.alert("Submission failed", text);
     } finally {
       setBusy(false);
     }
@@ -126,14 +166,36 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
     ...commonDocuments,
     ...(kind === "driver" ? driverDocuments : []),
   ];
+  // Expiry worked out from the document dates themselves, so the screen unlocks even if the
+  // server doesn't report renewal (older backend). The vocational card counts when provided.
+  const localRenewal = (() => {
+    if (kind !== "driver" || status !== "approved") return null;
+    const now = Date.now(), soon = now + 30 * 86400000;
+    const fields: Array<[string, string]> = [...Object.entries(EXPIRY_OF), ...(loaded.vocationalCardDocument ? [["vocationalCardDocument", "vocationalCardExpiresAt"] as [string, string]] : [])];
+    const expired: Renewal["expired"] = [], expiringSoon: Renewal["expiringSoon"] = [];
+    for (const [documentField, expiryField] of fields) {
+      const at = loaded[expiryField] ? new Date(loaded[expiryField]).getTime() : NaN;
+      if (!Number.isFinite(at) || at <= now) expired.push({ expiryField, documentField, expiresAt: loaded[expiryField] || null });
+      else if (at <= soon) expiringSoon.push({ expiryField, documentField, expiresAt: loaded[expiryField] });
+    }
+    return { due: expired.length + expiringSoon.length > 0, expired, expiringSoon, windowDays: 30 } as Renewal;
+  })();
+  const effectiveRenewal = renewal?.due ? renewal : localRenewal;
+  // Approved KYC is read-only unless a driver document has expired or expires soon.
+  const renewing = status === "approved" && Boolean(effectiveRenewal?.due);
+  const locked = status === "approved" && !renewing;
+  lockedRef.current = locked;
+  const expiredDocs = new Set((effectiveRenewal?.expired || []).map((d) => d.documentField));
+  const expiringDocs = new Set((effectiveRenewal?.expiringSoon || []).map((d) => d.documentField));
+  const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "unknown date");
   const documentCard = ([key, label]: readonly [string, string]) => (
-    <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={`${label}: ${uploadErrors[key] ? "upload failed, retry" : uploadingKey === key ? "uploading" : form[key] ? "uploaded" : "select image"}`} style={[s.doc, uploadErrors[key] ? s.docError : form[key] ? s.docUploaded : null]} onPress={() => pick(key)} disabled={busy || status === "approved"}>
+    <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={`${label}: ${uploadErrors[key] ? "upload failed, retry" : uploadingKey === key ? "uploading" : form[key] ? "uploaded" : "select image"}`} style={[s.doc, uploadErrors[key] ? s.docError : form[key] ? s.docUploaded : null]} onPress={() => pick(key)} disabled={busy}>
       {uploadingKey === key ? <ActivityIndicator color={colors.primary} /> : form[key] ? <Feather name="file-text" size={24} color={colors.primary} /> : <Feather name={uploadErrors[key] ? "alert-circle" : "upload"} size={22} color={uploadErrors[key] ? cError : colors.textSecondary} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.docTitle}>{label}</Text>
         {fileNames[key] ? <Text style={s.docSub}>{fileNames[key]}</Text> : null}
         <Text style={[s.docSub, uploadErrors[key] ? s.errorText : form[key] ? s.successText : null]}>
-          {uploadingKey === key ? "Uploading file…" : uploadErrors[key] ? `Upload failed: ${uploadErrors[key]} Tap to retry.` : form[key] ? newUploads[key] ? "✓ Upload complete · submit verification to save" : "✓ File uploaded · tap to replace" : "Tap to upload a photo or document (up to 20 MB)"}
+          {!newUploads[key] && expiredDocs.has(key) ? `⚠ Expired ${day(loaded[EXPIRY_OF[key] || "vocationalCardExpiresAt"])} · tap to upload the new one` : !newUploads[key] && expiringDocs.has(key) ? `Expires ${day(loaded[EXPIRY_OF[key] || "vocationalCardExpiresAt"])} · tap to upload the renewed one` : uploadingKey === key ? "Uploading file…" : uploadErrors[key] ? `Upload failed: ${uploadErrors[key]} Tap to retry.` : form[key] ? newUploads[key] ? "✓ Upload complete · submit verification to save" : "✓ File uploaded · tap to replace" : "Tap to upload a photo or document (up to 20 MB)"}
         </Text>
       </View>
     </TouchableOpacity>
@@ -257,6 +319,16 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
           </View> : null}
         </>
       )}
+      {renewing ? (
+        <View accessibilityRole="alert" style={{ borderWidth: 1, borderColor: cError, borderRadius: 14, padding: 14, marginTop: 16, gap: 6, backgroundColor: `${cError}14` }}>
+          <Text style={[s.docTitle, { color: cError }]}>{effectiveRenewal!.expired.length ? "Documents need renewal" : "Documents expire soon"}</Text>
+          {[...effectiveRenewal!.expired, ...effectiveRenewal!.expiringSoon].map((d) => {
+            const label = driverDocuments.find(([k]) => k === d.documentField)?.[1] || d.documentField;
+            return <Text key={d.documentField} style={s.docSub}>• {label}: {effectiveRenewal!.expired.some((x) => x.documentField === d.documentField) ? "expired" : "expires"} {day(d.expiresAt)}</Text>;
+          })}
+          <Text style={s.docSub}>Upload each new document, set its new expiry date above, then submit. MOTA reviews the renewal, and you can't go online until it is approved{effectiveRenewal!.expired.length ? "." : ", so submit close to the expiry date."}</Text>
+        </View>
+      ) : null}
       <Text style={s.section}>Required documents</Text>
       <Text style={s.notice}>Upload clear images of both sides of your ID and a current selfie. Drivers also need the documents listed below.</Text>
       {docs.map(documentCard)}
@@ -265,16 +337,18 @@ export function RoleKycScreen({ kind }: { kind: Kind }) {
         {optionalDriverDocuments.map(documentCard)}
       </> : null}
       <TouchableOpacity
-        style={[s.submit, status === "approved" && { opacity: 0.5 }]}
+        style={[s.submit, locked && { opacity: 0.5 }]}
         onPress={submit}
-        disabled={busy || status === "approved"}
+        disabled={busy || locked}
       >
         <Text style={s.submitText}>
           {busy
             ? "Submitting…"
-            : status === "approved"
-              ? "KYC approved"
-              : "Submit for review"}
+            : renewing
+              ? "Submit renewal for review"
+              : status === "approved"
+                ? "KYC approved"
+                : "Submit for review"}
         </Text>
       </TouchableOpacity>
     </ScrollView>

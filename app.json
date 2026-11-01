@@ -12,12 +12,23 @@
       "bundleIdentifier": "com.tiangroupinnovation.mota",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "MOTA uses your location to find nearby rides, show drivers and passengers on the map, and track an active ride.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification",
+          "location"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "While you're online as a MOTA driver, MOTA shares your location so passengers can see you arriving, even when the screen is locked. Sharing stops when you go offline."
       }
     },
     "android": {
       "package": "com.tiangroupinnovation.mota",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "POST_NOTIFICATIONS"],
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/mota-icon-black.png",
         "backgroundColor": "#FFFFFF"
@@ -38,6 +49,21 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "While you're online as a MOTA driver, MOTA shares your location so passengers can see you arriving, even when the screen is locked. Sharing stops when you go offline."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MOTA uses your photos so you can upload your profile picture and verification documents.",
+          "cameraPermission": "MOTA uses the camera so you can photograph your verification documents and profile picture."
+        }
       ]
     ],
     "experiments": {
@@ -46,9 +72,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "c503fc3c-650c-4f52-93ee-c6c151e28fb3"
-      }
+        "projectId": "c726e381-e808-432b-bd5c-40acf18723fb"
+      },
+      "router": {}
     },
-    "owner": "tiangroupinnovation"
+    "owner": "christian_ish"
   }
 }

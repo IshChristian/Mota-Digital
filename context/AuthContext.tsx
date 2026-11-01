@@ -2,7 +2,8 @@ import { createDriverAutoOnline } from '../services/driverAutoOnline';
 import { Alert } from '../components/GlobalAlert';
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import axios from 'axios';
-import { usersApi, driverApi, algorithmApi, authApi, getApiErrorMessage } from '../services/api';
+import { usersApi, driverApi, algorithmApi, authApi, getApiErrorMessage, onSessionExpired } from '../services/api';
+import { realtime } from '../services/realtime';
 import {
   clearSensitiveSession,
   getSensitiveJson,
@@ -125,6 +126,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+
+  // A rejected token anywhere in the app ends the session here too, so screens
+  // don't keep running with an account the server no longer accepts.
+  useEffect(() => onSessionExpired(() => {
+    autoOnline.current!.reset();
+    realtime.disconnect();
+    void clearSensitiveSession();
+    setToken(null);
+    setUser(null);
+    setRiderStatus(null);
+    setHasDriverProfile(false);
+    setIsAccountReady(false);
+  }), []);
+
+  // One live event stream per signed-in app (ride updates, offers, chat, payments).
+  useEffect(() => {
+    if (token && isAccountReady) realtime.connect(token);
+    else realtime.disconnect();
+  }, [token, isAccountReady]);
 
   useEffect(() => {
     async function loadAuth() {

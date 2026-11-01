@@ -21,10 +21,13 @@ import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { MapPreferenceProvider } from "@/context/MapPreferenceContext";
 import { isPassengerRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { GlobalAlert } from "@/components/GlobalAlert";
+// Registers the background location task before any screen mounts.
+import "@/services/driverLocation";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -183,12 +186,14 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <I18nProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                    <GlobalAlert />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
+                <MapPreferenceProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                      <GlobalAlert />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </MapPreferenceProvider>
               </I18nProvider>
             </AuthProvider>
           </QueryClientProvider>

@@ -42,6 +42,12 @@ export async function registerForPushNotifications() {
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
     });
+    // The server sends non-urgent messages (wallet, account, promotions) on "default".
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'General',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      sound: 'default',
+    });
   }
 
   const existing = await Notifications.getPermissionsAsync();

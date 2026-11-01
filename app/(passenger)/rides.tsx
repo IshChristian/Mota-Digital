@@ -5,6 +5,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 import { ridesApi } from "@/services/api";
 import { useRouter } from "expo-router";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -33,6 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function PassengerRidesScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const t = useT();
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "cancelled">("all");
 
   const { data: rides = [], isLoading, refetch } = useQuery({
@@ -56,9 +58,9 @@ export default function PassengerRidesScreen() {
   const renderRide = ({ item }: { item: RideHistoryItem }) => {
     const status = item.rideStatus || item.status || "requested";
     const statusColor = STATUS_COLORS[status] || "#64748B";
-    const pickup = typeof item.pickup === "string" ? item.pickup : item.pickup?.name || item.pickup?.address || "Pickup location";
-    const destination = typeof item.destination === "string" ? item.destination : item.destination?.name || item.destination?.address || "Destination";
-    const driverName = item.driverName || [item.driverId?.firstName, item.driverId?.lastName].filter(Boolean).join(" ") || "Not assigned";
+    const pickup = typeof item.pickup === "string" ? item.pickup : item.pickup?.name || item.pickup?.address || t("myrides.pickup_location");
+    const destination = typeof item.destination === "string" ? item.destination : item.destination?.name || item.destination?.address || t("myrides.destination");
+    const driverName = item.driverName || [item.driverId?.firstName, item.driverId?.lastName].filter(Boolean).join(" ") || t("myrides.not_assigned");
     const fare = Number(item.fare ?? item.offeredFare ?? 0);
     return <TouchableOpacity style={s.rideCard} onPress={() => router.push({ pathname: "/(passenger)/ride-details/[id]", params: { id: item._id || item.id || "" } } as any)}>
       <View style={s.rideHeader}>
@@ -109,14 +111,14 @@ export default function PassengerRidesScreen() {
   };
 
   const tabs = [
-    { key: "all" as const, label: "All" },
-    { key: "completed" as const, label: "Completed" },
-    { key: "cancelled" as const, label: "Cancelled" },
+    { key: "all" as const, label: t("myrides.all") },
+    { key: "completed" as const, label: t("myrides.completed") },
+    { key: "cancelled" as const, label: t("myrides.cancelled") },
   ];
 
   return (
     <View style={s.container}>
-      <View style={{ paddingHorizontal: 16 }}><ScreenHeader title="My rides" /></View>
+      <View style={{ paddingHorizontal: 16 }}><ScreenHeader title={t("myrides.title")} /></View>
 
       <View style={s.tabBar}>
         {tabs.map((tab) => (
@@ -140,8 +142,8 @@ export default function PassengerRidesScreen() {
         ListEmptyComponent={
           <View style={s.emptyState}>
             <Feather name="map" size={48} color={colors.border} />
-            <Text style={s.emptyTitle}>No rides yet</Text>
-            <Text style={s.emptySubtitle}>Your ride history will appear here</Text>
+            <Text style={s.emptyTitle}>{t("myrides.empty")}</Text>
+            <Text style={s.emptySubtitle}>{t("myrides.empty_body")}</Text>
           </View>
         }
       />

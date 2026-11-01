@@ -14,7 +14,7 @@ import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { pickUploadDocument } from "@/services/documentPicker";
+import { chooseUploadFile } from "@/services/uploadSource";
 import { uploadToCloudinary } from "@/services/cloudinary";
 
 type DocType = "insuranceAttachment" | "permitAttachment";
@@ -43,7 +43,7 @@ export default function UploadDocumentsScreen() {
 
   const pickAndUpload = async (key: DocType) => {
     try {
-      const asset = await pickUploadDocument();
+      const asset = await chooseUploadFile();
       if (!asset) return;
 
       setDoc(key, {

@@ -12,3 +12,9 @@ test('support notification opens case before related ride', () => assert.equal(r
 test('passenger notification opens passenger ride details', () => assert.equal(route({rideId:id},true), `/(passenger)/ride-details/${id}`));
 test('driver notification opens active ride', () => assert.equal(route({rideId:id},false), `/active-ride?rideId=${id}`));
 test('untrusted identifiers cannot inject routes', () => assert.equal(route({supportCaseId:'../../settings',rideId:'bad?id=1'},false),undefined));
+test('chat notification opens the ride chat', () => assert.equal(route({rideId:id,event:'chatMessage'},true), `/ride-chat/${id}`));
+test('live passenger ride opens the home screen where it is tracked', () => {
+  assert.equal(route({rideId:id,rideStatus:'arrived'},true), '/(passenger)');
+  assert.equal(route({rideId:id,event:'driverArrived'},true), '/(passenger)');
+  assert.equal(route({rideId:id,event:'paymentUpdate',rideStatus:'completed'},true), `/(passenger)/ride-details/${id}`);
+});
