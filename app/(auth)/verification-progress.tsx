@@ -6,8 +6,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { accountContinuation } from "@/services/accountContinuation";
+import { rwf, usePricing } from "@/hooks/usePricing";
 
 export default function VerificationProgress() {
+  const { pricing } = usePricing();
   const { user, refreshAccount, logout } = useAuth();
   const refreshAccountRef = useRef(refreshAccount);
   refreshAccountRef.current = refreshAccount;
@@ -34,7 +36,7 @@ export default function VerificationProgress() {
     { title: "Phone number", done: !!user?.isVerified, detail: "Required for every account", route: "/(auth)/confirm-phone" },
     { title: "Email address", done: !!user?.isEmailVerified, detail: user?.email ? "Optional — verify when ready" : "Optional — add an email later", route: user?.email ? "/(auth)/verify-email" : undefined },
     { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : user?.isVerified ? "Upload ID, selfie, licence and vehicle documents" : "Verify your phone before uploading documents", route: user?.isVerified ? "/(auth)/driver-kyc" : undefined },
-    { title: "Registration fee", done: !!user?.registrationPaid, detail: "5,000 RWF via MoMo after KYC submission", route: ["submitted", "approved"].includes(kycStatus) ? "/(auth)/payment-registration" : undefined },
+    { title: "Registration fee", done: !!user?.registrationPaid, detail: `${rwf(pricing.registrationFee.driver)} via MoMo after KYC submission`, route: ["submitted", "approved"].includes(kycStatus) ? "/(auth)/payment-registration" : undefined },
     { title: "Account activation", done: user?.kycLevel === "full" && !!user?.isActive, detail: user?.activationBlocked || (user?.registrationStatus === "approved" && !user?.isActive) ? "Account disabled — contact MOTA support" : "Approved full KYC activates your driver account automatically", route: undefined },
   ];
 

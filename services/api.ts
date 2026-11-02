@@ -544,6 +544,11 @@ export const searchApi = {
     api.get(`/search/users?q=${encodeURIComponent(q)}`),
 };
 
+/** Public figures from admin Settings: fees, fares, loan and fuel rules, support contacts, maintenance. */
+export const platformApi = {
+  pricing: () => api.get("/platform/pricing"),
+};
+
 export const releaseApi = {
   getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
 };
