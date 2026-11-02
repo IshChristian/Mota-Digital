@@ -60,6 +60,8 @@ function uploader(options = {}) {
         if (options.copyError) throw Error("denied");
       },
       readAsStringAsync: async (uri) => {
+        // An unreadable file stays unreadable through the legacy API too.
+        if (options.missing || options.copyError) throw Error("cannot open");
         calls.push(["read", uri]);
         return encoded;
       },

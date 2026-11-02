@@ -10,8 +10,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { authApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 
 export default function ResetPasswordScreen() {
+  const t = useT();
   const { token: linkToken } = useLocalSearchParams<{ token?: string }>();
   const router = useRouter();
   const { colors } = useTheme();
@@ -22,21 +24,21 @@ export default function ResetPasswordScreen() {
   const [message, setMessage] = useState("");
   const submit = async () => {
     if (password.length < 10) {
-      setMessage("Password must contain at least 10 characters.");
+      setMessage(t("auth.pw_short"));
       return;
     }
     if (password !== confirm) {
-      setMessage("Passwords do not match.");
+      setMessage(t("auth.pw_mismatch"));
       return;
     }
     setBusy(true);
     try {
       await authApi.resetPassword(token, password);
-      setMessage("Password changed. You can now sign in.");
+      setMessage(t("auth.pw_changed"));
       setTimeout(() => router.replace("/(auth)/login"), 800);
     } catch (e: any) {
       setMessage(
-        e?.response?.data?.message || "Reset link is invalid or expired.",
+        e?.response?.data?.message || t("auth.reset_invalid"),
       );
     } finally {
       setBusy(false);
@@ -45,13 +47,13 @@ export default function ResetPasswordScreen() {
   return (
     <View style={[s.page, { backgroundColor: colors.background }]}>
       <Text style={[s.title, { color: colors.textPrimary }]}>
-        Create a new password
+        {t("auth.new_pw_title")}
       </Text>
       {!linkToken ? (
         <TextInput
           value={token}
           onChangeText={setToken}
-          placeholder="Reset token"
+          placeholder={t("auth.reset_token")}
           placeholderTextColor={colors.textTertiary}
           style={[
             s.input,
@@ -63,7 +65,7 @@ export default function ResetPasswordScreen() {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
-        placeholder="New password"
+        placeholder={t("auth.new_pw")}
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
@@ -74,7 +76,7 @@ export default function ResetPasswordScreen() {
         secureTextEntry
         value={confirm}
         onChangeText={setConfirm}
-        placeholder="Confirm new password"
+        placeholder={t("auth.confirm_pw")}
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
@@ -92,7 +94,7 @@ export default function ResetPasswordScreen() {
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={s.buttonText}>Update password</Text>
+          <Text style={s.buttonText}>{t("auth.update_pw")}</Text>
         )}
       </TouchableOpacity>
     </View>

@@ -1,16 +1,22 @@
+import { useT } from "@/context/I18nContext";
 import { useEffect, useState } from "react";
-import { Switch, Text, View } from "react-native";
+import { Switch, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@/context/AuthContext";
+import { isPassengerRole } from "@/constants/roles";
+import { sendTestRideAlert } from "@/services/pushNotifications";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
 
+// Translation keys; resolved with t() when rendering.
 const labels = {
-  rides: "Ride updates",
-  wallet: "Wallet activity",
-  promotions: "Offers and promotions",
-  security: "Security alerts",
+  rides: "notif.ride_updates",
+  wallet: "notif.wallet_activity",
+  promotions: "notif.offers",
+  security: "notif.security",
 } as const;
 export default function NotificationSettings() {
+  const t = useT();
   const { colors } = useTheme();
   const [values, setValues] = useState<Record<keyof typeof labels, boolean>>({
     rides: true,
@@ -19,30 +25,40 @@ export default function NotificationSettings() {
     security: true,
   });
   const [feedback, setFeedback] = useState("");
+  const { user } = useAuth();
+  const isDriver = Boolean(user) && !isPassengerRole(user?.role);
+  const testAlert = async () => {
+    try {
+      await sendTestRideAlert(t("notif.test_alert_title"), t("notif.test_alert_body"));
+      setFeedback(t("notif.test_alert_sent"));
+    } catch (error: any) {
+      setFeedback(t(error?.message === "permission" ? "notif.test_alert_permission" : "notif.test_alert_failed"));
+    }
+  };
   useEffect(() => {
     productionApi
       .notificationPreferences()
       .then((r) => setValues((v) => ({ ...v, ...r.data.data })))
-      .catch(() => setFeedback("Notification preferences could not be loaded. Pull back and try again."));
+      .catch(() => setFeedback(t("notif.load_failed")));
   }, []);
   const change = async (key: keyof typeof labels, value: boolean) => {
     const previous = values;
     setValues({ ...values, [key]: value });
     try {
       await productionApi.updateNotificationPreferences({ [key]: value });
-      setFeedback("Notification preferences saved.");
+      setFeedback(t("notif.saved"));
     } catch {
       setValues(previous);
-      setFeedback("Changes were not saved. Please try again.");
+      setFeedback(t("notif.not_saved"));
     }
   };
   return (
-    <PassengerSettingsScreen title="Notifications">
+    <PassengerSettingsScreen title={t("notif.title")}>
       {feedback ? <Text accessibilityRole="alert" style={{ color: colors.textPrimary, backgroundColor: colors.backgroundCard, padding: 12, borderRadius: 10 }}>{feedback}</Text> : null}
-      {(["Operational", "Promotional"] as const).map((group) => <View key={group}>
+      {([t("notif.operational"), t("notif.promotional")] as const).map((group) => <View key={group}>
         <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 17, marginBottom: 6 }}>{group}</Text>
-        <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>{group === "Operational" ? "Ride, account, and security updates" : "Offers and news from MOTA"}</Text>
-      {Object.entries(labels).filter(([key]) => group === "Promotional" ? key === "promotions" : key !== "promotions").map(([key, label]) => (
+        <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>{group === t("notif.operational") ? t("notif.operational_desc") : t("notif.promotional_desc")}</Text>
+      {Object.entries(labels).filter(([key]) => group === t("notif.promotional") ? key === "promotions" : key !== "promotions").map(([key, label]) => (
         <View
           key={key}
           style={{
@@ -59,11 +75,11 @@ export default function NotificationSettings() {
                 fontFamily: "Inter_600SemiBold",
               }}
             >
-              {label}
+              {t(label)}
             </Text>
             {key === "security" ? (
               <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                Recommended for account protection
+                {t("notif.security_note")}
               </Text>
             ) : null}
           </View>
@@ -74,6 +90,15 @@ export default function NotificationSettings() {
         </View>
       ))}
       </View>)}
+      {isDriver ? (
+        <View style={{ marginTop: 8, padding: 16, borderRadius: 14, backgroundColor: colors.backgroundCard, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 16 }}>{t("notif.test_alert")}</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: 4, marginBottom: 12 }}>{t("notif.test_alert_desc")}</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={testAlert} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}>
+            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold" }}>{t("notif.test_alert_button")}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </PassengerSettingsScreen>
   );
 }

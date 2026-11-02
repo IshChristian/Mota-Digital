@@ -10,6 +10,13 @@ export { getStoredToken, removeStoredToken } from "./secureStorage";
 
 const api = axios.create({ baseURL: API_BASE_URL, timeout: 30000 });
 
+const sessionExpiredListeners = new Set<() => void>();
+/** Lets AuthContext sign the user out in memory when the server rejects their token. */
+export function onSessionExpired(listener: () => void) {
+  sessionExpiredListeners.add(listener);
+  return () => { sessionExpiredListeners.delete(listener); };
+}
+
 export const isNetworkError = (error: unknown) =>
   axios.isAxiosError(error) && !error.response;
 
@@ -47,8 +54,9 @@ api.interceptors.response.use(
       await new Promise((resolve) => setTimeout(resolve, 750 * config._networkRetryCount!));
       return api.request(config);
     }
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && config?.headers?.Authorization) {
       await removeStoredToken();
+      sessionExpiredListeners.forEach((listener) => listener());
     }
     return Promise.reject(error);
   },
@@ -119,22 +127,52 @@ export const driverApi = {
   logRide: (data: any) => api.post("/driver/log-ride", data),
   getRides: (page = 1) => api.get(`/driver/rides?page=${page}`),
   getTier: () => api.get("/driver/tier"),
-  getLeaderboard: (limit = 10) => api.get(`/driver/leaderboard?limit=${limit}`),
   payFine: (data: { fineId: string; paymentAmount: number }) =>
     api.post("/driver/pay-fine", data),
   requestFine: (data: any) => api.post("/driver/request-fine", data),
   updateAvailability: (data: { isOnline: boolean; automatic?: boolean }) =>
     api.put("/driver/availability", data),
-  updateLocation: (data: { latitude: number; longitude: number }) =>
+  updateLocation: (data: { latitude: number; longitude: number; heading?: number; speed?: number }) =>
     api.put("/driver/location", data),
   getActiveRide: () => api.get("/driver/active-ride"),
+  getPreferences: () => api.get<{ data: { requestRadiusKm: number | null; systemRadiusKm: number; minKm: number; maxKm: number } }>("/driver/preferences"),
+  updatePreferences: (data: { requestRadiusKm: number | null }) => api.put("/driver/preferences", data),
 };
 
 // ─── Rides API ───────────────────────────────────────────────────────────────
+export type VehicleType = "motor" | "car";
+export type PaymentMethod = "cash" | "momo" | "wallet";
+export type Place = { name: string; address?: string; latitude: number; longitude: number };
+export type ParcelDetails = { recipientName: string; recipientPhone: string; description?: string; size?: "small" | "medium" | "large"; weightKg?: number };
+export type RouteStep = { instruction: string; maneuver: string; distanceMeters: number };
+export type RouteResult = { source: "google" | "osm"; encodedPolyline: string; distanceMeters: number; durationSeconds: number; steps: RouteStep[] };
+/** Accepts every estimate shape the backends send and returns the options list (may be empty). */
+export function normalizeEstimate(body: any): FareOption[] {
+  const list = body?.data?.options ?? body?.options;
+  if (Array.isArray(list) && list.length) return list;
+  const single = body?.data?.suggestedFare != null ? body.data : body;
+  if (single && Number.isFinite(Number(single.suggestedFare))) {
+    return [{
+      vehicleType: single.vehicleType === "car" ? "car" : "motor",
+      distanceKm: Number(single.distanceKm) || 0,
+      durationMinutes: Number(single.durationMinutes) || 0,
+      minimumFare: Number(single.minimumFare ?? single.suggestedFare),
+      maximumFare: Number(single.maximumFare ?? single.suggestedFare),
+      suggestedFare: Number(single.suggestedFare),
+      encodedPolyline: single.encodedPolyline ?? null,
+      routeSource: single.routeSource === "google" || single.routeSource === "osm" || single.distanceSource === "road" ? "google" : "estimate",
+    }];
+  }
+  return [];
+}
+
+export type FareOption = { vehicleType: VehicleType; distanceKm: number; durationMinutes: number; minimumFare: number; maximumFare: number; suggestedFare: number; encodedPolyline?: string | null; routeSource: "google" | "estimate" };
+
 export const ridesApi = {
   // Driver-side
   acceptRide: (id: string) => api.post(`/rides/${id}/accept`),
   declineRide: (id: string) => api.post(`/rides/${id}/decline`),
+  counterOffer: (id: string, amount: number) => api.post(`/rides/${id}/counter-offer`, { amount }),
   getRideDetails: (id: string) => api.get(`/rides/${id}`),
   notifyArrival: (id: string) => api.post(`/rides/${id}/arrived`),
   startRide: (id: string, pin: string) =>
@@ -142,39 +180,107 @@ export const ridesApi = {
   completeRide: (id: string) => api.post(`/rides/${id}/complete`),
   // Passenger-side
   requestRide: (data: {
-    pickup: any;
-    destination: any;
+    pickup: Place;
+    destination: Place;
+    vehicleType: VehicleType;
+    rideType?: "ride" | "parcel";
+    parcel?: ParcelDetails;
     offeredFare: number;
     backupDrivers: number;
     passengers?: number;
-    paymentMethod?: "cash" | "momo" | "wallet";
+    paymentMethod: PaymentMethod;
     scheduledDate?: string;
     scheduledTime?: string;
   }) => api.post("/rides/request", data),
   estimateFare: (
     pickup: { latitude: number; longitude: number },
     destination: { latitude: number; longitude: number },
-  ) => api.post("/rides/estimate", { pickup, destination }),
+    options: { vehicleType?: VehicleType; rideType?: "ride" | "parcel" } = {},
+  ) => api.post("/rides/estimate", { pickup, destination, ...options }),
+  /**
+   * Prices every vehicle option. Newer servers return data.options = [motor, car];
+   * older ones return a single moto estimate, which becomes a one-item list.
+   * Always resolves to { data: { data: { options } } } so screens never read undefined.
+   */
+  estimateOptions: async (
+    pickup: { latitude: number; longitude: number },
+    destination: { latitude: number; longitude: number },
+    rideType: "ride" | "parcel" = "ride",
+  ) => {
+    const res = await api.post("/rides/estimate", { pickup, destination, rideType });
+    return { ...res, data: { data: { options: normalizeEstimate(res.data) } } };
+  },
+  getActiveRide: () => api.get("/rides/active"),
   getMyRides: (page = 1) => api.get(`/rides/my-rides?page=${page}`),
   getDriverRequests: () => api.get("/rides/driver/requests"),
   getRideStatus: (id: string) => api.get(`/rides/${id}/status`),
   cancelRide: (id: string, reason?: string) =>
     api.post(`/rides/${id}/cancel`, { reason }),
-  rateRide: (id: string, data: { rating: number; comment?: string }) =>
+  rateRide: (id: string, data: { rating: number; comment?: string; tip?: number }) =>
     api.post(`/rides/${id}/rating`, data),
+  raiseOffer: (id: string, amount: number) => api.post(`/rides/${id}/raise-offer`, { amount }),
+  acceptCounterOffer: (id: string, offerId: string) => api.post(`/rides/${id}/counter-offers/${offerId}/accept`),
   requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
   confirmStart: (id: string) => api.post(`/rides/${id}/confirm-start`),
-  requestStop: (id: string) => api.post(`/rides/${id}/request-stop`),
+  requestStop: (id: string, deliveryPin?: string) => api.post(`/rides/${id}/request-stop`, deliveryPin ? { deliveryPin } : {}),
   confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
   claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
-  payRide: (id: string) => api.post(`/rides/${id}/pay`),
+  payRide: (id: string, phone?: string) => api.post(`/rides/${id}/pay`, phone ? { phone } : {}),
+  share: (id: string) => api.post<{ data: { url: string; expiresAt: string } }>(`/rides/${id}/share`),
+  getMessages: (id: string) => api.get(`/rides/${id}/messages`),
+  sendMessage: (id: string, text: string) => api.post(`/rides/${id}/messages`, { text }),
+  call: (id: string) => api.post<{ data: { mode: "direct" | "bridged"; phone?: string; message?: string } }>(`/rides/${id}/call`),
 };
 
+/** Direct OpenStreetMap (Nominatim) search, used only when the MOTA server can't search. */
+async function searchOpenStreetMap(q: string): Promise<Place[]> {
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=rw&limit=10`, {
+    headers: { Accept: "application/json", "User-Agent": "MOTA-App/1.0 (support@mota.africa)" },
+  });
+  if (!response.ok) throw new Error("Place search is unavailable. Tap the map to choose a place.");
+  const rows: any[] = await response.json();
+  return rows.map((r) => ({
+    name: String(r.display_name || "").split(",")[0].trim(),
+    address: String(r.display_name || "").split(",").slice(1).join(",").trim(),
+    latitude: Number(r.lat),
+    longitude: Number(r.lon),
+  })).filter((p) => p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+}
+
 export const mapsApi = {
+  /** Road route: Google Routes first, OpenStreetMap (OSRM) when Google fails or finds nothing. */
   getRoute: (
     origin: { latitude: number; longitude: number },
     destination: { latitude: number; longitude: number },
-  ) => api.post("/maps/route", { origin, destination, travelMode: "DRIVE" }),
+  ) => api.post<{ data: RouteResult }>("/maps/route", { origin, destination, travelMode: "DRIVE" }),
+  /**
+   * Place search through MOTA's server (cached). If the server has no search route
+   * (older backend → 404) or can't be reached, search OpenStreetMap directly.
+   */
+  search: async (q: string, near?: { latitude: number; longitude: number }): Promise<{ data: { data: Place[] } }> => {
+    try {
+      const res = await api.get("/maps/search", { params: { q, lat: near?.latitude, lng: near?.longitude } });
+      if (Array.isArray(res.data?.data)) return { data: { data: res.data.data } };
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      if (status && status !== 404 && status !== 503) throw error;
+    }
+    return { data: { data: await searchOpenStreetMap(q) } };
+  },
+  reverse: (point: { latitude: number; longitude: number }) =>
+    api.get<{ data: Place }>("/maps/reverse", { params: { lat: point.latitude, lng: point.longitude } }),
+};
+
+export const placesApi = {
+  list: () => api.get<{ data: { saved: Array<Place & { _id: string; label: string }>; recent: Place[] } }>("/users/me/places"),
+  save: (place: Place & { label: string }) => api.post("/users/me/places", place),
+  remove: (id: string) => api.delete(`/users/me/places/${id}`),
+};
+
+export const emergencyContactsApi = {
+  list: () => api.get<{ data: Array<{ _id: string; name: string; phone: string; relationship?: string }> }>("/users/me/emergency-contacts"),
+  add: (data: { name: string; phone: string; relationship?: string }) => api.post("/users/me/emergency-contacts", data),
+  remove: (id: string) => api.delete(`/users/me/emergency-contacts/${id}`),
 };
 
 // ─── MOTA Algorithm Engine ───────────────────────────────────────────────────
@@ -268,6 +374,7 @@ export const usersApi = {
     emergencyContactName?: string;
     emergencyContactPhone?: string;
     preferredPayment?: "CASH" | "MOMO" | "CARD";
+    preferredLanguage?: "en" | "rw" | "fr" | "sw";
   }) => api.put("/users/me", data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post("/users/me/change-password", { currentPassword, newPassword }),
@@ -295,8 +402,8 @@ export const realtimeApi = {
     heading?: number;
     speed?: number;
   }) => api.post("/realtime/location", data),
-  getNearbyDrivers: (lat: number, lng: number, radius = 3) =>
-    api.get("/realtime/nearby-drivers", { params: { lat, lng, radius } }),
+  getNearbyDrivers: (lat: number, lng: number, radius = 3, vehicleType?: VehicleType) =>
+    api.get("/realtime/nearby-drivers", { params: { lat, lng, radius, vehicleType } }),
 };
 
 export const productionApi = {
@@ -441,13 +548,6 @@ export const releaseApi = {
   getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
 };
 
-export const agentApi = {
-  stats: () => api.get("/agent/stats"),
-  drivers: () => api.get("/agent/drivers", { params: { limit: 100 } }),
-  updateRequests: () => api.get("/agent/update-requests"),
-  registerDriver: (data: { firstName: string; lastName: string; phone: string; nationalId: string }) => api.post("/agent/register-driver", data),
-  requestDriverUpdate: (id: string, description: string, kind: "profile_update" | "kyc_help" | "fee_help" | "account_access") => api.post(`/agent/drivers/${id}/update-request`, { description, kind }),
-};
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {

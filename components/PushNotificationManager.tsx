@@ -8,6 +8,7 @@ import {
   registerForPushNotifications,
   supportsPushNotifications,
 } from "@/services/pushNotifications";
+import { isRideRequestEvent, stopRideAlert } from "@/services/rideAlert";
 
 export function PushNotificationManager() {
   const { isAuthenticated, user } = useAuth();
@@ -32,6 +33,7 @@ export function PushNotificationManager() {
         const subscription =
           Notifications.addNotificationResponseReceivedListener((response) => {
             const data = response.notification.request.content.data ?? {};
+            if (isRideRequestEvent(data.event)) stopRideAlert(); // tapping answers the alert
             if (!isAuthenticated) return;
             const passenger = isPassengerRole(user?.role);
             const destination = notificationDestination(data, passenger);

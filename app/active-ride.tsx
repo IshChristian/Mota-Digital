@@ -1,331 +1,238 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking, ScrollView } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
-import { driverApi, ridesApi } from "@/services/api";
-import { OpenStreetMapView } from "@/components/OpenStreetMapView";
-import { GoogleMapWebView } from "@/components/GoogleMapWebView";
+import { useT } from "@/context/I18nContext";
+import { Alert } from "@/components/GlobalAlert";
+import { ridesApi, productionApi, mapsApi, getApiErrorMessage, type RouteResult } from "@/services/api";
+import { NextTurn } from "@/components/passenger/ride/DirectionsList";
+import { decodePolyline } from "@/utils/geo";
+import { useRealtimeEvent, useRealtimeStatus } from "@/hooks/useRealtime";
+import { haversineKm } from "@/utils/geo";
+import { MapCanvas } from "@/components/passenger/ride/MapCanvas";
+import { rideStyles } from "@/components/passenger/ride/rideStyles";
+import type { RideView } from "@/hooks/usePassengerRide";
 
-const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+type DriverRide = RideView & { driverEarning?: number; commissionAmount?: number; passenger?: { firstName: string; rating?: number; avatarUrl?: string } };
+type Point = { latitude: number; longitude: number };
 
-type RideState = "accepted" | "approaching" | "arrived" | "start_requested" | "in_progress" | "stop_requested" | "awaiting_payment" | "completed";
+const TITLES: Record<string, string> = {
+  accepted: "drive.to_pickup", approaching: "drive.to_pickup", arrived: "drive.at_pickup", start_requested: "drive.waiting_passenger",
+  in_progress: "drive.to_destination", stop_requested: "drive.waiting_passenger", awaiting_payment: "drive.collect_payment",
+  completed: "drive.trip_complete", cancelled: "drive.ride_cancelled", expired: "drive.ride_expired",
+};
 
 export default function ActiveRideScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
-  const { rideId } = useLocalSearchParams();
+  const { colors } = useTheme();
+  const t = useT();
+  const s = rideStyles(colors);
+  const { rideId } = useLocalSearchParams<{ rideId: string }>();
+  const [ride, setRide] = useState<DriverRide | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [me, setMe] = useState<Point | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [deliveryPin, setDeliveryPin] = useState("");
+  const [rating, setRating] = useState(0);
+  const live = useRealtimeStatus() === "connected";
 
-  const [rideState, setRideState] = useState<RideState>("approaching");
-  const [mapProvider, setMapProvider] = useState<'openstreetmap' | 'google'>('openstreetmap');
-  const [mapReady, setMapReady] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  // Real GPS for driver and passenger positions
-  const [driverPos, setDriverPos] = useState({ latitude: -1.9536, longitude: 30.0606 });
-  const [passengerPos, setPassengerPos] = useState({ latitude: -1.9500, longitude: 30.0650 });
-  const [destPos, setDestPos] = useState({ latitude: -1.9773, longitude: 30.1025 });
-
-  // Realtime GPS tracking for driver
+  const load = async () => {
+    if (!rideId) return;
+    try { setRide((await ridesApi.getRideDetails(rideId)).data?.data?.ride ?? null); setLoadError(""); }
+    catch (e) { setLoadError(getApiErrorMessage(e)); }
+  };
+  useEffect(() => { void load(); }, [rideId]);
   useEffect(() => {
-    let sub: any;
-    (async () => {
-      try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({});
-          setDriverPos({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
+    if (!ride || ["completed", "cancelled", "expired"].includes(ride.rideStatus)) return;
+    const timer = setInterval(load, live ? 20_000 : 4_000);
+    return () => clearInterval(timer);
+  }, [ride?.rideStatus, live]);
+  useRealtimeEvent("rideUpdate", (d) => { if (String(d?.rideId) === String(rideId)) void load(); });
+  useRealtimeEvent("paymentUpdate", (d) => { if (String(d?.rideId) === String(rideId)) void load(); });
 
-          sub = await Location.watchPositionAsync(
-            { accuracy: Location.Accuracy.High, distanceInterval: 5 },
-            (newLoc) => {
-              setDriverPos({
-                latitude: newLoc.coords.latitude,
-                longitude: newLoc.coords.longitude,
-              });
-              driverApi.updateLocation({ latitude: newLoc.coords.latitude, longitude: newLoc.coords.longitude }).catch((error) => console.warn('Location update failed', error));
-            }
-          );
-        }
-      } catch (e) { console.warn('GPS tracking unavailable', e); }
-    })();
-
-    return () => {
-      if (sub) sub.remove();
-    };
+  // On-screen position only; the background location service reports to the server.
+  useEffect(() => {
+    let sub: Location.LocationSubscription | undefined;
+    Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10 }, (l) => setMe({ latitude: l.coords.latitude, longitude: l.coords.longitude }))
+      .then((x) => { sub = x; }).catch(() => {});
+    return () => sub?.remove();
   }, []);
 
-  // Ride data
-  const [rideData, setRideData] = useState<any>({
-    passengerName: "Passenger",
-    pickup: "Kigali City Center",
-    destination: "Remera, Kigali",
-    fare: 1500,
-    distanceKm: 3.2,
-    etaMin: 8,
-  });
-
+  // Road route from the driver to the current target; refreshed when the leg
+  // changes or the driver has moved ~300 m from where it was computed.
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const routedFrom = useRef<{ latitude: number; longitude: number; leg: string } | null>(null);
   useEffect(() => {
-    const fetchRide = async () => {
-      try {
-        if (!rideId) return;
-        const res = await ridesApi.getRideDetails(rideId as string);
-        const data = res.data?.data?.ride || res.data?.ride || res.data;
-        if (data) {
-          setRideData({
-            passengerName: data.passenger?.firstName || data.passengerName || "Passenger",
-            pickup: typeof data.pickup === 'string' ? data.pickup : (data.pickup?.name || "Pickup Location"),
-            destination: typeof data.destination === 'string' ? data.destination : (data.destination?.name || "Destination Location"),
-            fare: data.offeredFare || data.fare || 1500,
-            distanceKm: data.distanceKm || 3.2,
-            etaMin: data.etaMin || 8,
-          });
+    if (!ride || !me) return;
+    const leg = ["accepted", "approaching", "arrived", "start_requested"].includes(ride.rideStatus) ? "pickup" : "destination";
+    if (["completed", "cancelled", "expired", "awaiting_payment"].includes(ride.rideStatus)) { setRoute(null); return; }
+    const last = routedFrom.current;
+    if (last && last.leg === leg && haversineKm(last, me) < 0.3) return;
+    routedFrom.current = { ...me, leg };
+    mapsApi.getRoute(me, leg === "pickup" ? ride.pickup : ride.destination).then((r) => setRoute(r.data.data)).catch(() => setRoute(null));
+  }, [ride?.rideStatus, me?.latitude, me?.longitude]);
 
-          if (data.pickup) {
-            setPassengerPos({ latitude: data.pickup.latitude ?? data.pickup.lat, longitude: data.pickup.longitude ?? data.pickup.lng });
-          }
-          if (data.destination) {
-            setDestPos({ latitude: data.destination.latitude ?? data.destination.lat, longitude: data.destination.longitude ?? data.destination.lng });
-          }
-
-          if (data.rideStatus || data.status) {
-            setRideState(data.rideStatus || data.status);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to fetch ride details", e);
-      }
-    };
-    fetchRide();
-    const interval = setInterval(fetchRide, 3000);
-    return () => clearInterval(interval);
-  }, [rideId]);
-
-
-  const handleArrival = async () => {
-    setLoading(true);
-    try {
-      if (rideId) await ridesApi.notifyArrival(rideId as string);
-      setRideState("arrived");
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Failed to notify the passenger of your arrival.");
-    } finally {
-      setLoading(false);
-    }
+  const act = async (key: string, fn: () => Promise<unknown>) => {
+    setBusy(key);
+    try { await fn(); await load(); }
+    catch (e) { Alert.alert(t("drive.action_failed"), getApiErrorMessage(e)); }
+    finally { setBusy(null); }
   };
 
-  const handleStartRide = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (rideId) await ridesApi.requestStart(rideId as string);
-      setRideState("start_requested");
-    } catch (e: any) {
-      setError(e.response?.data?.message || "Unable to request passenger confirmation.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!ride) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        {loadError ? <><Text style={s.error}>{loadError}</Text><TouchableOpacity style={[s.secondaryBtn, { marginTop: 16 }]} onPress={load}><Text style={s.secondaryText}>{t("drive.retry")}</Text></TouchableOpacity></> : <ActivityIndicator color={colors.primary} />}
+      </View>
+    );
+  }
 
-  const handleCompleteRide = async () => {
-    setLoading(true);
-    try {
-      if (rideId) await ridesApi.requestStop(rideId as string);
-      setRideState("stop_requested");
-    } catch (e) {
-      setError("Failed to complete ride.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const status = ride.rideStatus;
+  const toPickup = ["accepted", "approaching", "arrived", "start_requested"].includes(status);
+  const target = toPickup ? ride.pickup : ride.destination;
+  const kmToPickup = me ? haversineKm(me, ride.pickup) : null;
+  const isParcel = ride.rideType === "parcel";
+  const finished = ["completed", "cancelled", "expired"].includes(status);
 
-  const handleClaimFare = async () => {
-    setLoading(true); setError("");
-    try {
-      if (rideId) await ridesApi.claimFare(rideId as string);
-      setRideState("completed");
-    } catch (e: any) { setError(e.response?.data?.message || "Payment is not confirmed yet."); }
-    finally { setLoading(false); }
-  };
-
-  const openNavigation = () => {
-    const target = rideState === "in_progress" ? destPos : passengerPos;
-    const label = rideState === "in_progress" ? rideData.destination : rideData.pickup;
+  const navigate = () => {
+    const { latitude, longitude } = target;
     const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${target.latitude},${target.longitude}`,
-      android: `geo:0,0?q=${target.latitude},${target.longitude}(${label})`,
-      web: `https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}`
+      ios: `maps:0,0?daddr=${latitude},${longitude}`,
+      android: `google.navigation:q=${latitude},${longitude}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
     });
-    if (url) Linking.openURL(url);
+    Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`));
   };
-
-  const s = styles(colors, isDark);
-  const approachDistanceKm = (() => { const toRad = (value: number) => value * Math.PI / 180; const dLat = toRad(passengerPos.latitude - driverPos.latitude); const dLng = toRad(passengerPos.longitude - driverPos.longitude); const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(driverPos.latitude)) * Math.cos(toRad(passengerPos.latitude)) * Math.sin(dLng / 2) ** 2; return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); })();
-  const approachEtaMin = Math.max(1, Math.ceil((approachDistanceKm / 20) * 60));
+  const call = () => act("call", async () => {
+    const res = await ridesApi.call(ride._id);
+    if (res.data.data.mode === "direct" && res.data.data.phone) await Linking.openURL(`tel:+${res.data.data.phone.replace(/^\+/, "")}`);
+    else Alert.alert(t("drive.connecting_call"), res.data.data.message || t("drive.answer_call"));
+  });
+  const sos = () => Alert.alert(t("drive.sos_q"), t("drive.sos_body"), [
+    { text: t("cancel"), style: "cancel" },
+    { text: t("drive.send_sos"), style: "destructive", onPress: () => void act("sos", () => productionApi.createSafetyEvent({ rideId: ride._id, type: "sos", category: "driver", location: me ? { ...me, capturedAt: new Date().toISOString() } : undefined })) },
+  ]);
 
   return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>
-          {rideState === "approaching" && "Driving to Passenger"}
-          {rideState === "arrived" && "Waiting for Passenger"}
-          {rideState === "in_progress" && "En Route to Destination"}
-          {rideState === "completed" && "Ride Completed 🎉"}
-        </Text>
-        <TouchableOpacity onPress={openNavigation} style={s.navIconBtn}>
-          <Feather name="navigation" size={18} color={colors.primary} />
-        </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ height: "42%" }}>
+        <MapCanvas center={me ?? target} destination={target} route={route?.encodedPolyline ? decodePolyline(route.encodedPolyline) : me && !finished ? [me, target] : []} drivers={me ? [{ ...me, label: t("drive.you") }] : []} />
+        <View style={[styles.topBar, { top: insets.top + 8 }]}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("drive.back")} onPress={() => router.back()} style={[styles.round, { backgroundColor: colors.backgroundCard }]}><Feather name="arrow-left" size={20} color={colors.textPrimary} /></TouchableOpacity>
+          <View style={{ flex: 1 }} />
+          {!finished ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="SOS" onPress={sos} style={[styles.round, { backgroundColor: colors.error, width: 64 }]}><Text style={{ color: "#fff", fontFamily: "Inter_700Bold" }}>SOS</Text></TouchableOpacity> : null}
+        </View>
+        {!finished ? (
+          <TouchableOpacity accessibilityRole="button" onPress={navigate} style={[styles.navBtn, { backgroundColor: colors.primary }]}>
+            <Feather name="navigation" size={16} color="#fff" /><Text style={{ color: "#fff", fontFamily: "Inter_700Bold" }}>{t(toPickup ? "drive.navigate_pickup" : isParcel ? "drive.navigate_dropoff" : "drive.navigate_destination")}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
-      {/* Real Map View with Directions for Motor Driver */}
-      <View style={s.mapContainer}>
-        {mapProvider === 'openstreetmap' ? (
-          <OpenStreetMapView
-            center={driverPos}
-            destination={rideState === 'in_progress' ? destPos : passengerPos}
-            route={[driverPos, rideState === 'in_progress' ? destPos : passengerPos]}
-            drivers={[{ ...driverPos, label: 'Driver' }]}
-            onReady={() => setMapReady(true)}
-          />
-        ) : GOOGLE_MAPS_APIKEY ? (
-          <GoogleMapWebView apiKey={GOOGLE_MAPS_APIKEY} center={driverPos} destination={rideState === 'in_progress' ? destPos : passengerPos} route={[driverPos, rideState === 'in_progress' ? destPos : passengerPos]} drivers={[{ ...driverPos, label: 'Driver' }]} onReady={() => setMapReady(true)} onError={setError} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+        <Text accessibilityLiveRegion="polite" style={s.title}>{TITLES[status] ? t(TITLES[status]) : status}</Text>
+        {route && !finished && status !== "awaiting_payment" ? <NextTurn route={route} /> : null}
+        <View style={[s.card, s.row]}>
+          <View style={s.iconBubble}><Feather name={isParcel ? "package" : "user"} size={18} color={colors.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.body}>{ride.passenger?.firstName || t("drive.passenger")}{ride.passenger?.rating ? ` · ★ ${ride.passenger.rating.toFixed(1)}` : ""}</Text>
+            <Text style={s.subtitle} numberOfLines={2}>{toPickup ? t("drive.pickup_label", { place: ride.pickup.name }) : t(isParcel ? "drive.deliver_to" : "drive.to_place", { place: ride.destination.name })}</Text>
+            {isParcel && ride.parcel ? <Text style={s.subtitle}>{t("drive.recipient", { name: ride.parcel.recipientName })} · {ride.parcel.size}{ride.parcel.description ? ` · ${ride.parcel.description}` : ""}</Text> : null}
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={[s.body, { fontFamily: "Inter_700Bold" }]}>{ride.fare.toLocaleString()} RWF</Text>
+            <Text style={s.subtitle}>{t(ride.paymentMethod === "cash" ? "drive.cash" : ride.paymentMethod === "momo" ? "drive.momo" : "drive.wallet")}</Text>
+          </View>
+        </View>
+
+        {!finished ? (
+          <View style={s.row}>
+            <TouchableOpacity accessibilityRole="button" onPress={call} disabled={!!busy} style={[s.secondaryBtn, { flex: 1 }]}>{busy === "call" ? <ActivityIndicator color={colors.primary} /> : <Feather name="phone" size={18} color={colors.primary} />}<Text style={s.secondaryText}>{t("drive.call")}</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => router.push({ pathname: "/ride-chat/[id]", params: { id: ride._id, name: ride.passenger?.firstName || t("drive.passenger") } } as any)} style={[s.secondaryBtn, { flex: 1 }]}><Feather name="message-circle" size={18} color={colors.primary} /><Text style={s.secondaryText}>{t("drive.chat")}</Text></TouchableOpacity>
+          </View>
         ) : null}
 
-        {!mapReady ? <View style={[s.mapLoading, { pointerEvents: 'none' }]}><Text style={s.mapLoadingText}>Loading {mapProvider === 'openstreetmap' ? 'Server 1' : 'Server 2'}…</Text></View> : null}
-        <View style={s.mapServerSwitch}>
-          <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('openstreetmap'); }} style={[s.serverButton, mapProvider === 'openstreetmap' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>Server 1</Text><Text style={[s.serverCaption, mapProvider === 'openstreetmap' && s.serverButtonTextActive]}>OpenMap</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => { setMapReady(false); setMapProvider('google'); }} style={[s.serverButton, mapProvider === 'google' && s.serverButtonActive]}><Text style={[s.serverButtonText, mapProvider === 'google' && s.serverButtonTextActive]}>Server 2</Text><Text style={[s.serverCaption, mapProvider === 'google' && s.serverButtonTextActive]}>Google</Text></TouchableOpacity>
-        </View>
-        {mapProvider === 'openstreetmap' ? <Text style={s.mapAttribution}>© OpenStreetMap contributors</Text> : null}
+        {(status === "accepted" || status === "approaching") ? (
+          <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("arrive", () => ridesApi.notifyArrival(ride._id))} style={s.primaryBtn}>
+            {busy === "arrive" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.arrived")}{kmToPickup != null && kmToPickup > 2 ? ` · ${t("drive.km_away", { km: kmToPickup.toFixed(1) })}` : ""}</Text>}
+          </TouchableOpacity>
+        ) : null}
 
-        {/* Floating Navigation Button */}
-        <TouchableOpacity style={s.floatingNavBtn} onPress={openNavigation}>
-          <Feather name="navigation" size={16} color="#fff" style={{ marginRight: 6 }} />
-          <Text style={s.floatingNavText}>Start GPS Navigation</Text>
-        </TouchableOpacity>
-
-        <View style={s.mapOverlay}>
-          <Text style={s.overlayText}>
-            {rideState === "approaching" ? "📍 Pickup: " + rideData.pickup : ""}
-            {rideState === "arrived" ? "⏱️ Waiting at Pickup Location" : ""}
-            {rideState === "in_progress" ? "🏁 Destination: " + rideData.destination : ""}
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView style={s.bottomSheet} contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
-        {error ? <Text style={s.errorText}>{error}</Text> : null}
-
-        {/* State: Approaching */}
-        {rideState === "approaching" && (
-          <View>
-            <Text style={s.sheetTitle}>{rideData.passengerName}</Text>
-            <Text style={s.sheetSub}>{approachEtaMin} min away • {approachDistanceKm.toFixed(1)} km from passenger</Text>
-            <View style={s.actionsRow}>
-              <TouchableOpacity style={s.iconBtn}>
-                <Feather name="phone" size={20} color={colors.primary} />
+        {(status === "arrived" || status === "start_requested") ? (
+          <View style={{ gap: 10 }}>
+            {status === "arrived" ? (
+              <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("reqStart", () => ridesApi.requestStart(ride._id))} style={s.primaryBtn}>
+                {busy === "reqStart" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.ask_start")}</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn}>
-                <Feather name="message-circle" size={20} color={colors.primary} />
-              </TouchableOpacity>
+            ) : <View style={[s.card, s.row]}><ActivityIndicator color={colors.primary} /><Text style={s.body}>{t("drive.waiting_start")}</Text></View>}
+            <Text style={s.subtitle}>{t("drive.or_pin")}</Text>
+            <View style={s.row}>
+              <View style={[s.inputBox, { flex: 1 }]}><TextInput style={[s.input, { letterSpacing: 8, fontSize: 20 }]} value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" placeholder="••••" placeholderTextColor={colors.textTertiary} accessibilityLabel={t("drive.pin")} /></View>
+              <TouchableOpacity disabled={pin.length !== 4 || !!busy} onPress={() => act("pin", () => ridesApi.startRide(ride._id, pin))} style={[s.primaryBtn, { paddingHorizontal: 20 }, pin.length !== 4 && { opacity: 0.5 }]}>{busy === "pin" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.start")}</Text>}</TouchableOpacity>
             </View>
-            <TouchableOpacity style={[s.primaryBtn, { opacity: loading || approachDistanceKm > 2 ? .55 : 1 }]} onPress={handleArrival} disabled={loading || approachDistanceKm > 2}>
-              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : approachDistanceKm > 2 ? `Arrival unlocks within 2 km` : "I've Arrived — Notify Passenger"}</Text>
+          </View>
+        ) : null}
+
+        {status === "in_progress" ? (
+          <View style={{ gap: 10 }}>
+            {isParcel ? (
+              <>
+                <Text style={s.subtitle}>{t("drive.ask_code")}</Text>
+                <View style={s.inputBox}><TextInput style={[s.input, { letterSpacing: 8, fontSize: 20 }]} value={deliveryPin} onChangeText={(v) => setDeliveryPin(v.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" placeholder={t("drive.delivery_code")} placeholderTextColor={colors.textTertiary} accessibilityLabel={t("drive.delivery_code")} /></View>
+              </>
+            ) : null}
+            <TouchableOpacity accessibilityRole="button" disabled={!!busy || (isParcel && deliveryPin.length !== 4)} onPress={() => act("stop", () => ridesApi.requestStop(ride._id, isParcel ? deliveryPin : undefined))} style={[s.primaryBtn, isParcel && deliveryPin.length !== 4 && { opacity: 0.5 }]}>
+              {busy === "stop" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t(isParcel ? "drive.confirm_delivery" : "drive.end_ride")}</Text>}
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
-        {/* State: Arrived */}
-        {rideState === "arrived" && (
-          <View>
-            <Text style={s.sheetTitle}>Passenger Arrived?</Text>
-            <Text style={s.sheetSub}>Request confirmation from {rideData.passengerName} before starting.</Text>
-            <TouchableOpacity style={s.primaryBtn} onPress={handleStartRide} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Notifying passenger..." : "Request Passenger to Start"}</Text>
+        {status === "stop_requested" ? <View style={[s.card, s.row]}><ActivityIndicator color={colors.primary} /><Text style={[s.body, { flex: 1 }]}>{t("drive.waiting_arrival")}</Text></View> : null}
+
+        {status === "awaiting_payment" ? (
+          ride.paymentStatus === "successful" ? (
+            <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("claim", () => ridesApi.claimFare(ride._id))} style={s.primaryBtn}>
+              {busy === "claim" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.payment_received_finish")}</Text>}
             </TouchableOpacity>
-          </View>
-        )}
+          ) : ride.paymentMethod === "cash" ? (
+            <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("cash", () => ridesApi.claimFare(ride._id))} style={s.primaryBtn}>
+              {busy === "cash" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.received_cash", { amount: ride.fare.toLocaleString() })}</Text>}
+            </TouchableOpacity>
+          ) : ride.paymentStatus === "failed" ? (
+            <View style={s.card}><Text style={s.body}>{t("drive.payment_failed")}</Text></View>
+          ) : <View style={[s.card, s.row]}><ActivityIndicator color={colors.primary} /><Text style={[s.body, { flex: 1 }]}>{t("drive.waiting_payment")}</Text></View>
+        ) : null}
 
-        {rideState === "start_requested" && <View><Text style={s.sheetTitle}>Waiting for passenger</Text><Text style={s.sheetSub}>The ride starts only after the passenger confirms.</Text></View>}
-
-        {/* State: In Progress */}
-        {rideState === "in_progress" && (
-          <View>
-            <Text style={s.sheetTitle}>En route to {rideData.destination}</Text>
-            <Text style={s.sheetSub}>ETA: {rideData.etaMin} min • {rideData.distanceKm.toFixed(1)} km remaining</Text>
-            <View style={s.fareBox}>
-              <Text style={s.fareLabel}>Agreed Fare</Text>
-              <Text style={s.fareValue}>{rideData.fare.toLocaleString()} RWF</Text>
+        {status === "completed" ? (
+          <View style={{ gap: 12 }}>
+            <View style={s.card}>
+              <Text style={s.subtitle}>{t("drive.your_earning")}</Text>
+              <Text style={[s.title, { color: colors.success }]}>{(Number(ride.driverEarning ?? ride.fare) + Number(ride.tipAmount || 0)).toLocaleString()} RWF</Text>
+              <Text style={s.subtitle}>{t("drive.earning_detail", { fare: ride.fare.toLocaleString(), commission: Number(ride.commissionAmount || 0).toLocaleString() })}{ride.tipAmount ? ` · ${t("drive.tip", { tip: ride.tipAmount.toLocaleString() })}` : ""}{ride.paymentMethod === "cash" ? ` · ${t("drive.cash_commission_note")}` : ""}</Text>
             </View>
-            <TouchableOpacity style={s.primaryBtn} onPress={handleCompleteRide} disabled={loading}>
-              <Text style={s.primaryBtnText}>{loading ? "Requesting..." : "Request Stop"}</Text>
-            </TouchableOpacity>
+            <Text style={s.label}>{t("drive.rate_passenger")}</Text>
+            <View style={[s.row, { justifyContent: "center" }]}>
+              {[1, 2, 3, 4, 5].map((n) => <TouchableOpacity key={n} accessibilityLabel={`${n} stars`} onPress={() => { setRating(n); void act("rate", () => ridesApi.rateRide(ride._id, { rating: n })); }} style={{ padding: 6 }}><Feather name="star" size={30} color={n <= rating ? "#F59E0B" : colors.border} /></TouchableOpacity>)}
+            </View>
+            <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace("/(driver)" as any)}><Text style={s.primaryText}>{t("drive.back_dashboard")}</Text></TouchableOpacity>
           </View>
-        )}
-
-        {rideState === "stop_requested" && <View><Text style={s.sheetTitle}>Waiting for passenger</Text><Text style={s.sheetSub}>The passenger must confirm arrival before payment.</Text></View>}
-        {rideState === "awaiting_payment" && <View><Text style={s.sheetTitle}>Awaiting payment</Text><Text style={s.sheetSub}>Claim becomes available after the payment provider confirms the fare.</Text><TouchableOpacity style={s.primaryBtn} onPress={handleClaimFare} disabled={loading}><Text style={s.primaryBtnText}>{loading ? 'Checking…' : 'Claim confirmed fare'}</Text></TouchableOpacity></View>}
-
-        {/* State: Completed */}
-        {rideState === "completed" && (
-          <View style={{ alignItems: "center", paddingVertical: 20 }}>
-            <Feather name="check-circle" size={48} color="#10B981" style={{ marginBottom: 16 }} />
-            <Text style={s.sheetTitle}>Ride Finished</Text>
-            <Text style={s.sheetSub}>Total Fare: {rideData.fare.toLocaleString()} RWF</Text>
-            <TouchableOpacity style={[s.primaryBtn, { marginTop: 24, width: "100%" }]} onPress={() => router.back()}>
-              <Text style={s.primaryBtnText}>Back to Dashboard</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        ) : null}
+        {status === "cancelled" || status === "expired" ? (
+          <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace("/(driver)" as any)}><Text style={s.primaryText}>{t("drive.back_dashboard")}</Text></TouchableOpacity>
+        ) : null}
       </ScrollView>
     </View>
   );
 }
 
-const styles = (colors: any, isDark: boolean) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: 8, borderRadius: 8, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" },
-  headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: colors.textPrimary, flex: 1, textAlign: "center", marginHorizontal: 8 },
-  navIconBtn: { padding: 8, borderRadius: 8, backgroundColor: `${colors.primary}15` },
-  mapContainer: { flex: 1, position: "relative" },
-  map: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "#E5E7EB" },
-  mapLoading: { position: "absolute", top: "45%", alignSelf: "center", backgroundColor: "rgba(255,255,255,0.94)", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, zIndex: 8 },
-  mapLoadingText: { color: "#111827", fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  mapServerSwitch: { position: "absolute", top: 16, left: 16, flexDirection: "row", backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 14, padding: 4, zIndex: 20, elevation: 10 },
-  serverButton: { minWidth: 74, alignItems: "center", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
-  serverButtonActive: { backgroundColor: "#111827" },
-  serverButtonText: { color: "#111827", fontFamily: "Inter_700Bold", fontSize: 12 },
-  serverButtonTextActive: { color: "#fff" },
-  serverCaption: { color: "#6B7280", fontFamily: "Inter_500Medium", fontSize: 9 },
-  mapAttribution: { position: "absolute", right: 6, bottom: 4, color: "#374151", backgroundColor: "rgba(255,255,255,0.75)", fontSize: 9, paddingHorizontal: 4, zIndex: 5 },
-  driverMarker: { backgroundColor: "#fff", padding: 6, borderRadius: 20, borderWidth: 2, borderColor: colors.primary, elevation: 4 },
-  passengerMarker: { backgroundColor: colors.primary, padding: 8, borderRadius: 20, borderWidth: 2, borderColor: "#fff", elevation: 4 },
-  destMarker: { backgroundColor: "#10B981", padding: 8, borderRadius: 20, borderWidth: 2, borderColor: "#fff", elevation: 4 },
-  floatingNavBtn: { position: "absolute", top: 16, right: 16, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, elevation: 6, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4 },
-  floatingNavText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
-  mapOverlay: { position: "absolute", bottom: 16, left: 16, right: 16, backgroundColor: colors.backgroundCard, padding: 12, borderRadius: 12, elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
-  overlayText: { fontFamily: "Inter_600SemiBold", color: colors.textPrimary, fontSize: 13 },
-  bottomSheet: { backgroundColor: colors.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "55%", flexGrow: 0, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
-  sheetTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: colors.textPrimary, marginBottom: 4 },
-  sheetSub: { fontSize: 14, fontFamily: "Inter_500Medium", color: colors.textSecondary, marginBottom: 16 },
-  actionsRow: { flexDirection: "row", gap: 16, marginBottom: 20 },
-  iconBtn: { backgroundColor: `${colors.primary}15`, padding: 12, borderRadius: 12 },
-  primaryBtn: { backgroundColor: colors.primary, minHeight: 52, paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, alignItems: "center" },
-  primaryBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center", flexShrink: 1 },
-  pinInput: { backgroundColor: colors.inputBg, color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center", padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 20, letterSpacing: 10 },
-  errorText: { color: "#E63946", fontFamily: "Inter_500Medium", marginBottom: 12, textAlign: "center" },
-  fareBox: { backgroundColor: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.05)", padding: 16, borderRadius: 12, marginBottom: 20, alignItems: "center", borderWidth: 1, borderColor: isDark ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.3)" },
-  fareLabel: { color: colors.textSecondary, fontFamily: "Inter_500Medium", fontSize: 14 },
-  fareValue: { color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 28, marginTop: 4 },
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  topBar: { position: "absolute", left: 16, right: 16, flexDirection: "row" },
+  round: { height: 44, minWidth: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6 },
+  navBtn: { position: "absolute", bottom: 14, alignSelf: "center", flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 18, height: 46, borderRadius: 23, elevation: 4 },
 });

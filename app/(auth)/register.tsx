@@ -57,11 +57,11 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!formData.firstName || !formData.lastName || !formData.phone || !formData.password || !formData.nationalId) {
-      setError("Please fill all required fields");
+      setError(t("auth.fill_required"));
       return;
     }
     if (!getSubmitPhone()) {
-      setError("Enter a valid Rwanda phone number starting with 07 or 7.");
+      setError(t("auth.phone_invalid"));
       return;
     }
     setLoading(true);
@@ -85,7 +85,7 @@ export default function RegisterScreen() {
           params: { userId: uid, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
         } as any);
       } else {
-        setError(data.message || "Registration succeeded but failed to parse response.");
+        setError(data.message || t("auth.parse_failed"));
       }
     } catch (err: any) {
       // Registration may have been saved even when the response was lost.
@@ -98,7 +98,7 @@ export default function RegisterScreen() {
             return;
           }
         } catch { /* The result remains uncertain when recovery is unavailable. */ }
-        setError("We could not confirm whether your account was created. Please try signing in before submitting registration again.");
+        setError(t("auth.unconfirmed"));
       } else {
         setError(err.response?.data?.message || err.message || t("error"));
       }
@@ -126,16 +126,16 @@ export default function RegisterScreen() {
 
         <View style={s.header}>
           <Image source={logoSource} style={s.logo} width={10} resizeMode="contain" />
-          <Text style={s.title}>Create Account</Text>
+          <Text style={s.title}>{t("auth.create_account")}</Text>
           <Text style={s.subtitle}>
-            Join MOTA as a {formData.role === "driver" ? "Driver" : "Passenger"}
+            {t("auth.join_as", { role: formData.role === "driver" ? t("auth.driver") : t("auth.passenger") })}
           </Text>
         </View>
 
         {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         <InputField
-          label="First Name"
+          label={t("auth.first_name")}
           value={formData.firstName}
           onChangeText={(v: string) => update("firstName", v)}
           placeholder="Jean"
@@ -143,7 +143,7 @@ export default function RegisterScreen() {
           s={s} colors={colors}
         />
         <InputField
-          label="Last Name"
+          label={t("auth.last_name")}
           value={formData.lastName}
           onChangeText={(v: string) => update("lastName", v)}
           placeholder="Mutoni"
@@ -153,14 +153,14 @@ export default function RegisterScreen() {
 
         <View style={s.inputGroup}>
           <Text style={s.label}>
-            Phone Number <Text style={{ color: colors.primary }}>*</Text>
+            {t("auth.phone_number")} <Text style={{ color: colors.primary }}>*</Text>
           </Text>
-          <Text style={s.hint}>Enter 07… or 7…; MOTA securely formats it as +250.</Text>
-          <RwandaPhoneInput value={formData.phone} onChangeText={handlePhoneChange} accessibilityLabel="Registration phone number" />
+          <Text style={s.hint}>{t("auth.phone_help")}</Text>
+          <RwandaPhoneInput value={formData.phone} onChangeText={handlePhoneChange} accessibilityLabel={t("auth.reg_phone")} />
         </View>
 
         <InputField
-          label="Email"
+          label={t("auth.email")}
           value={formData.email}
           onChangeText={(v: string) => update("email", v)}
           placeholder="jean@example.com"
@@ -169,7 +169,7 @@ export default function RegisterScreen() {
         />
 
         <InputField
-          label="National ID"
+          label={t("auth.national_id")}
           value={formData.nationalId}
           onChangeText={(v: string) => update("nationalId", v)}
           placeholder="1199880012345678"
@@ -178,7 +178,7 @@ export default function RegisterScreen() {
           s={s} colors={colors}
         />
         <InputField
-          label="Password"
+          label={t("auth.password")}
           value={formData.password}
           onChangeText={(v: string) => update("password", v)}
           placeholder="••••••••"
@@ -189,7 +189,7 @@ export default function RegisterScreen() {
           s={s} colors={colors}
         />
         <InputField
-          label="Referral Code (Optional)"
+          label={t("auth.referral")}
           value={formData.referralCode}
           onChangeText={(v: string) => update("referralCode", v.trim().toUpperCase())}
           placeholder="MOTA-XXXX"
@@ -205,7 +205,7 @@ export default function RegisterScreen() {
         </TouchableOpacity>
 
         <View style={s.footer}>
-          <Text style={s.footerText}>Already have an account? </Text>
+          <Text style={s.footerText}>{t("auth.have_account")} </Text>
           <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
             <Text style={s.link}>{t("login")}</Text>
           </TouchableOpacity>

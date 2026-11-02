@@ -51,7 +51,7 @@ export default function OtpScreen() {
 
   const verifyOtp = async () => {
     const code = otp.join("");
-    if (code.length < 6) { setError("Please enter all 6 digits"); return; }
+    if (code.length < 6) { setError(t("auth.enter_6")); return; }
     setLoading(true);
     setError("");
     try {
@@ -62,7 +62,7 @@ export default function OtpScreen() {
         router.replace("/(auth)/login");
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid OTP");
+      setError(err.response?.data?.message || t("auth.invalid_otp"));
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export default function OtpScreen() {
       await authApi.resendOtp({ phone });
       setTimer(60);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to resend");
+      setError(err.response?.data?.message || t("auth.resend_failed"));
     } finally {
       setLoading(false);
     }
@@ -132,12 +132,12 @@ export default function OtpScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={s.buttonText}>Verify OTP</Text>
+            <Text style={s.buttonText}>{t("auth.verify_otp")}</Text>
           )}
         </TouchableOpacity>
 
         <View style={s.resendContainer}>
-          <Text style={s.resendText}>Didn't receive code? </Text>
+          <Text style={s.resendText}>{t("auth.no_code")} </Text>
           <TouchableOpacity onPress={handleResend} disabled={timer > 0}>
             <Text style={[s.resendLink, timer > 0 && s.resendDisabled]}>
               Resend {timer > 0 ? `(${timer}s)` : ""}

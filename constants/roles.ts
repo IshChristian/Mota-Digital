@@ -8,4 +8,7 @@ export function normalizeRole(role?: string): AppRole {
   return 'driver';
 }
 
+/** Staff (agents, admins…) use the MOTA Control web panel, not this app. */
+export const isStaffRole = (role?: string) => !['driver', 'client'].includes(normalizeRole(role));
+
 export const isPassengerRole = (role?: string) => normalizeRole(role) === 'client';

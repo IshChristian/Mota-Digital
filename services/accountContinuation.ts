@@ -8,5 +8,6 @@ export function accountContinuation(user:Account): string {
     if (user.kycLevel !== 'full' || user.isActive !== true || user.registrationStatus !== 'approved') return '/(auth)/verification-progress';
     return '/(driver)';
   }
-  return ['client','passenger'].includes(user.role || '') ? '/(passenger)' : user.role==='agent'? '/(agent)' : '/(admin)';
+  // Staff accounts don't continue in the app (the root layout shows the web-panel notice).
+  return ['client','passenger'].includes(user.role || '') ? '/(passenger)' : '/(auth)/welcome';
 }

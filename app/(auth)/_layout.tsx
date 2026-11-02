@@ -20,10 +20,8 @@ export default function AuthLayout() {
       <Stack.Screen name="register" />
       <Stack.Screen name="otp" />
       <Stack.Screen name="verify-email" />
-      <Stack.Screen name="upload-documents" />
       <Stack.Screen name="create-profile" />
       <Stack.Screen name="payment-registration" />
-      <Stack.Screen name="pending-approval" />
     </Stack>
   );
 }

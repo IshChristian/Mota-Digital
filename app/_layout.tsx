@@ -21,10 +21,13 @@ import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
-import { isPassengerRole, normalizeRole } from "@/constants/roles";
+import { MapPreferenceProvider } from "@/context/MapPreferenceContext";
+import { isPassengerRole, isStaffRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { GlobalAlert } from "@/components/GlobalAlert";
+// Registers the background location task before any screen mounts.
+import "@/services/driverLocation";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -39,7 +42,9 @@ function RootLayoutNav() {
     if (isLoading || (isAuthenticated && !isAccountReady)) return;
     if (segments[0] === "info" || (isAuthenticated && segments[0] === "notifications")) return;
 
-    if (segments[0] !== "info" && segments[0] !== "notifications" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return;
+    // Staff accounts aren't routed anywhere; the render below shows the web-panel notice.
+    if (isAuthenticated && isStaffRole(user?.role)) return;
+  if (segments[0] !== "info" && segments[0] !== "notifications" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return;
 
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicInformation =
@@ -64,9 +69,7 @@ function RootLayoutNav() {
         // Fully onboarded — route to the appropriate home screen
         if (inAuthGroup && segments[1] !== "verify-email") {
           const role = normalizeRole(user?.role);
-          if (role === "admin") router.replace("/(admin)" as any);
-          else if (role === "agent") router.replace("/(agent)" as any);
-          else if (role === "client") router.replace("/(passenger)" as any);
+          if (role === "client") router.replace("/(passenger)" as any);
           else router.replace("/(driver)" as any);
         }
       }
@@ -74,6 +77,7 @@ function RootLayoutNav() {
   }, [isAuthenticated, isLoading, isAccountReady, segments, user]);
 
   if (segments[0] !== "info" && segments[0] !== "notifications" && (isLoading || (isAuthenticated && !isAccountReady))) return <WelcomeLoading error={accountError} onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
+  if (isAuthenticated && isAccountReady && isStaffRole(user?.role)) return <WelcomeLoading error="This is a MOTA staff account. Sign in to MOTA Control on the web; the app is for drivers and passengers." onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
   if (segments[0] !== "info" && segments[0] !== "notifications" && isAuthenticated && user?.role !== "driver" && user?.isVerified === true && user?.isActive === false) return <WelcomeLoading error="Your account is inactive. Contact MOTA support." onRetry={() => void refreshAccount().catch(() => {})} onSignOut={() => void logout()} />;
 
   return (
@@ -111,9 +115,6 @@ function ThemedStack() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(driver)" options={{ headerShown: false }} />
       <Stack.Screen name="(passenger)" options={{ headerShown: false }} />
-      <Stack.Screen name="(agent)" options={{ headerShown: false }} />
-      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
-      <Stack.Screen name="(guest)" options={{ headerShown: false }} />
       <Stack.Screen
         name="notifications"
         options={{ presentation: "modal", title: "Notifications" }}
@@ -137,10 +138,6 @@ function ThemedStack() {
       <Stack.Screen
         name="loans"
         options={{ presentation: "modal", title: "Loans" }}
-      />
-      <Stack.Screen
-        name="leaderboard"
-        options={{ presentation: "modal", title: "Leaderboard" }}
       />
       <Stack.Screen
         name="profile/personal-info"
@@ -183,12 +180,14 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <I18nProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                    <GlobalAlert />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
+                <MapPreferenceProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                      <GlobalAlert />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </MapPreferenceProvider>
               </I18nProvider>
             </AuthProvider>
           </QueryClientProvider>

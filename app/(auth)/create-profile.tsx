@@ -12,7 +12,7 @@ import { driverApi, authApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { pickUploadDocument } from "@/services/documentPicker";
+import { chooseUploadFile } from "@/services/uploadSource";
 
 type DocState = {
   name?: string;
@@ -71,7 +71,7 @@ export default function CreateProfileScreen() {
     key: "insuranceAttachment" | "permitAttachment"
   ) => {
     try {
-      const asset = await pickUploadDocument();
+      const asset = await chooseUploadFile();
       if (!asset) return;
 
       setDoc(key, { uri: asset.uri, name: asset.name, url: undefined, uploading: true, error: undefined });

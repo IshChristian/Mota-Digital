@@ -10,8 +10,10 @@ import {
 import { useRouter } from "expo-router";
 import { authApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 
 export default function ForgotPasswordScreen() {
+  const t = useT();
   const router = useRouter();
   const { colors } = useTheme();
   const [email, setEmail] = useState("");
@@ -19,7 +21,7 @@ export default function ForgotPasswordScreen() {
   const [message, setMessage] = useState("");
   const submit = async () => {
     if (!email.includes("@")) {
-      setMessage("Enter a valid email address.");
+      setMessage(t("auth.email_invalid"));
       return;
     }
     setBusy(true);
@@ -28,7 +30,7 @@ export default function ForgotPasswordScreen() {
       setMessage(r.data.message);
     } catch (e: any) {
       setMessage(
-        e?.response?.data?.message || "Unable to request a reset link.",
+        e?.response?.data?.message || t("auth.reset_request_failed"),
       );
     } finally {
       setBusy(false);
@@ -37,21 +39,20 @@ export default function ForgotPasswordScreen() {
   return (
     <View style={[s.page, { backgroundColor: colors.background }]}>
       <TouchableOpacity onPress={() => router.back()}>
-        <Text style={{ color: colors.primary }}>Back</Text>
+        <Text style={{ color: colors.primary }}>{t("auth.back")}</Text>
       </TouchableOpacity>
       <Text style={[s.title, { color: colors.textPrimary }]}>
-        Reset your password
+        {t("auth.reset_title")}
       </Text>
       <Text style={{ color: colors.textSecondary }}>
-        Enter your verified email. We will send a one-time link that expires
-        after 30 minutes.
+        {t("auth.reset_body")}
       </Text>
       <TextInput
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
-        placeholder="Email address"
+        placeholder={t("auth.email_address")}
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
@@ -69,7 +70,7 @@ export default function ForgotPasswordScreen() {
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={s.buttonText}>Send reset link</Text>
+          <Text style={s.buttonText}>{t("auth.send_link")}</Text>
         )}
       </TouchableOpacity>
     </View>
