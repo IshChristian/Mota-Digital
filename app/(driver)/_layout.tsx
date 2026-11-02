@@ -9,9 +9,8 @@ import { startRideAlert, stopRideAlert } from "@/services/rideAlert";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi } from "@/services/api";
-import { startDriverTracking, stopBackgroundTracking } from "@/services/driverLocation";
-import { useRealtimeEvent } from "@/hooks/useRealtime";
+import { API_BASE_URL, ridesApi, driverApi } from "@/services/api";
+import { canTrackDriverLocation, createDriverLocationPublisher } from "@/services/driverLocationTracking";
 import { RideRequestModal } from "@/components/RideRequestModal";
 
 export default function TabLayout() {
@@ -21,30 +20,58 @@ export default function TabLayout() {
   const safeAreaInsets = useSafeAreaInsets();
   const t = useT();
   const { colors, isDark } = useTheme();
-  const { user } = useAuth();
+  const { token, user, refreshAccount } = useAuth();
+  const [locationRetry, setLocationRetry] = useState(0);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
   >("granted");
   useEffect(() => () => stopRideAlert(), []);
 
-  // Location sharing: background updates while online or on a ride (keeps
-  // working with the screen locked); foreground-only if background is refused.
-  const shouldTrack = Boolean(user?.isOnline);
+  const trackingAllowed = canTrackDriverLocation(user, token);
+
+  // Only authenticated, activated drivers start GPS publishing.
   useEffect(() => {
-    if (!shouldTrack) { void stopBackgroundTracking(); return; }
-    let stop = () => {};
-    let cancelled = false;
-    startDriverTracking().then((result) => {
-      if (cancelled) { result.stop(); return; }
-      stop = result.stop;
-      setLocationStatus(result.mode === "denied" ? "denied" : result.mode === "off" ? "off" : "granted");
-      if (result.mode === "foreground") {
-        Alert.alert("Allow location \"All the time\"", "MOTA can only share your position while the app is open. Choose \"Allow all the time\" in Settings so passengers can track you with the screen locked.");
+    if (!trackingAllowed) return;
+    let disposed = false;
+    let sub: Location.LocationSubscription | undefined;
+    const publisher = createDriverLocationPublisher(
+      coordinates => driverApi.updateLocation(coordinates),
+      message => {
+        sub?.remove();
+        Alert.alert('Location sharing paused', message, [{text: 'Close', style: 'cancel'}, {text: 'Refresh account', onPress: () => { void refreshAccount().then(() => { if (!disposed) setLocationRetry(value => value + 1); }).catch(() => { if (!disposed) showMessage('Could not refresh your account. Check your connection or sign in again.'); }); }}]);
+      },
+      () => showMessage('Location update delayed. Check your connection; MOTA will retry on the next location update.'),
+    );
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (disposed) return;
+        if (status !== 'granted') {
+          setLocationStatus('denied');
+          Alert.alert('GPS Permission Required', 'Please allow GPS location access to receive nearby passenger ride requests.');
+          return;
+        }
+        if (!await Location.hasServicesEnabledAsync()) {
+          if (!disposed) { setLocationStatus('off'); Alert.alert('GPS Services Disabled', 'Please turn on location services to receive ride requests.'); }
+          return;
+        }
+        if (disposed) return;
+        setLocationStatus('granted');
+        const subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 10 },
+          loc => { if (!disposed) void publisher.publish({ latitude: loc.coords.latitude, longitude: loc.coords.longitude }); },
+        );
+        if (disposed || publisher.isStopped()) subscription.remove(); else sub = subscription;
+      } catch {
+        if (!disposed) setLocationStatus('off');
       }
-    }).catch(() => setLocationStatus("off"));
-    return () => { cancelled = true; stop(); };
-  }, [shouldTrack]);
+    })();
+    return () => { disposed = true; publisher.stop(); sub?.remove(); };
+  }, [trackingAllowed, token, user?.id, locationRetry]);
+
+  useEffect(() => {
+    if (!token || !trackingAllowed) return;
 
   // Ride offers arrive on the shared live connection.
   useRealtimeEvent("ride_request", (request) => {
@@ -61,7 +88,25 @@ export default function TabLayout() {
       if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { stopRideAlert(data?.rideId); return null; }
       return current;
     });
-  });
+
+    // @ts-ignore
+    es.addEventListener("ride_request", (event: any) => {
+      if (event.data) {
+        try {
+          const req = JSON.parse(event.data);
+          setIncomingRequest(req);
+          playLoudNotificationSound();
+        } catch (e) {
+          console.error("Failed to parse ride_request", e);
+        }
+      }
+    });
+
+    return () => {
+      es.removeAllEventListeners();
+      es.close();
+    };
+  }, [token, trackingAllowed]);
 
   const handleAcceptRide = async (id: string) => {
     try {
