@@ -233,7 +233,29 @@ export const ridesApi = {
 };
 
 /** Direct OpenStreetMap (Nominatim) search, used only when the MOTA server can't search. */
-async function searchOpenStreetMap(q: string): Promise<Place[]> {
+// Used only when the MOTA server can't search (offline/busy). Free OpenStreetMap
+// services, Rwanda only: Photon first (handles partly typed names), then Nominatim.
+const RWANDA = { west: 28.86, south: -2.84, east: 30.9, north: -1.04 };
+const inRwanda = (p: Place) => p.longitude >= RWANDA.west && p.longitude <= RWANDA.east && p.latitude >= RWANDA.south && p.latitude <= RWANDA.north;
+
+async function searchOpenStreetMap(q: string, near?: { latitude: number; longitude: number }): Promise<Place[]> {
+  const center = near ?? { latitude: -1.9441, longitude: 30.0619 };
+  try {
+    const photon = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lang=en&lat=${center.latitude}&lon=${center.longitude}&bbox=${RWANDA.west},${RWANDA.south},${RWANDA.east},${RWANDA.north}`);
+    if (photon.ok) {
+      const body: any = await photon.json();
+      const places = (body.features ?? [])
+        .filter((f: any) => f.properties?.countrycode === "RW" && f.properties?.name)
+        .map((f: any) => ({
+          name: String(f.properties.name),
+          address: [f.properties.street, f.properties.district, f.properties.city].filter((x: unknown) => x && x !== f.properties.name).join(", "),
+          latitude: Number(f.geometry?.coordinates?.[1]),
+          longitude: Number(f.geometry?.coordinates?.[0]),
+        }))
+        .filter((p: Place) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && inRwanda(p));
+      if (places.length) return places;
+    }
+  } catch { /* try Nominatim */ }
   const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=rw&limit=10`, {
     headers: { Accept: "application/json", "User-Agent": "MOTA-App/1.0 (support@mota.africa)" },
   });
@@ -244,7 +266,7 @@ async function searchOpenStreetMap(q: string): Promise<Place[]> {
     address: String(r.display_name || "").split(",").slice(1).join(",").trim(),
     latitude: Number(r.lat),
     longitude: Number(r.lon),
-  })).filter((p) => p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+  })).filter((p) => p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && inRwanda(p));
 }
 
 export const mapsApi = {
@@ -265,7 +287,7 @@ export const mapsApi = {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined;
       if (status && status !== 404 && status !== 503) throw error;
     }
-    return { data: { data: await searchOpenStreetMap(q) } };
+    return { data: { data: await searchOpenStreetMap(q, near) } };
   },
   reverse: (point: { latitude: number; longitude: number }) =>
     api.get<{ data: Place }>("/maps/reverse", { params: { lat: point.latitude, lng: point.longitude } }),
