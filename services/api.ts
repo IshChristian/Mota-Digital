@@ -127,7 +127,6 @@ export const driverApi = {
   logRide: (data: any) => api.post("/driver/log-ride", data),
   getRides: (page = 1) => api.get(`/driver/rides?page=${page}`),
   getTier: () => api.get("/driver/tier"),
-  getLeaderboard: (limit = 10) => api.get(`/driver/leaderboard?limit=${limit}`),
   payFine: (data: { fineId: string; paymentAmount: number }) =>
     api.post("/driver/pay-fine", data),
   requestFine: (data: any) => api.post("/driver/request-fine", data),
@@ -549,13 +548,6 @@ export const releaseApi = {
   getLatest: () => api.get<{ version: string | null; downloaderUrl: string | null; websiteUrl: string | null }>("/platform/mobile-release"),
 };
 
-export const agentApi = {
-  stats: () => api.get("/agent/stats"),
-  drivers: () => api.get("/agent/drivers", { params: { limit: 100 } }),
-  updateRequests: () => api.get("/agent/update-requests"),
-  registerDriver: (data: { firstName: string; lastName: string; phone: string; nationalId: string }) => api.post("/agent/register-driver", data),
-  requestDriverUpdate: (id: string, description: string, kind: "profile_update" | "kyc_help" | "fee_help" | "account_access") => api.post(`/agent/drivers/${id}/update-request`, { description, kind }),
-};
 
 // ─── Uploads ────────────────────────────────────────────────────────────────
 export const uploadsApi = {

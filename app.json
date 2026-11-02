@@ -27,7 +27,8 @@
         "POST_NOTIFICATIONS",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "VIBRATE"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/mota-icon-black.png",
@@ -41,7 +42,15 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/mota_ride_request.wav"
+          ],
+          "color": "#E63946"
+        }
+      ],
       [
         "expo-splash-screen",
         {

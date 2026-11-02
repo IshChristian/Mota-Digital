@@ -3,6 +3,9 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { notificationsApi } from './api';
+import { RIDE_REQUEST_SOUND, RIDE_REQUEST_VIBRATION, isRideRequestEvent, startRideAlert } from './rideAlert';
+
+export const RIDE_REQUEST_CHANNEL = 'ride_requests';
 
 let registeredToken: string | null = null;
 let notificationHandlerConfigured = false;
@@ -17,12 +20,16 @@ async function getNotifications() {
   const Notifications = await import('expo-notifications');
   if (!notificationHandlerConfigured) {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
+      handleNotification: async (notification) => {
+        const data: any = notification.request.content.data ?? {};
+        // App open: the in-app alert loops MOTA's sound and vibration, so the
+        // notification itself stays quiet instead of playing a second sound.
+        if (isRideRequestEvent(data.event)) {
+          void startRideAlert(data.rideId);
+          return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false };
+        }
+        return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false };
+      },
     });
     notificationHandlerConfigured = true;
   }
@@ -36,6 +43,23 @@ export async function registerForPushNotifications() {
   if (!Notifications) return null;
 
   if (Platform.OS === 'android') {
+    // New ride requests: MOTA's own sound, long vibration, shown on the lock screen.
+    // (Android fixes a channel's sound when it is created, so this is a new channel id.)
+    await Notifications.setNotificationChannelAsync(RIDE_REQUEST_CHANNEL, {
+      name: 'New ride requests',
+      description: 'Rings when a passenger nearby requests a ride',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: RIDE_REQUEST_SOUND,
+      vibrationPattern: RIDE_REQUEST_VIBRATION,
+      enableVibrate: true,
+      enableLights: true,
+      lightColor: '#E63946',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.NOTIFICATION_RINGTONE,
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+      },
+    });
     await Notifications.setNotificationChannelAsync('rides', {
       name: 'Ride updates',
       importance: Notifications.AndroidImportance.HIGH,
@@ -70,4 +94,20 @@ export async function unregisterPushNotifications() {
   } finally {
     registeredToken = null;
   }
+}
+
+/**
+ * Sends a sample ride request alert in 5 seconds, so a driver can lock the phone,
+ * put it in a pocket and check they would notice a real request.
+ */
+export async function sendTestRideAlert(title: string, body: string) {
+  const Notifications = await getNotifications();
+  if (!Notifications) throw new Error('Notifications are not available on this device.');
+  if (Platform.OS === 'android') await registerForPushNotifications().catch(() => null); // makes sure the channel exists
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted') throw new Error('permission');
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, sound: RIDE_REQUEST_SOUND, data: { event: 'rideRequestTest' }, priority: Notifications.AndroidNotificationPriority.MAX },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, channelId: RIDE_REQUEST_CHANNEL },
+  });
 }

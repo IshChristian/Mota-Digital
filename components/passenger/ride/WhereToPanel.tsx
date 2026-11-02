@@ -5,6 +5,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import { mapsApi, placesApi, type Place } from "@/services/api";
 import { rideStyles } from "./rideStyles";
+import { PARCEL_DELIVERY_ENABLED } from "@/constants/features";
 
 type SavedPlace = Place & { _id: string; label: string };
 type Props = {
@@ -65,14 +66,14 @@ export function WhereToPanel({ pickup, pickupIsGps, near, rideType, onRideType, 
 
   return (
     <View style={s.panel}>
-      <View style={[s.row, { gap: 8 }]}>
+      {PARCEL_DELIVERY_ENABLED ? (<View style={[s.row, { gap: 8 }]}>
         {(["ride", "parcel"] as const).map((mode) => (
           <TouchableOpacity key={mode} accessibilityRole="radio" accessibilityState={{ selected: rideType === mode }} onPress={() => onRideType(mode)} style={[s.chip, rideType === mode && s.chipActive]}>
             <Feather name={mode === "ride" ? "navigation" : "package"} size={15} color={rideType === mode ? colors.primary : colors.textSecondary} />
             <Text style={s.chipText}>{t(mode === "ride" ? "trip.ride_mode" : "trip.parcel_mode")}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </View>) : null}
 
       <Text style={s.title}>{t("trip.where_to")}</Text>
 

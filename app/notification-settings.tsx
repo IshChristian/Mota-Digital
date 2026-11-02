@@ -1,6 +1,9 @@
 import { useT } from "@/context/I18nContext";
 import { useEffect, useState } from "react";
-import { Switch, Text, View } from "react-native";
+import { Switch, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@/context/AuthContext";
+import { isPassengerRole } from "@/constants/roles";
+import { sendTestRideAlert } from "@/services/pushNotifications";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
 import { useTheme } from "@/context/ThemeContext";
 import { productionApi } from "@/services/api";
@@ -22,6 +25,16 @@ export default function NotificationSettings() {
     security: true,
   });
   const [feedback, setFeedback] = useState("");
+  const { user } = useAuth();
+  const isDriver = Boolean(user) && !isPassengerRole(user?.role);
+  const testAlert = async () => {
+    try {
+      await sendTestRideAlert(t("notif.test_alert_title"), t("notif.test_alert_body"));
+      setFeedback(t("notif.test_alert_sent"));
+    } catch (error: any) {
+      setFeedback(t(error?.message === "permission" ? "notif.test_alert_permission" : "notif.test_alert_failed"));
+    }
+  };
   useEffect(() => {
     productionApi
       .notificationPreferences()
@@ -77,6 +90,15 @@ export default function NotificationSettings() {
         </View>
       ))}
       </View>)}
+      {isDriver ? (
+        <View style={{ marginTop: 8, padding: 16, borderRadius: 14, backgroundColor: colors.backgroundCard, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 16 }}>{t("notif.test_alert")}</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: 4, marginBottom: 12 }}>{t("notif.test_alert_desc")}</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={testAlert} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}>
+            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold" }}>{t("notif.test_alert_button")}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </PassengerSettingsScreen>
   );
 }

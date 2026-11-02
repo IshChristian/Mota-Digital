@@ -1,5 +1,6 @@
 import { Alert } from "@/components/GlobalAlert";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { stopRideAlert } from "@/services/rideAlert";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,6 +18,8 @@ const name = (person: any, fallback: string) => person ? [person.firstName, pers
 const place = (location: any, fallback: string) => location?.name || location?.address || fallback;
 
 export default function RideRequestDetailsScreen() {
+  // Opening the request answers the alert.
+  useEffect(() => { stopRideAlert(); }, []);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useTheme();

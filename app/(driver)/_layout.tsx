@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
+import { startRideAlert, stopRideAlert } from "@/services/rideAlert";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -26,25 +26,7 @@ export default function TabLayout() {
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
   >("granted");
-  const requestSound = useAudioPlayer(
-    "https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav",
-  );
-
-  // Play loud notification sound when incoming request arrives
-  const playLoudNotificationSound = async () => {
-    try {
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        shouldPlayInBackground: false,
-        interruptionMode: "duckOthers",
-      });
-      requestSound.volume = 1;
-      await requestSound.seekTo(0);
-      requestSound.play();
-    } catch (e) {
-      console.log("Error playing notification sound:", e);
-    }
-  };
+  useEffect(() => () => stopRideAlert(), []);
 
   // Location sharing: background updates while online or on a ride (keeps
   // working with the screen locked); foreground-only if background is refused.
@@ -67,23 +49,23 @@ export default function TabLayout() {
   // Ride offers arrive on the shared live connection.
   useRealtimeEvent("ride_request", (request) => {
     setIncomingRequest(request);
-    void playLoudNotificationSound();
+    void startRideAlert(request?.rideId ?? request?.id);
   });
   useRealtimeEvent("rideAssigned", (data) => {
     setIncomingRequest(null);
-    requestSound.pause();
+    stopRideAlert();
     if (data?.rideId) router.push({ pathname: "/active-ride", params: { rideId: String(data.rideId) } } as any);
   });
   useRealtimeEvent("ride_request_closed", (data) => {
     setIncomingRequest((current: any) => {
-      if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { requestSound.pause(); return null; }
+      if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { stopRideAlert(data?.rideId); return null; }
       return current;
     });
   });
 
   const handleAcceptRide = async (id: string) => {
     try {
-      requestSound.pause();
+      stopRideAlert();
       await ridesApi.acceptRide(id);
       setIncomingRequest(null);
       router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
@@ -123,7 +105,7 @@ export default function TabLayout() {
 
   const handleDeclineRide = async (id: string) => {
     try {
-      requestSound.pause();
+      stopRideAlert();
       await ridesApi.declineRide(id);
     } catch (e) {
       console.error("Failed to decline ride", e);

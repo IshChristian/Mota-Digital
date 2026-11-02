@@ -12,7 +12,7 @@ import { Alert } from "@/components/GlobalAlert";
 import { NotificationBell } from "@/components/NotificationBell";
 import { driverApi, getApiErrorMessage, usersApi } from "@/services/api";
 
-type Role = "client" | "driver" | "agent";
+type Role = "client" | "driver";
 type Icon = React.ComponentProps<typeof Feather>["name"];
 type Row = { icon: Icon; label: string; detail?: string; path?: string; onPress?: () => void; danger?: boolean };
 type Section = { title: string; rows: Row[] };
@@ -20,7 +20,7 @@ type Section = { title: string; rows: Row[] };
 const DISTANCES = [1, 2, 3, 5, 8, 10, 15];
 
 /**
- * One account page for passengers, drivers and agents. Sections are grouped by
+ * One account page for passengers and drivers. Sections are grouped by
  * purpose; preferences (language, theme, map, request distance) are edited
  * inline so the most common changes take one tap.
  */
@@ -107,15 +107,10 @@ export function AccountScreen({ role }: { role: Role }) {
         { icon: "droplet", label: t("account.fuel"), path: "/fuel-vouchers" },
         { icon: "gift", label: t("account.invite"), path: "/referrals" },
       ] },
-    ] : role === "client" ? [
+    ] : [
       { title: t("account.section_money"), rows: [
         { icon: "credit-card", label: t("account.wallet"), path: "/(passenger)/wallet" },
         { icon: "dollar-sign", label: t("account.payment_methods"), path: "/(passenger)/profile/payment-methods" },
-        { icon: "gift", label: t("account.invite"), path: "/referrals" },
-      ] },
-    ] : [
-      { title: t("account.section_account"), rows: [
-        { icon: "users", label: t("account.agent_drivers"), path: "/(agent)/drivers" },
         { icon: "gift", label: t("account.invite"), path: "/referrals" },
       ] },
     ];
@@ -134,7 +129,7 @@ export function AccountScreen({ role }: { role: Role }) {
     ] },
     ...roleSections,
     { title: t("account.section_safety"), rows: [
-      ...(role !== "agent" ? [{ icon: "shield" as Icon, label: t("account.safety_contacts"), path: "/safety-contacts" }] : []),
+      { icon: "shield" as Icon, label: t("account.safety_contacts"), path: "/safety-contacts" },
       ...(role === "client" ? [{ icon: "alert-circle" as Icon, label: t("account.disputes"), path: "/ride-disputes" }] : []),
       { icon: "smartphone", label: t("account.sessions"), path: "/sessions" },
       { icon: "lock", label: t("account.security"), path: "/security" },

@@ -1,6 +1,6 @@
 import { NotificationBell } from "@/components/NotificationBell";
 import { useRealtimeEvent } from "@/hooks/useRealtime";
-import { showMessage } from "@/components/GlobalAlert";
+import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -177,8 +177,9 @@ export default function DashboardScreen() {
                 { borderColor: getRiskColor(riskScore.grade) },
               ]}
               onPress={() =>
-                showMessage(
-                  `Risk Score: ${riskScore.score}\nFactors: ${JSON.stringify(riskScore.factors)}`,
+                Alert.alert(
+                  t("wallet_screen.grade_title", { grade: String(riskScore.grade) }),
+                  t("wallet_screen.grade_text", { score: String(riskScore.score) }),
                 )
               }
             >

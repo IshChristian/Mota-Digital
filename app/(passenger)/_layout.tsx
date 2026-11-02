@@ -20,7 +20,6 @@ export default function PassengerLayout() {
       <Stack.Screen name="profile/safety" />
       <Stack.Screen name="profile/payment-methods" />
       <Stack.Screen name="profile/support" />
-      <Stack.Screen name="profile/about" />
       <Stack.Screen name="ride-details/[id]" />
     </Stack>
   );

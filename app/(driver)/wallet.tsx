@@ -11,6 +11,7 @@ import {
   walletApi,
 } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { isPassengerRole } from "@/constants/roles";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
@@ -24,6 +25,8 @@ export default function WalletScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
+  // Shared by drivers and passengers; only the wording differs.
+  const passenger = isPassengerRole(user?.role);
   const queryClient = useQueryClient();
 
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -163,7 +166,7 @@ export default function WalletScreen() {
       <View style={s.header}>
         <DriverHeader
           title={t("wallet")}
-          subtitle="Manage earnings, deposits, withdrawals, and transaction activity."
+          subtitle={t(passenger ? "wallet_screen.subtitle_passenger" : "wallet_screen.subtitle_driver")}
         />
       </View>
 
@@ -179,7 +182,7 @@ export default function WalletScreen() {
           <>
             {/* Balance Card */}
             <View style={s.balanceCard}>
-              <Text style={s.balanceLabel}>Total Balance</Text>
+              <Text style={s.balanceLabel}>{t("wallet_screen.total")}</Text>
               {balLoading ? (
                 <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
               ) : (
@@ -189,14 +192,14 @@ export default function WalletScreen() {
                   </Text>
                   {heldBalance > 0 ? (
                     <Text style={s.heldBalance}>
-                      {heldBalance.toLocaleString()} RWF reserved for pending withdrawals
+                      {t("wallet_screen.held", { amount: heldBalance.toLocaleString() })}
                     </Text>
                   ) : null}
 
                   {today && (
                     <View style={s.todayStatsRow}>
                       <View style={s.todayStat}>
-                        <Text style={s.todayStatLabel}>Today's Income</Text>
+                        <Text style={s.todayStatLabel}>{t(passenger ? "wallet_screen.today_in_passenger" : "wallet_screen.today_in_driver")}</Text>
                         <Text
                           style={[s.todayStatValue, { color: colors.success }]}
                         >
@@ -205,7 +208,7 @@ export default function WalletScreen() {
                       </View>
                       <View style={s.todayStatDivider} />
                       <View style={s.todayStat}>
-                        <Text style={s.todayStatLabel}>Today's Net</Text>
+                        <Text style={s.todayStatLabel}>{t("wallet_screen.today_net")}</Text>
                         <Text style={[s.todayStatValue, { color: "#fff" }]}>
                           {today.net > 0 ? "+" : ""}
                           {today.net?.toLocaleString()} RWF
