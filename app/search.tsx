@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -56,7 +57,7 @@ export default function SearchScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           accessibilityLabel="Go back"
-          onPress={() => router.back()}
+          onPress={() => safeBack(router)}
           style={[styles.back, { borderColor: colors.border }]}
         >
           <Feather name="arrow-left" size={22} color={colors.textPrimary} />

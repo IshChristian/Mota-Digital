@@ -8,8 +8,10 @@ import { useFinanceStore } from "@/store/financeStore";
 import { financeApi } from "@/services/api";
 import { useRouter } from "expo-router";
 import { DriverHeader } from "@/components/driver/DriverUI";
+import { usePricing } from "@/hooks/usePricing";
 
 export default function SavingsScreen() {
+  const { pricing } = usePricing(); // savings rate set in admin Settings
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -171,12 +173,12 @@ export default function SavingsScreen() {
             <View style={s.rewardEligibleBox}>
               <Feather name="award" size={20} color="#FFD700" />
               <Text style={s.rewardEligibleText}>
-                Your funds are currently earning 2% monthly interest!
+                {`Your funds are currently earning ${pricing.savings.monthlyRewardPercent}% monthly interest!`}
               </Text>
             </View>
           ) : (
             <Text style={s.rewardPendingText}>
-              Hold funds for 30 days to earn 2% interest.
+              {`Hold funds for 30 days to earn ${pricing.savings.monthlyRewardPercent}% interest.`}
             </Text>
           )}
 

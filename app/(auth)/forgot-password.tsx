@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -38,7 +39,7 @@ export default function ForgotPasswordScreen() {
   };
   return (
     <View style={[s.page, { backgroundColor: colors.background }]}>
-      <TouchableOpacity onPress={() => router.back()}>
+      <TouchableOpacity onPress={() => safeBack(router)}>
         <Text style={{ color: colors.primary }}>{t("auth.back")}</Text>
       </TouchableOpacity>
       <Text style={[s.title, { color: colors.textPrimary }]}>

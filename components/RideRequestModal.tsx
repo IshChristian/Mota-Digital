@@ -13,13 +13,15 @@ import { driverApi, ridesApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import { Metric, StatusPill } from "@/components/driver/DriverUI";
+import { RequestRouteMap } from "@/components/driver/RequestRouteMap";
+import { useWideLayout } from "@/hooks/useWideLayout";
 
 type RideRequest = {
   id?: string;
   _id?: string;
-  pickup?: { address?: string; name?: string; distanceKm?: number } | string;
+  pickup?: { address?: string; name?: string; distanceKm?: number; latitude?: number; longitude?: number } | string;
   destination?:
-    | { address?: string; name?: string; distanceKm?: number }
+    | { address?: string; name?: string; distanceKm?: number; latitude?: number; longitude?: number }
     | string;
   offeredFare?: number;
   fare?: number;
@@ -56,6 +58,7 @@ export function RideRequestModal({
 }: RideRequestModalProps) {
   const { colors } = useTheme();
   const t = useT();
+  const { wide } = useWideLayout();
   const [action, setAction] = useState<"accept" | "decline" | "counter" | null>(null);
   const [counterSent, setCounterSent] = useState<number | null>(null);
   const [counterError, setCounterError] = useState("");
@@ -92,13 +95,18 @@ export function RideRequestModal({
   };
 
   return (
-    <Modal visible transparent animationType="slide" statusBarTranslucent>
-      <View style={styles.overlay}>
+    <Modal visible transparent animationType={wide ? "fade" : "slide"} statusBarTranslucent>
+      <View style={[styles.overlay, wide && styles.overlayWide]}>
         <View
-          style={[styles.sheet, { backgroundColor: colors.backgroundCard }]}
+          style={[styles.sheet, wide && styles.sheetWide, { backgroundColor: colors.backgroundCard }]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          {wide ? (
+            <View style={styles.wideMap}>
+              <RequestRouteMap rideId={rideId} pickup={request.pickup} destination={request.destination} height="100%" zoomControls />
+            </View>
+          ) : <View style={[styles.handle, { backgroundColor: colors.border }]} />}
           <ScrollView
+            style={wide ? { flex: 1 } : undefined}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}
           >
@@ -116,6 +124,8 @@ export function RideRequestModal({
                 <Feather name="bell" size={22} color={colors.primary} />
               </View>
             </View>
+
+            {!wide ? <RequestRouteMap rideId={rideId} pickup={request.pickup} destination={request.destination} height={210} /> : null}
 
             <View
               style={[
@@ -327,6 +337,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   handle: { width: 46, height: 5, borderRadius: 3, alignSelf: "center" },
+  overlayWide: { justifyContent: "center", padding: 32 },
+  sheetWide: { flexDirection: "row", maxWidth: 1040, height: "86%", maxHeight: 720, borderRadius: 28, paddingTop: 0, overflow: "hidden" },
+  wideMap: { flex: 1.1, padding: 12 },
   content: { padding: 20, paddingBottom: 36, gap: 18 },
   titleRow: {
     flexDirection: "row",

@@ -24,6 +24,7 @@ import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
+import { useWideLayout } from "@/hooks/useWideLayout";
 
 type Ride = {
   _id?: string;
@@ -135,7 +136,7 @@ export default function LogRideScreen() {
   // Submit new ride
   const handleSubmit = async () => {
     if (!fare) {
-      showMessage("Please enter the fare amount");
+      showMessage(t("pages.logride.need_fare"));
       return;
     }
     if (!normalizeRwandaPhone(passengerPhone)) {
@@ -208,12 +209,16 @@ export default function LogRideScreen() {
         setSubmitting(false);
       }
     } catch (e: any) {
-      showMessage(e.response?.data?.message || "Failed to log ride");
+      showMessage(e.response?.data?.message || t("pages.logride.failed"));
       setSubmitting(false);
     }
   };
 
   const s = styles(colors, isDark);
+  const { wide } = useWideLayout();
+  const todayEarnings = todayRides.reduce((sum, r) => sum + Number(r.fare || 0), 0);
+  const openForm = () => { setFare(""); setPassengerPhone(""); setModalVisible(true); };
+  const close = () => router.canGoBack() ? router.back() : router.replace("/(driver)" as any);
 
   const RideCard = ({ ride }: { ride: Ride }) => (
     <View style={s.rideCard}>
@@ -254,12 +259,27 @@ export default function LogRideScreen() {
   return (
     <View style={s.container}>
       {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
-          <Feather name="x" size={24} color={colors.textPrimary} />
+      <View style={[s.header, wide && s.headerWide, { paddingTop: wide ? 28 : insets.top || 16 }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={[s.closeBtn, wide && s.closeBtnWide]}>
+          <Feather name={wide ? "arrow-left" : "x"} size={wide ? 21 : 24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={s.title}>My Rides</Text>
-        <View style={{ width: 44 }} />
+        {wide ? (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text accessibilityRole="header" style={s.titleWide}>{t("pages.logride.title")}</Text>
+              <Text style={s.subtitle}>{t("pages.logride.subtitle")}</Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" onPress={openForm} style={s.inlineAdd}>
+              <Feather name="plus" size={18} color="#fff" />
+              <Text style={s.fabText}>{t("pages.logride.add")}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={s.title}>{t("pages.logride.title")}</Text>
+            <View style={{ width: 44 }} />
+          </>
+        )}
       </View>
 
       {/* Rides List */}
@@ -270,7 +290,7 @@ export default function LogRideScreen() {
       ) : (
         <ScrollView
           style={s.scroll}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[s.scrollContent, wide && s.scrollContentWide]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -287,10 +307,17 @@ export default function LogRideScreen() {
           }}
           scrollEventThrottle={400}
         >
+          {/* Summary */}
+          <View style={s.stats}>
+            <View style={s.stat}><Text style={s.statValue}>{todayRides.length}</Text><Text style={s.statLabel}>{t("pages.logride.rides_today")}</Text></View>
+            <View style={s.stat}><Text style={[s.statValue, { color: colors.success }]}>{todayEarnings.toLocaleString()}</Text><Text style={s.statLabel}>{t("pages.logride.rwf_today")}</Text></View>
+            <View style={s.stat}><Text style={s.statValue}>{allRides.length}</Text><Text style={s.statLabel}>{t("pages.logride.rides_logged")}</Text></View>
+          </View>
+
           {/* Today's Rides */}
           <View style={s.section}>
             <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Today</Text>
+              <Text style={s.sectionTitle}>{t("pages.logride.today")}</Text>
               <View style={s.countBadge}>
                 <Text style={s.countText}>{todayRides.length}</Text>
               </View>
@@ -298,11 +325,11 @@ export default function LogRideScreen() {
             {todayRides.length === 0 ? (
               <View style={s.emptyCard}>
                 <Feather name="clock" size={28} color={colors.textTertiary} />
-                <Text style={s.emptyText}>No rides logged today yet</Text>
-                <Text style={s.emptySubText}>Tap "+ Log New Ride" to add one</Text>
+                <Text style={s.emptyText}>{t("pages.logride.empty")}</Text>
+                <Text style={s.emptySubText}>{t(wide ? "pages.logride.empty_hint_wide" : "pages.logride.empty_hint_tap")}</Text>
               </View>
             ) : (
-              todayRides.map((ride, index) => <RideCard key={ride._id || `today-${ride.createdAt || index}`} ride={ride} />)
+              <View style={wide ? s.grid : undefined}>{todayRides.map((ride, index) => <View key={ride._id || `today-${ride.createdAt || index}`} style={wide ? s.gridItem : undefined}><RideCard ride={ride} /></View>)}</View>
             )}
           </View>
 
@@ -310,12 +337,12 @@ export default function LogRideScreen() {
           {historyRides.length > 0 && (
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <Text style={s.sectionTitle}>History</Text>
+                <Text style={s.sectionTitle}>{t("pages.logride.history")}</Text>
                 <View style={[s.countBadge, s.countBadgeGray]}>
                   <Text style={[s.countText, s.countTextGray]}>{historyRides.length}</Text>
                 </View>
               </View>
-              {historyRides.map((ride, index) => <RideCard key={ride._id || `history-${ride.createdAt || index}`} ride={ride} />)}
+              <View style={wide ? s.grid : undefined}>{historyRides.map((ride, index) => <View key={ride._id || `history-${ride.createdAt || index}`} style={wide ? s.gridItem : undefined}><RideCard ride={ride} /></View>)}</View>
               {loadingMore && (
                 <ActivityIndicator
                   color={colors.primary}
@@ -323,7 +350,7 @@ export default function LogRideScreen() {
                 />
               )}
               {!hasMore && historyRides.length > 0 && (
-                <Text style={s.endText}>All rides loaded</Text>
+                <Text style={s.endText}>{t("pages.logride.all_loaded")}</Text>
               )}
             </View>
           )}
@@ -332,42 +359,41 @@ export default function LogRideScreen() {
         </ScrollView>
       )}
 
-      {/* Floating Log New Ride Button */}
-      <TouchableOpacity
-        style={[s.fab, { bottom: insets.bottom + 24 }]}
-        onPress={() => {
-          setFare("");
-          setPassengerPhone("");
-          setModalVisible(true);
-        }}
-        activeOpacity={0.85}
-      >
-        <Feather name="plus" size={20} color="#fff" />
-        <Text style={s.fabText}>Log New Ride</Text>
-      </TouchableOpacity>
+      {/* Floating Log New Ride Button (phones; wide screens use the header button) */}
+      {!wide ? (
+        <TouchableOpacity
+          style={[s.fab, { bottom: insets.bottom + 24 }]}
+          onPress={openForm}
+          activeOpacity={0.85}
+        >
+          <Feather name="plus" size={20} color="#fff" />
+          <Text style={s.fabText}>{t("pages.logride.add")}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Log Ride Modal */}
       <Modal
         visible={modalVisible}
-        animationType="slide"
+        animationType={wide ? "fade" : "slide"}
         transparent
         onRequestClose={() => setModalVisible(false)}
       >
         <TouchableOpacity
-          style={s.modalOverlay}
+          style={[s.modalOverlay, wide && StyleSheet.absoluteFill]}
           activeOpacity={1}
           onPress={() => setModalVisible(false)}
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={s.modalSheet}
+          style={wide ? s.modalCenter : s.modalSheet}
+          pointerEvents="box-none"
         >
-          <View style={[s.modalContent, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={[s.modalContent, wide && s.modalDialog, { paddingBottom: wide ? 28 : insets.bottom + 24 }]}>
             {/* Modal Handle */}
-            <View style={s.handle} />
+            {!wide ? <View style={s.handle} /> : null}
 
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Log New Ride</Text>
+              <Text style={s.modalTitle}>{t("pages.logride.add")}</Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 style={s.modalClose}
@@ -379,20 +405,20 @@ export default function LogRideScreen() {
             {paymentSuccess ? (
               <View style={s.successBox}>
                 <Feather name="check-circle" size={64} color={colors.success} />
-                <Text style={[s.modalTitle, { marginTop: 16 }]}>Payment Successful!</Text>
-                <Text style={s.label}>Passenger has completed the payment.</Text>
+                <Text style={[s.modalTitle, { marginTop: 16 }]}>{t("pages.logride.paid_title")}</Text>
+                <Text style={s.label}>{t("pages.logride.paid_body")}</Text>
               </View>
             ) : paymentWaiting ? (
               <View style={s.successBox}>
                 <ActivityIndicator color={colors.primary} size="large" />
-                <Text style={[s.modalTitle, { marginTop: 16 }]}>Waiting for Passengers</Text>
-                <Text style={s.label}>Waiting for passengers to enter PIN...</Text>
+                <Text style={[s.modalTitle, { marginTop: 16 }]}>{t("pages.logride.waiting_title")}</Text>
+                <Text style={s.label}>{t("pages.logride.waiting_body")}</Text>
 
                 <TouchableOpacity
                   style={[s.submitBtn, { backgroundColor: colors.error, marginTop: 32 }]}
                   onPress={cancelStream}
                 >
-                  <Text style={s.submitText}>Cancel Waiting</Text>
+                  <Text style={s.submitText}>{t("pages.logride.cancel_waiting")}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -410,7 +436,7 @@ export default function LogRideScreen() {
                 />
 
                 {/* Passenger Phone */}
-                <Text style={[s.label, { marginTop: 20 }]}>Passenger Phone Number</Text>
+                <Text style={[s.label, { marginTop: 20 }]}>{t("pages.logride.passenger_phone")}</Text>
                 <RwandaPhoneInput value={passengerPhone} onChangeText={setPassengerPhone} accessibilityLabel="Passenger phone number" />
 
                 {/* Payment Method — MoMo only */}
@@ -430,7 +456,7 @@ export default function LogRideScreen() {
                   {submitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={s.submitText}>Save Ride</Text>
+                    <Text style={s.submitText}>{t("pages.logride.save")}</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -603,6 +629,21 @@ const styles = (colors: any, isDark: boolean) =>
       shadowRadius: 10,
       elevation: 8,
     },
+    // Wide browsers
+    headerWide: { gap: 14, paddingHorizontal: 28, paddingBottom: 20, justifyContent: "flex-start" },
+    closeBtnWide: { borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundCard },
+    titleWide: { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginTop: 2 },
+    inlineAdd: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, paddingHorizontal: 18, height: 46, borderRadius: 14 },
+    scrollContentWide: { paddingHorizontal: 28, paddingTop: 24 },
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    gridItem: { flexGrow: 1, flexBasis: 300, maxWidth: "50%" },
+    modalCenter: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", padding: 24 },
+    modalDialog: { width: "100%", maxWidth: 480, borderRadius: 24, borderWidth: 1, paddingTop: 22 },
+    stats: { flexDirection: "row", gap: 10, marginBottom: 20 },
+    stat: { flex: 1, backgroundColor: colors.backgroundCard, borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 12 },
+    statValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: colors.textPrimary },
+    statLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.textSecondary, marginTop: 2 },
     fabText: {
       fontSize: 15,
       fontFamily: "Inter_600SemiBold",

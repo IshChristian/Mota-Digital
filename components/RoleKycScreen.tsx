@@ -13,7 +13,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { chooseUploadFile } from "@/services/uploadSource";
 import { Alert } from "@/components/GlobalAlert";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker from "@/components/ui/DateTimePicker";
 import { kycApi } from "@/services/api";
 import { uploadToCloudinary } from "@/services/cloudinary";
 import { useTheme } from "@/context/ThemeContext";

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { safeBack } from "@/utils/navigation";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -9,14 +10,17 @@ import { useT } from "@/context/I18nContext";
 import { Alert } from "@/components/GlobalAlert";
 import { ridesApi, productionApi, mapsApi, getApiErrorMessage, type RouteResult } from "@/services/api";
 import { NextTurn } from "@/components/passenger/ride/DirectionsList";
-import { decodePolyline } from "@/utils/geo";
+import { callNumber } from "@/utils/share";
+import { useLiveLocation } from "@/hooks/useLiveLocation";
+import { useRoadRoute, remaining } from "@/hooks/useRoadRoute";
+import { useWideLayout } from "@/hooks/useWideLayout";
 import { useRealtimeEvent, useRealtimeStatus } from "@/hooks/useRealtime";
 import { haversineKm } from "@/utils/geo";
 import { MapCanvas } from "@/components/passenger/ride/MapCanvas";
 import { rideStyles } from "@/components/passenger/ride/rideStyles";
 import type { RideView } from "@/hooks/usePassengerRide";
 
-type DriverRide = RideView & { driverEarning?: number; commissionAmount?: number; passenger?: { firstName: string; rating?: number; avatarUrl?: string } };
+type DriverRide = RideView & { driverEarning?: number; commissionAmount?: number; passenger?: { firstName: string; rating?: number; avatarUrl?: string }; passengerLocation?: { latitude: number; longitude: number; at?: string } };
 type Point = { latitude: number; longitude: number };
 
 const TITLES: Record<string, string> = {
@@ -34,12 +38,16 @@ export default function ActiveRideScreen() {
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const [ride, setRide] = useState<DriverRide | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [me, setMe] = useState<Point | null>(null);
+  const live = useLiveLocation();
+  const me: Point | null = live.position ? { latitude: live.position.latitude, longitude: live.position.longitude } : null;
+  const layout = useWideLayout();
+  const [recenter, setRecenter] = useState(0);
+  const [passengerAt, setPassengerAt] = useState<Point | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [deliveryPin, setDeliveryPin] = useState("");
   const [rating, setRating] = useState(0);
-  const live = useRealtimeStatus() === "connected";
+  const streaming = useRealtimeStatus() === "connected";
 
   const load = async () => {
     if (!rideId) return;
@@ -49,33 +57,22 @@ export default function ActiveRideScreen() {
   useEffect(() => { void load(); }, [rideId]);
   useEffect(() => {
     if (!ride || ["completed", "cancelled", "expired"].includes(ride.rideStatus)) return;
-    const timer = setInterval(load, live ? 20_000 : 4_000);
+    const timer = setInterval(load, streaming ? 20_000 : 4_000);
     return () => clearInterval(timer);
-  }, [ride?.rideStatus, live]);
+  }, [ride?.rideStatus, streaming]);
   useRealtimeEvent("rideUpdate", (d) => { if (String(d?.rideId) === String(rideId)) void load(); });
   useRealtimeEvent("paymentUpdate", (d) => { if (String(d?.rideId) === String(rideId)) void load(); });
+  // Where the passenger is standing right now (shared by their app until pickup).
+  useRealtimeEvent("passengerLocation", (d) => { if (String(d?.rideId) === String(rideId)) setPassengerAt({ latitude: Number(d.latitude), longitude: Number(d.longitude) }); });
+  useEffect(() => { if (ride?.passengerLocation?.latitude != null) setPassengerAt({ latitude: Number(ride.passengerLocation.latitude), longitude: Number(ride.passengerLocation.longitude) }); }, [ride?.passengerLocation?.latitude, ride?.passengerLocation?.longitude]);
 
-  // On-screen position only; the background location service reports to the server.
-  useEffect(() => {
-    let sub: Location.LocationSubscription | undefined;
-    Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10 }, (l) => setMe({ latitude: l.coords.latitude, longitude: l.coords.longitude }))
-      .then((x) => { sub = x; }).catch(() => {});
-    return () => sub?.remove();
-  }, []);
-
-  // Road route from the driver to the current target; refreshed when the leg
-  // changes or the driver has moved ~300 m from where it was computed.
-  const [route, setRoute] = useState<RouteResult | null>(null);
-  const routedFrom = useRef<{ latitude: number; longitude: number; leg: string } | null>(null);
-  useEffect(() => {
-    if (!ride || !me) return;
-    const leg = ["accepted", "approaching", "arrived", "start_requested"].includes(ride.rideStatus) ? "pickup" : "destination";
-    if (["completed", "cancelled", "expired", "awaiting_payment"].includes(ride.rideStatus)) { setRoute(null); return; }
-    const last = routedFrom.current;
-    if (last && last.leg === leg && haversineKm(last, me) < 0.3) return;
-    routedFrom.current = { ...me, leg };
-    mapsApi.getRoute(me, leg === "pickup" ? ride.pickup : ride.destination).then((r) => setRoute(r.data.data)).catch(() => setRoute(null));
-  }, [ride?.rideStatus, me?.latitude, me?.longitude]);
+  // Road route from the driver to the current target (pickup, then destination), following the driver live.
+  const legTarget = ride && !["completed", "cancelled", "expired", "awaiting_payment"].includes(ride.rideStatus)
+    ? (["accepted", "approaching", "arrived", "start_requested"].includes(ride.rideStatus) ? ride.pickup : ride.destination)
+    : null;
+  const roadRoute = useRoadRoute(me, legTarget, 0.25);
+  const route = roadRoute?.result ?? null;
+  const left = remaining(roadRoute, me, legTarget);
 
   const act = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
@@ -110,7 +107,7 @@ export default function ActiveRideScreen() {
   };
   const call = () => act("call", async () => {
     const res = await ridesApi.call(ride._id);
-    if (res.data.data.mode === "direct" && res.data.data.phone) await Linking.openURL(`tel:+${res.data.data.phone.replace(/^\+/, "")}`);
+    if (res.data.data.mode === "direct" && res.data.data.phone) await callNumber(res.data.data.phone);
     else Alert.alert(t("drive.connecting_call"), res.data.data.message || t("drive.answer_call"));
   });
   const sos = () => Alert.alert(t("drive.sos_q"), t("drive.sos_body"), [
@@ -118,12 +115,38 @@ export default function ActiveRideScreen() {
     { text: t("drive.send_sos"), style: "destructive", onPress: () => void act("sos", () => productionApi.createSafetyEvent({ rideId: ride._id, type: "sos", category: "driver", location: me ? { ...me, capturedAt: new Date().toISOString() } : undefined })) },
   ]);
 
+  const passengerNear = toPickup && passengerAt && me ? haversineKm(passengerAt, ride.pickup) : null;
+  const mapView = (
+    <MapCanvas center={me ?? target} me={me ? { ...me, heading: live.position?.heading } : null}
+      pickup={toPickup ? { ...ride.pickup, label: t("live.pickup") } : null}
+      destination={!toPickup || isParcel ? { ...ride.destination, label: ride.destination.name } : { ...ride.destination }}
+      points={toPickup && passengerAt ? [{ ...passengerAt, id: "passenger", label: ride.passenger?.firstName || t("drive.passenger") }] : []}
+      route={!finished ? roadRoute?.points ?? [] : []}
+      fitKey={`${status}:${me ? 1 : 0}:${passengerAt ? 1 : 0}:${recenter}`}
+      padding={layout.wide ? { top: 80, left: 60, right: 60, bottom: 90 } : { top: insets.top + 70, bottom: 80, left: 40, right: 40 }}
+      zoomControls={layout.wide} />
+  );
+  const etaStrip = !finished && status !== "awaiting_payment" && left ? (
+    <View style={[styles.etaStrip, { backgroundColor: colors.backgroundCard }]}>
+      <Feather name={toPickup ? "user" : "flag"} size={16} color={colors.primary} />
+      <Text style={{ flex: 1, color: colors.textPrimary, fontFamily: "Inter_700Bold" }} numberOfLines={1}>
+        {toPickup && (status === "arrived" || status === "start_requested") ? t("live.passenger_waiting")
+          : toPickup ? t("live.pickup_eta", { km: left.km.toFixed(1), min: String(left.min) }) : t("live.to_destination", { km: left.km.toFixed(1), min: String(left.min) })}
+      </Text>
+      {passengerAt && toPickup ? <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{t("live.passenger_live")}{passengerNear != null && passengerNear > 0.15 ? ` · ${(passengerNear * 1000).toFixed(0)} m` : ""}</Text> : null}
+    </View>
+  ) : null;
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ height: "42%" }}>
-        <MapCanvas center={me ?? target} destination={target} route={route?.encodedPolyline ? decodePolyline(route.encodedPolyline) : me && !finished ? [me, target] : []} drivers={me ? [{ ...me, label: t("drive.you") }] : []} />
+    <View style={{ flex: 1, backgroundColor: colors.background, flexDirection: layout.wide ? "row-reverse" : "column" }}>
+      <View style={layout.wide ? { flex: 1, margin: 16, marginLeft: 0, borderRadius: 24, overflow: "hidden" } : { height: "46%" }}>
+        {mapView}
+        {etaStrip ? <View style={[styles.etaWrap, { top: layout.wide ? 72 : insets.top + 62 }]}>{etaStrip}</View> : null}
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("live.locate_me")} onPress={() => { if (!me) live.retry(); setRecenter((n) => n + 1); }} style={[styles.round, styles.locate, { backgroundColor: colors.backgroundCard }]}>
+          <Feather name="crosshair" size={19} color={me ? colors.primary : colors.textSecondary} />
+        </TouchableOpacity>
         <View style={[styles.topBar, { top: insets.top + 8 }]}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("drive.back")} onPress={() => router.back()} style={[styles.round, { backgroundColor: colors.backgroundCard }]}><Feather name="arrow-left" size={20} color={colors.textPrimary} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("drive.back")} onPress={() => safeBack(router)} style={[styles.round, { backgroundColor: colors.backgroundCard }]}><Feather name="arrow-left" size={20} color={colors.textPrimary} /></TouchableOpacity>
           <View style={{ flex: 1 }} />
           {!finished ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="SOS" onPress={sos} style={[styles.round, { backgroundColor: colors.error, width: 64 }]}><Text style={{ color: "#fff", fontFamily: "Inter_700Bold" }}>SOS</Text></TouchableOpacity> : null}
         </View>
@@ -134,7 +157,7 @@ export default function ActiveRideScreen() {
         ) : null}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={layout.wide ? { width: layout.panelWidth, flexGrow: 0 } : { flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: insets.bottom + 24, paddingTop: layout.wide ? insets.top + 72 : 20 }} keyboardShouldPersistTaps="handled">
         <Text accessibilityLiveRegion="polite" style={s.title}>{TITLES[status] ? t(TITLES[status]) : status}</Text>
         {route && !finished && status !== "awaiting_payment" ? <NextTurn route={route} /> : null}
         <View style={[s.card, s.row]}>
@@ -234,5 +257,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   topBar: { position: "absolute", left: 16, right: 16, flexDirection: "row" },
   round: { height: 44, minWidth: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6 },
+  etaWrap: { position: "absolute", left: 16, right: 16 },
+  etaStrip: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
+  locate: { position: "absolute", right: 14, bottom: 14 },
   navBtn: { position: "absolute", bottom: 14, alignSelf: "center", flexDirection: "row", gap: 8, alignItems: "center", paddingHorizontal: 18, height: 46, borderRadius: 23, elevation: 4 },
 });

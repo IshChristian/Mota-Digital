@@ -7,9 +7,9 @@ type Status = "connected" | "connecting" | "offline";
 // Events the server sends on /realtime/events.
 export type RealtimeEvent =
   | "ride_request" | "ride_request_closed" | "rideUpdate" | "rideCompleted" | "driverLocation"
-  | "counterOffer" | "chatMessage" | "paymentUpdate" | "notification" | "walletUpdate" | "safetyAlert" | "rideAssigned";
+  | "counterOffer" | "chatMessage" | "paymentUpdate" | "notification" | "walletUpdate" | "safetyAlert" | "rideAssigned" | "passengerLocation";
 
-const EVENTS: RealtimeEvent[] = ["ride_request", "ride_request_closed", "rideUpdate", "rideCompleted", "driverLocation", "counterOffer", "chatMessage", "paymentUpdate", "notification", "walletUpdate", "safetyAlert", "rideAssigned"];
+const EVENTS: RealtimeEvent[] = ["ride_request", "ride_request_closed", "rideUpdate", "rideCompleted", "driverLocation", "counterOffer", "chatMessage", "paymentUpdate", "notification", "walletUpdate", "safetyAlert", "rideAssigned", "passengerLocation"];
 
 /**
  * A single Server-Sent Events connection shared by every screen. Screens

@@ -1,107 +1,56 @@
 import { Alert } from "@/components/GlobalAlert";
 import { useState } from "react";
-import { Share, StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
+import { FormButton, FormCard, FormField } from "@/components/ui/Form";
 import { usersApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
+import { saveTextFile } from "@/utils/share";
+import { useT } from "@/context/I18nContext";
 
 export default function AccountScreen() {
-  const { colors } = useTheme();
   const { logout } = useAuth();
+  const t = useT();
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
   const exportData = async () => {
-    setBusy(true);
+    setBusy("export");
     try {
       const r = await usersApi.exportMyData();
-      await Share.share({
-        title: "My MOTA data",
-        message: JSON.stringify(r.data, null, 2),
-      });
+      await saveTextFile(`mota-account-data-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(r.data, null, 2), "My MOTA data");
     } catch (e: any) {
-      Alert.alert(
-        "Export failed",
-        e?.response?.data?.message || "Please try again.",
-      );
+      Alert.alert(t("pages.data.export_failed"), e?.response?.data?.message || t("pages.personal.try_again"));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   const remove = () =>
-    Alert.alert(
-      "Delete account",
-      "This anonymizes your personal profile. Active rides, loans, and wallet funds must be resolved first.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await usersApi.deleteAccount(password);
-              await logout();
-            } catch (e: any) {
-              Alert.alert(
-                "Unable to delete account",
-                e?.response?.data?.message || "Please try again.",
-              );
-            } finally {
-              setBusy(false);
-            }
-          },
+    Alert.alert(t("pages.data.delete_title"), t("pages.data.delete_confirm_body"), [
+      { text: t("pages.picker.cancel"), style: "cancel" },
+      {
+        text: t("pages.data.delete_action"),
+        style: "destructive",
+        onPress: async () => {
+          setBusy("delete");
+          try {
+            await usersApi.deleteAccount(password);
+            await logout();
+          } catch (e: any) {
+            Alert.alert(t("pages.data.delete_failed"), e?.response?.data?.message || t("pages.personal.try_again"));
+          } finally {
+            setBusy(null);
+          }
         },
-      ],
-    );
+      },
+    ]);
   return (
-    <PassengerSettingsScreen title="Account and data">
-      <TouchableOpacity
-        disabled={busy}
-        onPress={exportData}
-        style={[s.outline, { borderColor: colors.border }]}
-      >
-        <Text style={{ color: colors.textPrimary }}>
-          Export my account data
-        </Text>
-      </TouchableOpacity>
-      <Text style={{ color: colors.textSecondary }}>
-        Enter your password to confirm account deletion.
-      </Text>
-      <TextInput
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        placeholderTextColor={colors.textTertiary}
-        style={[
-          s.input,
-          { color: colors.textPrimary, borderColor: colors.border },
-        ]}
-      />
-      <TouchableOpacity
-        disabled={busy || !password}
-        onPress={remove}
-        style={s.delete}
-      >
-        <Text style={s.deleteText}>Delete my account</Text>
-      </TouchableOpacity>
+    <PassengerSettingsScreen title={t("pages.data.title")} subtitle={t("pages.data.subtitle")}>
+      <FormCard title={t("pages.data.download_title")} icon="download" description={t("pages.data.download_desc")}>
+        <FormButton label={t("pages.data.export")} icon="download" variant="outline" loading={busy === "export"} disabled={busy !== null} onPress={exportData} />
+      </FormCard>
+      <FormCard tone="danger" title={t("pages.data.delete_title")} icon="alert-triangle" description={t("pages.data.delete_desc")}>
+        <FormField label={t("pages.data.confirm_password")} secureTextEntry value={password} onChangeText={setPassword} placeholder={t("pages.data.password")} autoComplete="current-password" />
+        <FormButton label={t("pages.data.delete_button")} icon="trash-2" variant="danger" loading={busy === "delete"} disabled={!password || busy !== null} onPress={remove} />
+      </FormCard>
     </PassengerSettingsScreen>
   );
 }
-const s = StyleSheet.create({
-  input: { borderWidth: 1, borderRadius: 14, padding: 15 },
-  outline: {
-    padding: 16,
-    borderWidth: 1,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  delete: {
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    backgroundColor: "#B91C1C",
-  },
-  deleteText: { color: "#fff", fontFamily: "Inter_700Bold" },
-});

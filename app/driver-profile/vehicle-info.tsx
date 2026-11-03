@@ -13,7 +13,7 @@ export default function VehicleInfoScreen() {
   const kyc = useQuery({ queryKey: ["driver_kyc"], queryFn: async () => (await kycApi.getMine()).data?.data });
   const data = profile.data;
   const row = (label: string, value: unknown, icon: React.ComponentProps<typeof Feather>["name"]) => <View key={label} style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", gap: 12, alignItems: "flex-start" }}><Feather name={icon} size={18} color={colors.primary} /><View style={{ flex: 1, minWidth: 0 }}><Text style={{ color: colors.textSecondary, fontSize: 13 }}>{label}</Text><Text selectable style={{ color: colors.textPrimary, fontSize: 16, marginTop: 4, flexShrink: 1, lineHeight: 23 }}>{display(value)}</Text></View></View>;
-  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 70 }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 70, width: "100%", maxWidth: 720, alignSelf: "center" }}>
     <ScreenHeader title="Vehicle information" />
     {profile.isLoading ? <ActivityIndicator color={colors.primary} /> : <>
       <View style={{ backgroundColor: colors.backgroundCard, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 24, alignItems: "center", marginBottom: 20 }}><Feather name={kyc.data?.vehicleType === "car" ? "truck" : "navigation"} size={36} color={colors.primary} /><Text style={{ color: colors.textPrimary, fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 12 }}>{display(data?.plateNumber || kyc.data?.plateNumber)}</Text><Text style={{ color: colors.textSecondary }}>Plate number</Text></View>

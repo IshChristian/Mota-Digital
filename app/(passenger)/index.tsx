@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { Alert } from "@/components/GlobalAlert";
 import { ridesApi, realtimeApi, walletApi, productionApi, placesApi, mapsApi, getApiErrorMessage, type FareOption, type Place, type RouteResult } from "@/services/api";
-import { formatPlace } from "@/utils/formatPlace";
-import { decodePolyline } from "@/utils/geo";
+import { nameForPoint } from "@/utils/formatPlace";
+import { decodePolyline, haversineKm } from "@/utils/geo";
+import { useLiveLocation } from "@/hooks/useLiveLocation";
+import { useRoadRoute, remaining } from "@/hooks/useRoadRoute";
+import { useWideLayout } from "@/hooks/useWideLayout";
 import { kigaliParts } from "@/utils/kigaliTime";
 import { usePassengerRide } from "@/hooks/usePassengerRide";
 import { MapCanvas } from "@/components/passenger/ride/MapCanvas";
@@ -33,33 +35,22 @@ export default function PassengerHomeScreen() {
   const ride = trip.ride;
 
   // ─── Where the passenger is and wants to go ────────────────────────────────
-  const [gps, setGps] = useState<Point | null>(null);
+  const live = useLiveLocation();
+  const gps: Point | null = live.position ? { latitude: live.position.latitude, longitude: live.position.longitude } : null;
   const [gpsName, setGpsName] = useState(t("trip.current_location"));
-  const [locationIssue, setLocationIssue] = useState<"" | "denied" | "off">("");
+  const locationIssue = live.issue;
   const [pickupOverride, setPickupOverride] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [rideType, setRideType] = useState<"ride" | "parcel">("ride");
   const pickup: Place = pickupOverride ?? { name: gpsName, ...(gps ?? KIGALI) };
 
+  // Name the GPS pickup once (and again if the passenger moves ~300 m).
+  const namedAt = useRef<Point | null>(null);
   useEffect(() => {
-    let sub: Location.LocationSubscription | undefined;
-    let named = false;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") { setLocationIssue("denied"); return; }
-      if (!(await Location.hasServicesEnabledAsync())) setLocationIssue("off");
-      sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 20 }, async (loc) => {
-        setLocationIssue("");
-        const point = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        setGps(point);
-        if (!named) {
-          named = true;
-          try { const [g] = await Location.reverseGeocodeAsync(point); if (g) setGpsName(formatPlace(g, t("trip.current_location"))); } catch { /* keep generic name */ }
-        }
-      });
-    })().catch(() => setLocationIssue("off"));
-    return () => sub?.remove();
-  }, []);
+    if (!gps || (namedAt.current && haversineKm(namedAt.current, gps) < 0.3)) return;
+    namedAt.current = gps;
+    void nameForPoint(gps, t("trip.current_location")).then(setGpsName);
+  }, [gps?.latitude, gps?.longitude]);
 
   // ─── Prices for every vehicle once a destination is chosen ─────────────────
   const [options, setOptions] = useState<FareOption[] | null>(null);
@@ -91,18 +82,36 @@ export default function PassengerHomeScreen() {
   }, [destination?.latitude, destination?.longitude, pickup.latitude, pickup.longitude, rideType]);
 
   // ─── Nearby drivers while planning (coarse positions from the server) ──────
-  const [nearby, setNearby] = useState<Point[]>([]);
-  const nearKey = gps ? `${gps.latitude.toFixed(3)},${gps.longitude.toFixed(3)}` : "";
+  // ─── Available drivers around the pickup, refreshed every few seconds so they're seen moving ──
+  const [nearby, setNearby] = useState<Array<Point & { id: string; heading?: number | null }>>([]);
+  const nearKey = `${pickup.latitude.toFixed(3)},${pickup.longitude.toFixed(3)}`;
+  const searchingDrivers = !ride || ride.rideStatus === "searching" || ride.rideStatus === "requested";
   useEffect(() => {
-    if (ride || !gps) { setNearby([]); return; }
+    if (!searchingDrivers || (!gps && !pickupOverride)) { setNearby([]); return; }
     let active = true;
-    const load = () => realtimeApi.getNearbyDrivers(pickup.latitude, pickup.longitude, 3)
-      .then((res) => active && setNearby((res.data?.data || []).map((d: any) => ({ latitude: d.latitude, longitude: d.longitude }))))
-      .catch(() => active && setNearby([]));
+    const load = () => realtimeApi.getNearbyDrivers(pickup.latitude, pickup.longitude, 5)
+      .then((res) => active && setNearby((res.data?.data || []).map((d: any, i: number) => ({ id: String(d.id ?? i), latitude: Number(d.latitude), longitude: Number(d.longitude), heading: d.heading ?? null }))))
+      .catch(() => {});
     load();
-    const timer = setInterval(load, 20_000);
+    const timer = setInterval(load, 5_000);
     return () => { active = false; clearInterval(timer); };
-  }, [nearKey, Boolean(ride), pickupOverride?.latitude]);
+  }, [nearKey, searchingDrivers, Boolean(gps)]);
+
+  // ─── While the driver comes: share the passenger's position with them, and track the driver ──
+  const toPickup = Boolean(ride && ["accepted", "approaching", "arrived", "start_requested"].includes(ride.rideStatus));
+  const sharedAt = useRef<{ at: number; point: Point } | null>(null);
+  useEffect(() => {
+    if (!toPickup || !gps) return;
+    const last = sharedAt.current;
+    if (last && Date.now() - last.at < 4000 && haversineKm(last.point, gps) < 0.01) return;
+    sharedAt.current = { at: Date.now(), point: gps };
+    realtimeApi.updateLocation(gps).catch(() => {});
+  }, [toPickup, gps?.latitude, gps?.longitude]);
+  const driverPoint = ride?.driver?.lastLocation ? { latitude: Number(ride.driver.lastLocation.latitude), longitude: Number(ride.driver.lastLocation.longitude) } : null;
+  const onTrip = Boolean(ride && ["in_progress", "stop_requested"].includes(ride.rideStatus));
+  const driverTarget = ride ? (toPickup ? ride.pickup : onTrip ? ride.destination : null) : null;
+  const driverRoute = useRoadRoute(driverPoint, driverTarget, 0.2);
+  const eta = remaining(driverRoute, driverPoint, driverTarget);
 
   // MoMo ride payments are switched on server-side (FINANCIAL_WRITES_ENABLED); hide them when off.
   const [momoAvailable, setMomoAvailable] = useState(false);
@@ -203,81 +212,172 @@ export default function PassengerHomeScreen() {
 
   // ─── Map content ───────────────────────────────────────────────────────────
   const route = useMemo(() => {
+    if (ride && driverPoint && driverRoute) return driverRoute.points;
     const encoded = routeInfo?.encodedPolyline || options?.find((o) => o.vehicleType === "motor")?.encodedPolyline;
     if (destination) return encoded ? decodePolyline(encoded) : [pickup, destination];
     if (ride) return [ride.pickup, ride.destination];
     return [];
-  }, [options, routeInfo, destination?.latitude, ride?._id]);
-  const mapDrivers = ride?.driver?.lastLocation ? [{ ...ride.driver.lastLocation, label: ride.driver.firstName }] : nearby;
-  const mapCenter = ride ? (["in_progress", "stop_requested"].includes(ride.rideStatus) && ride.driver?.lastLocation ? ride.driver.lastLocation : ride.pickup) : pickup;
+  }, [options, routeInfo, destination?.latitude, ride?._id, driverRoute, Boolean(driverPoint)]);
+  const mapDrivers = ride && driverPoint
+    ? [{ ...driverPoint, id: "assigned", heading: ride.driver?.lastLocation?.heading ?? null, label: ride.driver?.firstName, highlight: true, color: "#84cc16" }]
+    : searchingDrivers ? nearby : [];
+  const mapCenter = ride ? (onTrip && driverPoint ? driverPoint : ride.pickup) : pickup;
+  const [recenter, setRecenter] = useState(0);
+  const fitKey = ride
+    ? `ride:${ride._id}:${ride.rideStatus}:${driverPoint ? 1 : 0}:${recenter}`
+    : `plan:${gps ? 1 : 0}:${nearby.length ? 1 : 0}:${pickupOverride ? `${pickupOverride.latitude},${pickupOverride.longitude}` : ""}:${destination ? `${destination.latitude},${destination.longitude}` : ""}:${route.length > 2 ? 1 : 0}:${recenter}`;
   const onMapPress = async (point: Point) => {
     if (ride) return;
-    let name = "Pinned location";
-    try { const [g] = await Location.reverseGeocodeAsync(point); if (g) name = formatPlace(g, name); } catch { /* keep generic */ }
-    setDestination({ name, ...point });
+    setDestination({ name: await nameForPoint(point, "Pinned location"), ...point });
   };
 
   // ─── Bottom sheet ──────────────────────────────────────────────────────────
+  const layout = useWideLayout();
+  const [sheetHeight, setSheetHeight] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const scroll = useRef<ScrollView>(null);
   useEffect(() => { setCollapsed(false); scroll.current?.scrollTo({ y: 0, animated: false }); }, [ride?.rideStatus, Boolean(destination)]);
   const s = styles(colors);
+  const mapPadding = layout.wide
+    ? { top: 90, left: layout.panelWidth + 48, right: 60, bottom: 60 }
+    : { top: insets.top + 80, left: 40, right: 40, bottom: sheetHeight + 30 };
+  const etaText = ride && eta && driverTarget ? (
+    toPickup
+      ? ride.rideStatus === "arrived" || ride.rideStatus === "start_requested" ? t("live.driver_arrived")
+        : eta.km <= 0.3 ? t("live.driver_arriving") : t("live.driver_away", { km: eta.km.toFixed(1), min: String(eta.min) })
+      : t("live.to_destination", { km: eta.km.toFixed(1), min: String(eta.min) })
+  ) : "";
+  const arriving = toPickup && Boolean(eta && (eta.km <= 0.3 || ride?.rideStatus === "arrived" || ride?.rideStatus === "start_requested"));
   const summary = ride ? `${ride.rideStatus === "searching" ? t("trip.finding") : ride.driver?.firstName ?? ""} · ${ride.destination.name}` : destination ? destination.name : t("trip.where_to");
+
+  const panel = (
+    <>
+      {trip.loading ? <ActivityIndicator color={colors.primary} style={{ padding: 32 }} />
+        : ride?.rideStatus === "searching" || ride?.rideStatus === "requested" ? (
+          <SearchingPanel ride={ride} notifiedDrivers={trip.notifiedDrivers} offers={trip.offers} onNotified={trip.setNotifiedDrivers} onDismissOffer={trip.dismissOffer} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} />
+        ) : ride ? (
+          <TripPanel ride={ride} momoAvailable={momoAvailable} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} onSos={() => setSosOpen(true)} />
+        ) : destination ? (
+          <TripOptionsPanel route={routeInfo} destinationName={destination.name} rideType={rideType} options={options} optionsError={optionsError} walletBalance={walletBalance}
+            preferredPayment={user?.preferredPayment === "MOMO" && momoAvailable ? "momo" : "cash"} momoAvailable={momoAvailable} submitting={submitting} onBack={() => setDestination(null)} onSubmit={request} />
+        ) : (
+          <WhereToPanel pickup={pickup} pickupIsGps={!pickupOverride} near={gps ?? KIGALI} rideType={rideType} onRideType={setRideType} onPickup={setPickupOverride} onDestination={setDestination} />
+        )}
+    </>
+  );
+  const locationBanner = locationIssue ? (
+    <View accessibilityRole="alert" style={[s.banner, layout.wide ? s.bannerWide : { top: insets.top + 64 }]}>
+      <Feather name="alert-triangle" size={16} color="#fff" />
+      <Text style={s.bannerText}>{t(locationIssue === "denied" ? "live.location_denied" : locationIssue === "insecure" ? "live.location_insecure" : "live.location_off")}</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={live.retry}><Text style={[s.bannerText, { textDecorationLine: "underline", flex: 0 }]}>{t("drive.retry")}</Text></TouchableOpacity>
+    </View>
+  ) : null;
+  const driversChip = !ride && !destination ? (
+    <View style={s.chip}>
+      <View style={[s.chipDot, { backgroundColor: nearby.length ? colors.success : colors.textTertiary }]} />
+      <Text style={s.chipText}>{nearby.length ? t("live.drivers_nearby", { count: String(nearby.length) }) : t("live.no_drivers_nearby")}</Text>
+    </View>
+  ) : null;
+  const etaCard = etaText ? (
+    <View accessibilityLiveRegion="polite" style={[s.etaCard, arriving && { backgroundColor: colors.success }]}>
+      <Feather name={arriving ? "bell" : toPickup ? "navigation" : "flag"} size={18} color={arriving ? "#fff" : colors.primary} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.etaTitle, arriving && { color: "#fff" }]} numberOfLines={1}>{etaText}</Text>
+        {toPickup && !arriving ? <Text style={s.etaSub} numberOfLines={1}>{t("live.driver_coming")}{ride?.driver?.plate && ride.driver.plate !== "N/A" ? ` · ${ride.driver.plate}` : ""}</Text> : null}
+      </View>
+    </View>
+  ) : null;
+  const locateButton = (
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("live.locate_me")} style={s.roundBtn} onPress={() => { if (!gps) live.retry(); setRecenter((n) => n + 1); }}>
+      <Feather name="crosshair" size={20} color={gps ? colors.primary : colors.textSecondary} />
+    </TouchableOpacity>
+  );
+  const map = (
+    <MapCanvas center={mapCenter} me={gps} pickup={ride || pickupOverride ? { ...(ride ? ride.pickup : pickup), label: t("live.pickup") } : null}
+      destination={ride ? { ...ride.destination, label: ride.destination.name } : destination ? { ...destination, label: destination.name } : null}
+      route={route} drivers={mapDrivers} onPress={onMapPress} fitKey={fitKey} padding={mapPadding} zoomControls={layout.wide} fitDrivers={!ride && !destination} />
+  );
+
+  // Cancel, SOS and rating sheets: needed by both the phone and the wide layout.
+  const sheets = (
+    <>
+        <CancelSheet visible={cancelOpen} busy={cancelBusy} onKeep={() => setCancelOpen(false)} onConfirm={cancel} />
+        <SosSheet visible={sosOpen} busy={sosBusy} hasContacts={Boolean(user?.emergencyContacts?.length)} onClose={() => setSosOpen(false)} onSend={sendSos} />
+        <RatingSheet
+          visible={finished?.rideStatus === "completed" && !finished.passengerRating}
+          driverName={finished?.driver?.firstName || "your driver"}
+          fare={finished?.fare || 0}
+          walletBalance={walletBalance}
+          busy={ratingBusy}
+          onSkip={trip.clearFinished}
+          onSubmit={rate}
+          onSavePlace={saveFinishedPlace}
+        />
+    </>
+  );
+
+  if (layout.wide) {
+    return (
+      <View style={s.container}>
+        {map}
+        <View style={[s.sidePanel, { width: layout.panelWidth }]}>
+          <View style={s.panelHeader}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.open_profile")} style={s.roundBtnFlat} onPress={() => router.push("/(passenger)/profile")}>
+              {user?.avatarUrl ? <Image source={{ uri: user.avatarUrl }} style={s.avatar} /> : <Feather name="user" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={s.panelTitle} numberOfLines={1}>{user?.firstName ? t("live.hi", { name: user.firstName }) : "MOTA"}</Text>
+              {driversChip ? <Text style={s.panelSub}>{nearby.length ? t("live.drivers_nearby", { count: String(nearby.length) }) : t("live.no_drivers_nearby")}</Text> : null}
+            </View>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open my rides" style={s.roundBtnFlat} onPress={() => router.push("/(passenger)/rides")}>
+              <Feather name="list" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          {etaCard ? <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>{etaCard}</View> : null}
+          <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+            {panel}
+          </ScrollView>
+        </View>
+        {locationBanner}
+        <View style={s.wideMapButtons}>{locateButton}</View>
+        {sheets}
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>
-      <MapCanvas center={mapCenter} destination={ride ? ride.destination : destination} route={route} drivers={mapDrivers} onPress={onMapPress} />
+      {map}
 
       <View style={[s.topBar, { top: insets.top + 10 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("ride.open_profile")} style={s.roundBtn} onPress={() => router.push("/(passenger)/profile")}>
           {user?.avatarUrl ? <Image source={{ uri: user.avatarUrl }} style={s.avatar} /> : <Feather name="user" size={20} color={colors.primary} />}
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}>{driversChip}</View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open my rides" style={s.roundBtn} onPress={() => router.push("/(passenger)/rides")}>
           <Feather name="list" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
-      {locationIssue ? (
-        <View accessibilityRole="alert" style={[s.banner, { top: insets.top + 64 }]}>
-          <Feather name="alert-triangle" size={16} color="#fff" />
-          <Text style={s.bannerText}>{locationIssue === "denied" ? "Location permission is off. Choose your pickup by search, or allow location in Settings." : "GPS is off. Turn it on so drivers can find you."}</Text>
-        </View>
-      ) : null}
+      {locationBanner}
 
-      <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[s.floating, { bottom: (collapsed ? 0 : sheetHeight) + 12 }]} pointerEvents="box-none">
+        <View style={{ flex: 1 }}>{etaCard}</View>
+        {locateButton}
+      </View>
+
+      <View onLayout={(e: LayoutChangeEvent) => setSheetHeight(e.nativeEvent.layout.height)} style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={collapsed ? "Expand ride panel" : "Collapse ride panel to see the map"} onPress={() => setCollapsed(!collapsed)} style={s.handleArea}>
           <View style={s.handle} />
           {collapsed ? <Text style={s.collapsedText} numberOfLines={1}>{summary}</Text> : null}
         </TouchableOpacity>
         {!collapsed ? (
           <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 8 }}>
-            {trip.loading ? <ActivityIndicator color={colors.primary} style={{ padding: 32 }} />
-              : ride?.rideStatus === "searching" || ride?.rideStatus === "requested" ? (
-                <SearchingPanel ride={ride} notifiedDrivers={trip.notifiedDrivers} offers={trip.offers} onNotified={trip.setNotifiedDrivers} onDismissOffer={trip.dismissOffer} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} />
-              ) : ride ? (
-                <TripPanel ride={ride} momoAvailable={momoAvailable} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} onSos={() => setSosOpen(true)} />
-              ) : destination ? (
-                <TripOptionsPanel route={routeInfo} destinationName={destination.name} rideType={rideType} options={options} optionsError={optionsError} walletBalance={walletBalance}
-                  preferredPayment={user?.preferredPayment === "MOMO" && momoAvailable ? "momo" : "cash"} momoAvailable={momoAvailable} submitting={submitting} onBack={() => setDestination(null)} onSubmit={request} />
-              ) : (
-                <WhereToPanel pickup={pickup} pickupIsGps={!pickupOverride} near={gps ?? KIGALI} rideType={rideType} onRideType={setRideType} onPickup={setPickupOverride} onDestination={setDestination} />
-              )}
+            {panel}
           </ScrollView>
         ) : null}
       </View>
 
-      <CancelSheet visible={cancelOpen} busy={cancelBusy} onKeep={() => setCancelOpen(false)} onConfirm={cancel} />
-      <SosSheet visible={sosOpen} busy={sosBusy} hasContacts={Boolean(user?.emergencyContacts?.length)} onClose={() => setSosOpen(false)} onSend={sendSos} />
-      <RatingSheet
-        visible={finished?.rideStatus === "completed" && !finished.passengerRating}
-        driverName={finished?.driver?.firstName || "your driver"}
-        fare={finished?.fare || 0}
-        walletBalance={walletBalance}
-        busy={ratingBusy}
-        onSkip={trip.clearFinished}
-        onSubmit={rate}
-        onSavePlace={saveFinishedPlace}
-      />
+      {sheets}
     </View>
   );
 }
@@ -289,7 +389,21 @@ const styles = (c: ReturnType<typeof useTheme>["colors"]) => StyleSheet.create({
   avatar: { width: 46, height: 46 },
   banner: { position: "absolute", left: 16, right: 16, backgroundColor: "#B45309", borderRadius: 12, padding: 10, flexDirection: "row", gap: 8, alignItems: "center" },
   bannerText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12, flex: 1 },
-  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "68%", backgroundColor: c.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 12, elevation: 12 },
+  bannerWide: { top: 16, left: undefined, right: 16, width: 380 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.backgroundCard, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  chipText: { color: c.textPrimary, fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  floating: { position: "absolute", left: 16, right: 16, flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  etaCard: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.backgroundCard, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, elevation: 5 },
+  etaTitle: { color: c.textPrimary, fontFamily: "Inter_700Bold", fontSize: 14 },
+  etaSub: { color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
+  sidePanel: { position: "absolute", left: 16, top: 16, bottom: 16, backgroundColor: c.backgroundCard, borderRadius: 24, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 18, elevation: 12 },
+  panelHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
+  panelTitle: { color: c.textPrimary, fontFamily: "Inter_700Bold", fontSize: 18 },
+  panelSub: { color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 2 },
+  roundBtnFlat: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.backgroundElevated, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  wideMapButtons: { position: "absolute", right: 16, bottom: 110, gap: 10 },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "68%", maxWidth: 640, marginHorizontal: "auto", backgroundColor: c.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 12, elevation: 12 },
   handleArea: { alignItems: "center", paddingVertical: 10, minHeight: 32 },
   handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: c.border },
   collapsedText: { marginTop: 8, color: c.textPrimary, fontFamily: "Inter_600SemiBold" },

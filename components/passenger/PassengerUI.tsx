@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { ReactNode } from "react";
 import {
   Image,
@@ -35,7 +36,7 @@ export function PassengerHeader({ title, subtitle, back = true, logo = false, ac
   return (
     <View style={styles.header}>
       {back ? (
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={[styles.back, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={() => safeBack(router)} style={[styles.back, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
           <Feather name="arrow-left" size={21} color={colors.textPrimary} />
         </TouchableOpacity>
       ) : null}

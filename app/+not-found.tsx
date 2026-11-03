@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -29,7 +30,7 @@ export default function NotFoundScreen() {
       >
         <Text style={s.buttonText}>Return home</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.back()}>
+      <TouchableOpacity onPress={() => safeBack(router)}>
         <Text style={[s.back, { color: colors.textPrimary }]}>Go back</Text>
       </TouchableOpacity>
     </View>

@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     },
     sheet: {
         width: "100%",
+        maxWidth: 440, // a dialog, not a banner, on wide browsers
         borderRadius: 24,
         padding: 28,
         alignItems: "center",

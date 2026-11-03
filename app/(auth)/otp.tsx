@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
@@ -86,7 +87,7 @@ export default function OtpScreen() {
   return (
     <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
+        <TouchableOpacity onPress={() => safeBack(router)} style={s.backButton}>
           <Feather name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>

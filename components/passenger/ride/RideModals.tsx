@@ -2,15 +2,19 @@ import { useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
+import { useWideLayout } from "@/hooks/useWideLayout";
 import { useT } from "@/context/I18nContext";
 import { rideStyles } from "./rideStyles";
+import { callNumber } from "@/utils/share";
 
 function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {
   const { colors } = useTheme();
+  const { wide } = useWideLayout();
+  // Phones: a bottom sheet. Wide browsers: a centred dialog instead of a full-width strip.
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" }} onPress={onClose} accessibilityLabel="Close">
-        <Pressable style={{ backgroundColor: colors.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 14 }} onPress={() => {}}>
+    <Modal transparent visible={visible} animationType={wide ? "fade" : "slide"} onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: wide ? "center" : "flex-end", alignItems: wide ? "center" : "stretch", padding: wide ? 24 : 0 }} onPress={onClose} accessibilityLabel="Close">
+        <Pressable style={[{ backgroundColor: colors.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 14 }, wide && { width: "100%", maxWidth: 520, borderRadius: 24, paddingBottom: 24 }]} onPress={() => {}}>
           {children}
         </Pressable>
       </Pressable>
@@ -49,7 +53,7 @@ export function SosSheet({ visible, busy, hasContacts, onClose, onSend }: { visi
       <Text style={s.body}>{t("trip.sos_body")}</Text>
       {!hasContacts ? <Text style={s.subtitle}>{t("trip.add_contacts_hint")}</Text> : null}
       <TouchableOpacity accessibilityRole="button" style={[s.primaryBtn, { backgroundColor: colors.error }]} disabled={busy} onPress={onSend}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("trip.sos_send")}</Text>}</TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" style={s.secondaryBtn} onPress={() => void Linking.openURL("tel:112")}><Feather name="phone" size={16} color={colors.textPrimary} /><Text style={s.secondaryText}>112</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" style={s.secondaryBtn} onPress={() => void callNumber("112")}><Feather name="phone" size={16} color={colors.textPrimary} /><Text style={s.secondaryText}>112</Text></TouchableOpacity>
       <TouchableOpacity style={s.secondaryBtn} onPress={onClose}><Text style={s.secondaryText}>{t("trip.cancel")}</Text></TouchableOpacity>
     </Sheet>
   );

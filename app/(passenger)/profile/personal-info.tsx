@@ -1,38 +1,45 @@
 import { Alert } from "@/components/GlobalAlert";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
+import { useT } from "@/context/I18nContext";
 import { usersApi } from "@/services/api";
 import { PassengerSettingsScreen } from "@/components/PassengerSettingsScreen";
+import { FormButton, FormCard, FormField, FormRow } from "@/components/ui/Form";
 
 export default function PersonalInfo() {
   const router = useRouter();
   const { user, refreshUser } = useAuth() as any;
-  const { colors } = useTheme();
+  const t = useT();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
   useEffect(() => { setFirstName(user?.firstName || ""); setLastName(user?.lastName || ""); }, [user]);
+  const changed = firstName.trim() !== (user?.firstName || "") || lastName.trim() !== (user?.lastName || "");
   const save = async () => {
-    if (!firstName.trim() || !lastName.trim()) return Alert.alert("Required", "Complete both name fields.");
+    if (!firstName.trim() || !lastName.trim()) return Alert.alert(t("pages.personal.required"), t("pages.personal.required_body"));
     setSaving(true);
     try {
       await usersApi.updateMe({ firstName: firstName.trim(), lastName: lastName.trim() });
       await refreshUser?.();
-      Alert.alert("Saved", "Personal information updated.");
-    } catch (error: any) { Alert.alert("Unable to save", error?.response?.data?.message || "Please try again."); }
+      Alert.alert(t("pages.personal.saved"), t("pages.personal.saved_body"));
+    } catch (error: any) { Alert.alert(t("pages.personal.save_failed"), error?.response?.data?.message || t("pages.personal.try_again")); }
     finally { setSaving(false); }
   };
-  const input = [styles.input, { color: colors.textPrimary, borderColor: colors.border }];
-  return <PassengerSettingsScreen title="Personal information">
-    <TextInput style={input} value={firstName} onChangeText={setFirstName} placeholder="First name" placeholderTextColor={colors.textSecondary} />
-    <TextInput style={input} value={lastName} onChangeText={setLastName} placeholder="Last name" placeholderTextColor={colors.textSecondary} />
-    <Text style={[styles.label, { color: colors.textSecondary }]}>Verified phone</Text>
-    <Text style={[styles.verified, { color: colors.textPrimary, backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>{user?.phone || "Not set"}</Text>
-    <TouchableOpacity style={[styles.outline, { borderColor: colors.primary }]} onPress={() => router.push("/contact-security" as any)}><Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>Change verified phone securely</Text></TouchableOpacity>
-    <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} disabled={saving} onPress={save}><Text style={styles.buttonText}>{saving ? "Saving…" : "Save changes"}</Text></TouchableOpacity>
+  return <PassengerSettingsScreen title={t("pages.personal.title")} subtitle={t("pages.personal.subtitle")}>
+    <FormCard title={t("pages.personal.name_title")} icon="user" description={t("pages.personal.name_desc")}>
+      <FormRow>
+        <FormField label={t("pages.personal.first")} value={firstName} onChangeText={setFirstName} placeholder={t("pages.personal.first")} autoComplete="given-name" />
+        <FormField label={t("pages.personal.last")} value={lastName} onChangeText={setLastName} placeholder={t("pages.personal.last")} autoComplete="family-name" />
+      </FormRow>
+      <FormButton label={saving ? t("pages.personal.saving") : t("pages.personal.save")} icon="check" loading={saving} disabled={!changed} onPress={save} />
+    </FormCard>
+    <FormCard title={t("pages.personal.contact_title")} icon="phone" description={t("pages.personal.contact_desc")}>
+      <FormRow>
+        <FormField label={t("pages.personal.phone")} value={user?.phone} readOnly />
+        {user?.email ? <FormField label={t("pages.personal.email")} value={user.email} readOnly hint={user?.isEmailVerified ? t("pages.personal.verified") : t("pages.personal.not_verified")} /> : null}
+      </FormRow>
+      <FormButton label={t("pages.personal.change_phone")} icon="shield" variant="outline" onPress={() => router.push("/contact-security" as any)} />
+    </FormCard>
   </PassengerSettingsScreen>;
 }
-const styles = StyleSheet.create({ input: { borderWidth: 1, borderRadius: 14, padding: 15 }, label: { fontSize: 12, fontFamily: "Inter_600SemiBold" }, verified: { borderWidth: 1, borderRadius: 14, padding: 15, fontFamily: "Inter_600SemiBold" }, outline: { borderWidth: 1, padding: 14, borderRadius: 14, alignItems: "center" }, button: { padding: 16, borderRadius: 14, alignItems: "center" }, buttonText: { color: "#fff", fontFamily: "Inter_700Bold" } });

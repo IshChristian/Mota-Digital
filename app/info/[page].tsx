@@ -1,4 +1,9 @@
+import { safeBack } from "@/utils/navigation";
 import React, { useMemo, useState } from "react";
+import { callNumber } from "@/utils/share";
+
+const SUPPORT_PHONE = process.env.EXPO_PUBLIC_SUPPORT_PHONE || "+250791364641";
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || "tiangroupinnovation@gmail.com";
 import {
   ActivityIndicator,
   Alert,
@@ -102,7 +107,7 @@ export default function InformationScreen() {
     >
       <TouchableOpacity
         accessibilityLabel="Go back"
-        onPress={() => router.back()}
+        onPress={() => safeBack(router)}
         style={[styles.back, { borderColor: colors.border }]}
       >
         <Feather name="arrow-left" size={22} color={colors.textPrimary} />
@@ -147,7 +152,7 @@ export default function InformationScreen() {
                 borderColor: colors.border,
               },
             ]}
-            onPress={() => Linking.openURL("tel:+250000000000")}
+            onPress={() => void callNumber(SUPPORT_PHONE)}
           >
             <Feather name="phone" size={22} color={colors.primary} />
             <View>
@@ -155,7 +160,7 @@ export default function InformationScreen() {
                 Call support
               </Text>
               <Text style={{ color: colors.textSecondary }}>
-                +250 000 000 000
+                {SUPPORT_PHONE}
               </Text>
             </View>
           </TouchableOpacity>
@@ -167,7 +172,7 @@ export default function InformationScreen() {
                 borderColor: colors.border,
               },
             ]}
-            onPress={() => Linking.openURL("mailto:support@mota.rw")}
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
           >
             <Feather name="mail" size={22} color={colors.primary} />
             <View>
@@ -175,7 +180,7 @@ export default function InformationScreen() {
                 Email support
               </Text>
               <Text style={{ color: colors.textSecondary }}>
-                support@mota.rw
+                {SUPPORT_EMAIL}
               </Text>
             </View>
           </TouchableOpacity>

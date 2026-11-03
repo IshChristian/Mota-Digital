@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -11,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/context/I18nContext";
 import { fuelVoucherApi, getApiErrorMessage } from "@/services/api";
 import { Alert } from "@/components/GlobalAlert";
+import { useWideLayout } from "@/hooks/useWideLayout";
 
 type Voucher = { id: string; code: string; type: "qr" | "momo"; source: "request" | "reward"; amount: number; status: string; note?: string; qrCode?: string; issuedAt: string; expiresAt?: string; redeemedAt?: string };
 type Daily = { eligible: boolean; reason?: string; tier?: string; minTier: string; amount: number; momoEnabled: boolean; qrUsed: number; momoUsed: number; qrLimit: number; momoLimit: number; resetsAt: string };
@@ -28,6 +30,7 @@ export default function FuelVouchersScreen() {
   const t = useT();
   const client = useQueryClient();
   const s = styles(colors);
+  const { wide } = useWideLayout();
   const account = user?.id || user?._id;
   const prefix = ["fuel", account];
   const [page, setPage] = useState(1);
@@ -81,7 +84,7 @@ export default function FuelVouchersScreen() {
     <View style={s.screen}>
       <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 32 }]}
         refreshControl={<RefreshControl refreshing={daily.isRefetching} onRefresh={() => void refresh()} tintColor={colors.primary} />}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={s.back}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => safeBack(router)} style={s.back}>
           <Feather name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text accessibilityRole="header" style={s.title}>{t("fuel.title")}</Text>
@@ -156,8 +159,8 @@ export default function FuelVouchersScreen() {
       </ScrollView>
 
       <Modal transparent visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
-        <Pressable style={s.backdrop} onPress={() => setSelected(null)}>
-          <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={[s.backdrop, wide && { justifyContent: "center", alignItems: "center", padding: 24 }]} onPress={() => setSelected(null)}>
+          <Pressable style={[s.sheet, wide && { width: "100%", maxWidth: 480, borderRadius: 24, paddingBottom: 24 }]} onPress={() => {}}>
             {selected ? (
               <>
                 <Text style={s.heading}>{selected.type === "qr" ? t("fuel.qr_title") : t("fuel.momo_title")} · {money(selected.amount)}</Text>

@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { driverApi } from "./api";
@@ -23,7 +24,7 @@ if (!TaskManager.isTaskDefined(DRIVER_LOCATION_TASK)) {
   });
 }
 
-export type TrackingMode = "background" | "foreground" | "denied" | "off";
+export type TrackingMode = "background" | "foreground" | "web" | "denied" | "off";
 
 /**
  * Starts location sharing for an online driver. Prefers background updates
@@ -35,7 +36,8 @@ export async function startDriverTracking(onForegroundFix?: (loc: Location.Locat
   if (!(await Location.hasServicesEnabledAsync())) return { mode: "off", stop: () => {} };
 
   let background = false;
-  try {
+  // Browsers have no background location; the web app shares GPS while the tab is open.
+  if (Platform.OS !== "web") try {
     const bg = await Location.requestBackgroundPermissionsAsync();
     if (bg.status === "granted") {
       if (!(await Location.hasStartedLocationUpdatesAsync(DRIVER_LOCATION_TASK))) {
@@ -70,7 +72,7 @@ export async function startDriverTracking(onForegroundFix?: (loc: Location.Locat
   });
 
   return {
-    mode: background ? "background" : "foreground",
+    mode: background ? "background" : Platform.OS === "web" ? "web" : "foreground",
     stop: () => {
       sub.remove();
       if (background) void stopBackgroundTracking();

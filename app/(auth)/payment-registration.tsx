@@ -14,8 +14,12 @@ import { authApi, paymentApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isPassengerRole } from "@/constants/roles";
+import { rwf, usePricing } from "@/hooks/usePricing";
 
 export default function PaymentRegistrationScreen() {
+  // The fee set in admin Settings (the server charges the same amount).
+  const { pricing } = usePricing();
+  const fee = pricing.registrationFee.driver;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
@@ -121,7 +125,7 @@ export default function PaymentRegistrationScreen() {
         <Text style={s.successTitle}>Payment Initiated!</Text>
         <Text style={s.successDesc}>
           You'll receive a MoMo push notification to approve the payment of{" "}
-          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>5,000 RWF</Text>.
+          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>{rwf(fee)}</Text>.
           {"\n\n"}Waiting for payment confirmation...
         </Text>
         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -166,7 +170,7 @@ export default function PaymentRegistrationScreen() {
       {/* Payment amount */}
       <View style={s.payCard}>
         <Text style={s.payLabel}>Amount to Pay</Text>
-        <Text style={s.payAmount}>5000 RWF</Text>
+        <Text style={s.payAmount}>{rwf(fee)}</Text>
         <View style={s.payRow}>
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
           <Text style={s.payNote}>via MTN MoMo to {displayPhone}</Text>
@@ -186,7 +190,7 @@ export default function PaymentRegistrationScreen() {
         ) : (
           <>
             <Feather name="credit-card" size={20} color="#fff" />
-            <Text style={s.payBtnText}>Pay 5,000 RWF</Text>
+            <Text style={s.payBtnText}>Pay {rwf(fee)}</Text>
           </>
         )}
       </TouchableOpacity>

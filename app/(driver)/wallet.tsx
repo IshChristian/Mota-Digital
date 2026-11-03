@@ -17,6 +17,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 import { DriverHeader } from "@/components/driver/DriverUI";
+import { useWideLayout } from "@/hooks/useWideLayout";
 
 type ModalType = "cash_in" | "cash_out" | null;
 
@@ -160,26 +161,9 @@ export default function WalletScreen() {
   };
 
   const s = styles(colors);
-
-  return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
-      <View style={s.header}>
-        <DriverHeader
-          title={t("wallet")}
-          subtitle={t(passenger ? "wallet_screen.subtitle_passenger" : "wallet_screen.subtitle_driver")}
-        />
-      </View>
-
-      <FlatList
-        data={recentTransactions}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        renderItem={renderTx}
-        contentContainerStyle={s.listContent}
-        refreshing={manualRefresh}
-        onRefresh={refreshManually}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <>
+  const { wide } = useWideLayout();
+  const balanceCard = (
+    <>
             {/* Balance Card */}
             <View style={s.balanceCard}>
               <Text style={s.balanceLabel}>{t("wallet_screen.total")}</Text>
@@ -242,6 +226,32 @@ export default function WalletScreen() {
               </View>
             </View>
 
+    </>
+  );
+
+  return (
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <View style={s.header}>
+        <DriverHeader
+          title={t("wallet")}
+          subtitle={t(passenger ? "wallet_screen.subtitle_passenger" : "wallet_screen.subtitle_driver")}
+        />
+      </View>
+
+      <View style={wide ? s.wideRow : { flex: 1 }}>
+      {wide ? <View style={s.wideAside}>{balanceCard}</View> : null}
+      <FlatList
+        style={{ flex: 1 }}
+        data={recentTransactions}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        renderItem={renderTx}
+        contentContainerStyle={s.listContent}
+        refreshing={manualRefresh}
+        onRefresh={refreshManually}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            {!wide ? balanceCard : null}
             <Text style={s.sectionTitle}>{t("transactions")}</Text>
           </>
         }
@@ -259,6 +269,7 @@ export default function WalletScreen() {
           ) : null
         }
       />
+      </View>
 
       {/* Cash In / Cash Out Modal */}
       <Modal
@@ -267,11 +278,12 @@ export default function WalletScreen() {
         animationType="slide"
         onRequestClose={closeModal}
       >
-        <View style={s.modalOverlay}>
+        <View style={[s.modalOverlay, wide && s.modalOverlayWide]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={wide ? { width: "100%", maxWidth: 480 } : undefined}
           >
-            <View style={s.modalSheet}>
+            <View style={[s.modalSheet, wide && s.modalDialog]}>
               <View style={s.modalHandle} />
 
               <View style={s.modalHeader}>
@@ -376,6 +388,8 @@ const styles = (colors: any) =>
       color: colors.textPrimary,
     },
     listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+    wideRow: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 20 },
+    wideAside: { width: 380, paddingTop: 4 },
     balanceCard: {
       backgroundColor: colors.secondary,
       borderRadius: 20,
@@ -491,6 +505,9 @@ const styles = (colors: any) =>
       backgroundColor: colors.overlay,
       justifyContent: "flex-end",
     },
+    // Wide browsers: centred dialog instead of a full-width bottom sheet.
+    modalOverlayWide: { justifyContent: "center", alignItems: "center", padding: 24 },
+    modalDialog: { borderRadius: 24, paddingBottom: 28 },
     modalSheet: {
       backgroundColor: colors.backgroundCard,
       borderTopLeftRadius: 24,

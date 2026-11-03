@@ -9,69 +9,47 @@ import { startRideAlert, stopRideAlert } from "@/services/rideAlert";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL, ridesApi, driverApi } from "@/services/api";
-import { canTrackDriverLocation, createDriverLocationPublisher } from "@/services/driverLocationTracking";
+import { ridesApi } from "@/services/api";
+import { startDriverTracking, stopBackgroundTracking } from "@/services/driverLocation";
+import { canTrackDriverLocation } from "@/services/driverLocationTracking";
+import { useRealtimeEvent } from "@/hooks/useRealtime";
 import { RideRequestModal } from "@/components/RideRequestModal";
+import { pageFrame, useWideLayout } from "@/hooks/useWideLayout";
 
 export default function TabLayout() {
   const router = useRouter();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  // Wide browsers: a left sidebar instead of the phone's bottom tab bar.
+  const { wide } = useWideLayout();
   const safeAreaInsets = useSafeAreaInsets();
   const t = useT();
   const { colors, isDark } = useTheme();
-  const { token, user, refreshAccount } = useAuth();
-  const [locationRetry, setLocationRetry] = useState(0);
+  const { token, user } = useAuth();
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
   >("granted");
   useEffect(() => () => stopRideAlert(), []);
 
-  const trackingAllowed = canTrackDriverLocation(user, token);
-
-  // Only authenticated, activated drivers start GPS publishing.
+  // Location sharing: background updates while online or on a ride (keeps
+  // working with the screen locked); foreground-only if background is refused.
+  // Only signed-in, activated drivers who are online publish GPS (the server refuses the rest).
+  const shouldTrack = Boolean(user?.isOnline) && canTrackDriverLocation(user, token);
   useEffect(() => {
-    if (!trackingAllowed) return;
-    let disposed = false;
-    let sub: Location.LocationSubscription | undefined;
-    const publisher = createDriverLocationPublisher(
-      coordinates => driverApi.updateLocation(coordinates),
-      message => {
-        sub?.remove();
-        Alert.alert('Location sharing paused', message, [{text: 'Close', style: 'cancel'}, {text: 'Refresh account', onPress: () => { void refreshAccount().then(() => { if (!disposed) setLocationRetry(value => value + 1); }).catch(() => { if (!disposed) showMessage('Could not refresh your account. Check your connection or sign in again.'); }); }}]);
-      },
-      () => showMessage('Location update delayed. Check your connection; MOTA will retry on the next location update.'),
-    );
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (disposed) return;
-        if (status !== 'granted') {
-          setLocationStatus('denied');
-          Alert.alert('GPS Permission Required', 'Please allow GPS location access to receive nearby passenger ride requests.');
-          return;
-        }
-        if (!await Location.hasServicesEnabledAsync()) {
-          if (!disposed) { setLocationStatus('off'); Alert.alert('GPS Services Disabled', 'Please turn on location services to receive ride requests.'); }
-          return;
-        }
-        if (disposed) return;
-        setLocationStatus('granted');
-        const subscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, distanceInterval: 10 },
-          loc => { if (!disposed) void publisher.publish({ latitude: loc.coords.latitude, longitude: loc.coords.longitude }); },
-        );
-        if (disposed || publisher.isStopped()) subscription.remove(); else sub = subscription;
-      } catch {
-        if (!disposed) setLocationStatus('off');
+    if (!shouldTrack) { void stopBackgroundTracking(); return; }
+    let stop = () => {};
+    let cancelled = false;
+    startDriverTracking().then((result) => {
+      if (cancelled) { result.stop(); return; }
+      stop = result.stop;
+      setLocationStatus(result.mode === "denied" ? "denied" : result.mode === "off" ? "off" : "granted");
+      if (result.mode === "foreground") {
+        Alert.alert("Allow location \"All the time\"", "MOTA can only share your position while the app is open. Choose \"Allow all the time\" in Settings so passengers can track you with the screen locked.");
       }
-    })();
-    return () => { disposed = true; publisher.stop(); sub?.remove(); };
-  }, [trackingAllowed, token, user?.id, locationRetry]);
-
-  useEffect(() => {
-    if (!token || !trackingAllowed) return;
+    }).catch(() => setLocationStatus("off"));
+    return () => { cancelled = true; stop(); };
+  }, [shouldTrack]);
 
   // Ride offers arrive on the shared live connection.
   useRealtimeEvent("ride_request", (request) => {
@@ -88,25 +66,7 @@ export default function TabLayout() {
       if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { stopRideAlert(data?.rideId); return null; }
       return current;
     });
-
-    // @ts-ignore
-    es.addEventListener("ride_request", (event: any) => {
-      if (event.data) {
-        try {
-          const req = JSON.parse(event.data);
-          setIncomingRequest(req);
-          playLoudNotificationSound();
-        } catch (e) {
-          console.error("Failed to parse ride_request", e);
-        }
-      }
-    });
-
-    return () => {
-      es.removeAllEventListeners();
-      es.close();
-    };
-  }, [token, trackingAllowed]);
+  });
 
   const handleAcceptRide = async (id: string) => {
     try {
@@ -201,7 +161,17 @@ export default function TabLayout() {
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
           headerShown: false,
-          tabBarStyle: {
+          tabBarPosition: wide ? "left" : "bottom",
+          tabBarVariant: wide ? "material" : "uikit",
+          sceneStyle: [{ backgroundColor: colors.background }, pageFrame(wide, 960)],
+          tabBarLabelStyle: wide ? { fontFamily: "Inter_600SemiBold", fontSize: 14 } : undefined,
+          tabBarStyle: wide ? {
+            backgroundColor: colors.tabBarBg,
+            borderRightWidth: 1,
+            borderRightColor: colors.tabBarBorder,
+            width: 220,
+            paddingTop: 24,
+          } : {
             position: "absolute",
             backgroundColor: isIOS ? "transparent" : colors.tabBarBg,
             borderTopWidth: 1,
@@ -211,7 +181,7 @@ export default function TabLayout() {
             ...(isWeb ? { height: 80 } : {}),
           },
           tabBarBackground: () =>
-            isIOS ? (
+            wide ? null : isIOS ? (
               <BlurView
                 intensity={90}
                 tint={isDark ? "dark" : "light"}
@@ -239,6 +209,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="requests"
           options={{
+            sceneStyle: { backgroundColor: colors.background },
             title: "Requests",
             tabBarIcon: ({ color }) => (
               <Feather name="radio" size={22} color={color} />
@@ -257,6 +228,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
+            sceneStyle: [{ backgroundColor: colors.background }, pageFrame(wide, 1120)],
             title: t("profile"),
             tabBarIcon: ({ color }) => (
               <Feather name="user" size={22} color={color} />

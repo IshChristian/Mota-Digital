@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -76,7 +77,7 @@ export default function SystemStateScreen() {
         <TouchableOpacity
           style={[styles.primary, { backgroundColor: colors.primary }]}
           onPress={() =>
-            returnTo ? router.replace(returnTo as any) : router.back()
+            returnTo ? router.replace(returnTo as any) : safeBack(router)
           }
         >
           <Feather name="refresh-cw" size={18} color="#fff" />

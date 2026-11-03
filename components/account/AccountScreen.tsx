@@ -11,6 +11,7 @@ import { googleMapsAvailable, useMapPreference } from "@/context/MapPreferenceCo
 import { Alert } from "@/components/GlobalAlert";
 import { NotificationBell } from "@/components/NotificationBell";
 import { driverApi, getApiErrorMessage, usersApi } from "@/services/api";
+import { useWideLayout } from "@/hooks/useWideLayout";
 
 type Role = "client" | "driver";
 type Icon = React.ComponentProps<typeof Feather>["name"];
@@ -33,6 +34,7 @@ export function AccountScreen({ role }: { role: Role }) {
   const { mapProvider, setMapProvider } = useMapPreference();
   const { user, logout, updateUser } = useAuth();
   const s = styles(colors);
+  const { wide } = useWideLayout();
   const photo = user?.avatarUrl || user?.profileImage;
   const [photoBusy, setPhotoBusy] = useState(false);
   const [sheet, setSheet] = useState<null | "language" | "distance">(null);
@@ -98,8 +100,8 @@ export function AccountScreen({ role }: { role: Role }) {
       { title: t("account.section_driving"), rows: [
         { icon: "radio", label: t("account.request_distance"), detail: radiusLabel, onPress: () => setSheet("distance") },
         { icon: "bar-chart-2", label: t("account.performance"), path: "/driver-performance" },
-        { icon: "truck", label: t("account.vehicle"), path: "/profile/vehicle-info" },
-        { icon: "file-text", label: t("account.documents"), path: "/profile/documents" },
+        { icon: "truck", label: t("account.vehicle"), path: "/driver-profile/vehicle-info" },
+        { icon: "file-text", label: t("account.documents"), path: "/driver-profile/documents" },
         { icon: "shield", label: t("account.driver_kyc"), path: "/(driver)/kyc" },
       ] },
       { title: t("account.section_money"), rows: [
@@ -120,7 +122,7 @@ export function AccountScreen({ role }: { role: Role }) {
       { icon: "globe", label: t("account.language"), detail: languageLabel, onPress: () => setSheet("language") },
     ] },
     { title: t("account.section_account"), rows: [
-      { icon: "user", label: t("account.personal_info"), path: role === "client" ? "/(passenger)/profile/personal-info" : "/profile/personal-info" },
+      { icon: "user", label: t("account.personal_info"), path: role === "client" ? "/(passenger)/profile/personal-info" : "/driver-profile/personal-info" },
       ...(role === "client" ? [
         { icon: "check-circle" as Icon, label: t("account.verification"), path: "/(passenger)/profile/kyc" },
         { icon: "star" as Icon, label: t("account.saved_places"), path: "/(passenger)/profile/places" },
@@ -149,76 +151,89 @@ export function AccountScreen({ role }: { role: Role }) {
 
   const needsVerification = role === "client" && (user?.kycLevel !== "full" || (!!user?.email && !user?.isEmailVerified));
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: insets.top + 12, paddingBottom: 120, gap: 16 }} showsVerticalScrollIndicator={false}>
-        <View style={s.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text accessibilityRole="header" style={s.title}>{t("account.title")}</Text>
-            <Text style={s.subtle}>{t("account.subtitle")}</Text>
-          </View>
-          <NotificationBell />
-        </View>
-
-        <View style={[s.card, s.profile]}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("account.tap_photo")} disabled={photoBusy} onPress={() => void changePhoto()} style={s.avatar}>
-            {photo ? <Image source={{ uri: photo }} style={s.avatarImg} /> : <Text style={s.initials}>{`${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`}</Text>}
-            <View style={s.camera}>{photoBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="camera" size={12} color="#fff" />}</View>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={s.name}>{user?.firstName} {user?.lastName}</Text>
-            <Text style={s.subtle}>{user?.phone || user?.email}</Text>
-            <View style={s.badge}><Text style={s.badgeText}>{t(`account.role_${role}`)}</Text></View>
-          </View>
-        </View>
-
-        {needsVerification ? (
-          <View style={[s.card, { padding: 16, gap: 8, borderColor: `${colors.primary}55` }]}>
-            <Text style={s.rowLabel}>{t("account.verify_title")}</Text>
-            <Text style={s.subtle}>{t("account.verify_body")}</Text>
-            {user?.kycLevel !== "full" ? <RowView s={s} colors={colors} row={{ icon: "check-circle", label: t("account.verify_id"), detail: t("account.verify_id_detail"), path: "/(passenger)/profile/kyc" }} onPress={() => router.push("/(passenger)/profile/kyc" as any)} /> : null}
-            {!!user?.email && !user?.isEmailVerified ? <RowView s={s} colors={colors} row={{ icon: "mail", label: t("account.verify_email"), detail: user.email }} onPress={() => router.push("/(auth)/verify-email" as any)} /> : null}
-          </View>
-        ) : null}
-
-        {/* Appearance and map are segmented controls: one tap, no extra screen. */}
-        <View style={[s.card, { padding: 14, gap: 14 }]}>
-          <View>
-            <Text style={s.rowLabel}>{t("account.theme")}</Text>
-            <Segmented colors={colors} value={isDark ? "dark" : "light"} options={[{ value: "light", label: t("account.theme_light"), icon: "sun" }, { value: "dark", label: t("account.theme_dark"), icon: "moon" }]} onChange={(v) => setMode(v as "light" | "dark")} />
-          </View>
-          <View>
-            <Text style={s.rowLabel}>{t("account.map")}</Text>
-            <Segmented colors={colors} value={mapProvider} options={[
-              { value: "google", label: t("account.map_google"), icon: "map", disabled: !googleMapsAvailable },
-              { value: "osm", label: t("account.map_osm"), icon: "map-pin" },
-            ]} onChange={(v) => setMapProvider(v as "google" | "osm")} />
-            <Text style={[s.subtle, { marginTop: 6, fontSize: 12 }]}>{t("account.map_detail")}</Text>
-          </View>
-        </View>
-
-        {sections.map((section) => (
-          <View key={section.title} style={{ gap: 6 }}>
-            <Text style={s.sectionTitle}>{section.title}</Text>
-            <View style={s.card}>
-              {section.rows.map((row, i) => (
-                <View key={row.label}>
-                  {i > 0 ? <View style={s.divider} /> : null}
-                  <RowView s={s} colors={colors} row={row} onPress={row.onPress ?? (() => router.push(row.path as any))} />
-                </View>
-              ))}
-            </View>
+  const profileCard = (
+    <View style={[s.card, s.profile, wide && s.profileWide]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("account.tap_photo")} disabled={photoBusy} onPress={() => void changePhoto()} style={[s.avatar, wide && s.avatarWide]}>
+        {photo ? <Image source={{ uri: photo }} style={wide ? s.avatarImgWide : s.avatarImg} /> : <Text style={s.initials}>{`${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`}</Text>}
+        <View style={s.camera}>{photoBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="camera" size={12} color="#fff" />}</View>
+      </TouchableOpacity>
+      <View style={wide ? { alignItems: "center" } : { flex: 1 }}>
+        <Text style={[s.name, wide && { textAlign: "center" }]}>{user?.firstName} {user?.lastName}</Text>
+        <Text style={[s.subtle, wide && { textAlign: "center" }]}>{user?.phone || user?.email}</Text>
+        <View style={[s.badge, wide && { alignSelf: "center" }]}><Text style={s.badgeText}>{t(`account.role_${role}`)}</Text></View>
+      </View>
+    </View>
+  );
+  const verification = needsVerification ? (
+    <View style={[s.card, { padding: 16, gap: 8, borderColor: `${colors.primary}55` }]}>
+      <Text style={s.rowLabel}>{t("account.verify_title")}</Text>
+      <Text style={s.subtle}>{t("account.verify_body")}</Text>
+      {user?.kycLevel !== "full" ? <RowView s={s} colors={colors} row={{ icon: "check-circle", label: t("account.verify_id"), detail: t("account.verify_id_detail"), path: "/(passenger)/profile/kyc" }} onPress={() => router.push("/(passenger)/profile/kyc" as any)} /> : null}
+      {!!user?.email && !user?.isEmailVerified ? <RowView s={s} colors={colors} row={{ icon: "mail", label: t("account.verify_email"), detail: user.email }} onPress={() => router.push("/(auth)/verify-email" as any)} /> : null}
+    </View>
+  ) : null;
+  /* Appearance and map are segmented controls: one tap, no extra screen. */
+  const appearance = (
+    <View style={[s.card, { padding: 14, gap: 14 }]}>
+      <View>
+        <Text style={s.rowLabel}>{t("account.theme")}</Text>
+        <Segmented colors={colors} value={isDark ? "dark" : "light"} options={[{ value: "light", label: t("account.theme_light"), icon: "sun" }, { value: "dark", label: t("account.theme_dark"), icon: "moon" }]} onChange={(v) => setMode(v as "light" | "dark")} />
+      </View>
+      <View>
+        <Text style={s.rowLabel}>{t("account.map")}</Text>
+        <Segmented colors={colors} value={mapProvider} options={[
+          { value: "google", label: t("account.map_google"), icon: "map", disabled: !googleMapsAvailable },
+          { value: "osm", label: t("account.map_osm"), icon: "map-pin" },
+        ]} onChange={(v) => setMapProvider(v as "google" | "osm")} />
+        <Text style={[s.subtle, { marginTop: 6, fontSize: 12 }]}>{t("account.map_detail")}</Text>
+      </View>
+    </View>
+  );
+  const sectionCards = sections.map((section) => (
+    <View key={section.title} style={[{ gap: 6 }, wide && s.gridItem]}>
+      <Text style={s.sectionTitle}>{section.title}</Text>
+      <View style={s.card}>
+        {section.rows.map((row, i) => (
+          <View key={row.label}>
+            {i > 0 ? <View style={s.divider} /> : null}
+            <RowView s={s} colors={colors} row={row} onPress={row.onPress ?? (() => router.push(row.path as any))} />
           </View>
         ))}
+      </View>
+    </View>
+  ));
+  const logoutCard = (
+    <View style={s.card}>
+      <RowView s={s} colors={colors} row={{ icon: "log-out", label: t("account.logout"), detail: t("account.logout_detail"), danger: true }} onPress={confirmLogout} />
+    </View>
+  );
+  const header = (
+    <View style={s.headerRow}>
+      <View style={{ flex: 1 }}>
+        <Text accessibilityRole="header" style={s.title}>{t("account.title")}</Text>
+        <Text style={s.subtle}>{t("account.subtitle")}</Text>
+      </View>
+      <NotificationBell />
+    </View>
+  );
 
-        <View style={s.card}>
-          <RowView s={s} colors={colors} row={{ icon: "log-out", label: t("account.logout"), detail: t("account.logout_detail"), danger: true }} onPress={confirmLogout} />
-        </View>
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={wide ? s.wideContent : { paddingHorizontal: 16, paddingTop: insets.top + 12, paddingBottom: 120, gap: 16 }} showsVerticalScrollIndicator={false}>
+        {header}
+        {wide ? (
+          <View style={s.wideRow}>
+            <View style={s.wideAside}>{profileCard}{verification}{appearance}{logoutCard}</View>
+            <View style={s.wideMain}>{sectionCards}</View>
+          </View>
+        ) : (
+          <>{profileCard}{verification}{appearance}{sectionCards}{logoutCard}</>
+        )}
       </ScrollView>
 
       <Modal transparent visible={sheet !== null} animationType="slide" onRequestClose={() => setSheet(null)}>
-        <Pressable style={s.backdrop} onPress={() => setSheet(null)} accessibilityLabel={t("cancel")}>
-          <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={[s.backdrop, wide && s.backdropWide]} onPress={() => setSheet(null)} accessibilityLabel={t("cancel")}>
+          <Pressable style={[s.sheet, wide && s.dialog]} onPress={() => {}}>
             {sheet === "language" ? (
               <>
                 <Text style={s.sheetTitle}>{t("account.language")}</Text>
@@ -311,4 +326,15 @@ const styles = (c: ThemeColors) => StyleSheet.create({
   option: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border },
   optionText: { fontSize: 16, color: c.textPrimary, fontFamily: "Inter_500Medium" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  // Wide browsers: identity and preferences on the left, settings as a grid on the right.
+  wideContent: { paddingHorizontal: 32, paddingTop: 28, paddingBottom: 48, gap: 24 },
+  wideRow: { flexDirection: "row", gap: 24, alignItems: "flex-start" },
+  wideAside: { width: 320, gap: 16 },
+  wideMain: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 20 },
+  gridItem: { flexGrow: 1, flexBasis: 280 },
+  profileWide: { flexDirection: "column", paddingVertical: 24, gap: 12 },
+  avatarWide: { width: 92, height: 92, borderRadius: 46 },
+  avatarImgWide: { width: 92, height: 92, borderRadius: 46 },
+  backdropWide: { justifyContent: "center", alignItems: "center" },
+  dialog: { width: 440, borderRadius: 24, paddingBottom: 24 },
 });

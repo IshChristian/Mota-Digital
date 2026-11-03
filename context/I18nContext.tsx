@@ -30,6 +30,24 @@ type I18nContextType = {
 
 const I18nContext = createContext<I18nContextType | null>(null);
 
+function translateIn(language: string, key: string, params?: Record<string, string>) {
+  const lookup = (lang: string) => key.split('.').reduce<any>((node, k) => (node && typeof node === 'object' ? node[k] : undefined), translations[lang]);
+  // Missing Kinyarwanda/French strings fall back to English, never to the raw key.
+  const value = lookup(language) ?? lookup('en');
+  let result = (value as string) || key;
+  if (params && typeof result === 'string') {
+    Object.keys(params).forEach(p => {
+      result = result.replace(`{{${p}}}`, params[p]);
+    });
+  }
+  return result;
+}
+
+// The provider keeps this in sync so helpers outside components (share, call, alerts) can translate.
+let currentLanguage: Language = 'en';
+/** Translate outside React components, in the user's chosen language. */
+export const translate = (key: string, params?: Record<string, string>) => translateIn(currentLanguage, key, params);
+
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -55,18 +73,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem('app_language', lang);
   };
 
-  const t = (key: string, params?: Record<string, string>) => {
-    const lookup = (lang: string) => key.split('.').reduce<any>((node, k) => (node && typeof node === 'object' ? node[k] : undefined), translations[lang]);
-    // Missing Kinyarwanda/French strings fall back to English, never to the raw key.
-    const value = lookup(language) ?? lookup('en');
-    let result = (value as string) || key;
-    if (params && typeof result === 'string') {
-      Object.keys(params).forEach(p => {
-        result = result.replace(`{{${p}}}`, params[p]);
-      });
-    }
-    return result;
-  };
+  currentLanguage = language;
+  const t = (key: string, params?: Record<string, string>) => translateIn(language, key, params);
 
   return (
     <I18nContext.Provider value={{ language, setLanguage, t }}>

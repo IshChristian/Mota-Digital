@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, Image, Linking, Share, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, Text, TouchableOpacity, View } from "react-native";
+import { callNumber, shareMessage } from "@/utils/share";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
@@ -51,12 +52,12 @@ export function TripPanel({ ride, momoAvailable, onChanged, onCancel, onSos }: P
 
   const call = () => act("call", async () => {
     const res = await ridesApi.call(ride._id);
-    if (res.data.data.mode === "direct" && res.data.data.phone) await Linking.openURL(`tel:+${res.data.data.phone.replace(/^\+/, "")}`);
+    if (res.data.data.mode === "direct" && res.data.data.phone) await callNumber(res.data.data.phone);
     else Alert.alert("Connecting your call", res.data.data.message || "Answer the incoming MOTA call.");
   });
   const share = () => act("share", async () => {
     const res = await ridesApi.share(ride._id);
-    await Share.share({ message: t("trip.share_message", { url: res.data.data.url }) });
+    await shareMessage({ message: t("trip.share_message", { url: res.data.data.url }) });
   });
 
   return (

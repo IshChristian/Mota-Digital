@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 // Fine loans. The flow: 1) the driver sends a traffic fine (ticket number + amount)
 // for review, 2) an admin approves it, 3) the driver requests a loan for that
 // ticket, 4) an admin approves the loan and MOTA pays the fine, 5) the driver
@@ -130,7 +131,7 @@ export default function LoansScreen() {
   return (
     <View style={s.screen}>
       <View style={[s.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("loan.close")} onPress={() => router.back()} style={s.iconBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("loan.close")} onPress={() => safeBack(router)} style={s.iconBtn}>
           <Feather name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text accessibilityRole="header" style={s.headerTitle}>{t("loans")}</Text>
