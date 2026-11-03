@@ -20,7 +20,7 @@ export default function DocumentsScreen() {
     </TouchableOpacity>;
   };
   const group = (title: string, entries: Array<[string, string | undefined]>) => <View key={title} style={{ marginBottom: 12 }}><Text style={{ color: colors.textPrimary, fontFamily: "Inter_700Bold", fontSize: 17, marginBottom: 12 }}>{title}</Text>{entries.map(([label, value]) => card(label, value))}</View>;
-  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 70 }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 70, width: "100%", maxWidth: 720, alignSelf: "center" }}>
     <ScreenHeader title="Documents & permits" />
     {profile.isLoading || kyc.isLoading ? <ActivityIndicator color={colors.primary} /> : <>
       <View style={{ backgroundColor: colors.backgroundCard, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 24 }}><Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>Review status: {data?.status || "Not submitted"}</Text><Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 5 }}>Submitted documents are reviewed by MOTA. A check mark means a file is present, not that it has been approved.</Text></View>

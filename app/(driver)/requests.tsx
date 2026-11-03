@@ -14,7 +14,11 @@ import { Feather } from "@expo/vector-icons";
 import { ridesApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
-import { RideMap } from "@/components/RideMap";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MapCanvas } from "@/components/passenger/ride/MapCanvas";
+import { useLiveLocation } from "@/hooks/useLiveLocation";
+import { useWideLayout } from "@/hooks/useWideLayout";
+import { requestFare, requestId, toPoint } from "@/components/driver/requestUtils";
 import {
   DriverCard,
   DriverHeader,
@@ -24,15 +28,14 @@ import {
   StatusPill,
 } from "@/components/driver/DriverUI";
 
-function coordinate(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 export default function DriverRequestsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const t = useT();
+  const insets = useSafeAreaInsets();
+  const { wide } = useWideLayout();
+  const { position } = useLiveLocation();
+  const me = position ? { latitude: position.latitude, longitude: position.longitude } : null;
   const [manualRefresh, setManualRefresh] = useState(false);
   const query = useQuery({
     queryKey: ["driver-ride-requests"],
@@ -48,28 +51,33 @@ export default function DriverRequestsScreen() {
 
   const requests = query.data ?? [];
   const requestPoints = requests
-    .map((item: any) => ({
-      id: String(item._id ?? item.id),
-      latitude: coordinate(item.pickup?.latitude ?? item.pickup?.lat),
-      longitude: coordinate(item.pickup?.longitude ?? item.pickup?.lng),
-    }))
-    .filter(
-      (item: any) =>
-        item.latitude !== undefined && item.longitude !== undefined,
-    );
-  const mapCenter = requestPoints[0] || {
-    latitude: -1.9536,
-    longitude: 30.0606,
-  };
+    .map((item: any) => {
+      const pickup = toPoint(item.pickup);
+      return pickup ? { ...pickup, id: requestId(item), label: `${requestFare(item).toLocaleString()} RWF` } : null;
+    })
+    .filter(Boolean) as Array<{ id: string; latitude: number; longitude: number; label: string }>;
+  const mapCenter = me || requestPoints[0] || { latitude: -1.9536, longitude: 30.0606 };
+  const openRequest = (id: string) => router.push({ pathname: "/ride-request/[id]", params: { id } } as any);
+  const openFullMap = (id?: string) => router.push({ pathname: "/requests-map", params: id ? { id } : {} } as any);
+  const liveMap = (
+    <View style={wide ? styles.wideMap : styles.map}>
+      <MapCanvas fill={false} center={mapCenter} me={me} points={requestPoints} onMarkerPress={(id) => openFullMap(id)}
+        fitKey={`${requestPoints.map((p) => p.id).join(",")}:${me ? 1 : 0}`} padding={{ top: 40, bottom: 40, left: 40, right: 40 }} zoomControls={wide} />
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("live.full_map")} onPress={() => openFullMap()} style={[styles.fullMapBtn, { backgroundColor: colors.backgroundCard }]}>
+        <Feather name="maximize-2" size={15} color={colors.textPrimary} />
+        <Text style={[styles.fullMapText, { color: colors.textPrimary }]}>{t("live.full_map")}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
-  return (
-    <DriverScreen>
+  const list = (
       <FlatList
+        style={{ flex: 1 }}
         data={requests}
         keyExtractor={(item: any, index) =>
           String(item._id ?? item.id ?? `request-${index}`)
         }
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 110 }, wide && styles.contentWide]}
         refreshControl={
           <RefreshControl
             refreshing={manualRefresh}
@@ -84,14 +92,9 @@ export default function DriverRequestsScreen() {
               subtitle={t("drive.nearby_sub")}
               action={<StatusPill label={t("drive.live")} tone="success" />}
             />
-            {requestPoints.length ? (
+            {!wide ? (
               <DriverCard style={styles.mapCard}>
-                <View style={styles.map}>
-                  <RideMap
-                    center={mapCenter as any}
-                    nearbyDrivers={requestPoints as any}
-                  />
-                </View>
+                {liveMap}
                 <View style={styles.mapCaption}>
                   <Feather name="info" size={16} color={colors.textSecondary} />
                   <Text
@@ -100,8 +103,7 @@ export default function DriverRequestsScreen() {
                       { color: colors.textSecondary },
                     ]}
                   >
-                    Tap a request below to review the full route before
-                    accepting.
+                    {t("live.requests_map_sub")}
                   </Text>
                 </View>
               </DriverCard>
@@ -143,12 +145,7 @@ export default function DriverRequestsScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Open ride request from ${pickup}`}
               activeOpacity={0.82}
-              onPress={() =>
-                router.push({
-                  pathname: "/ride-request/[id]",
-                  params: { id: item._id ?? item.id },
-                } as any)
-              }
+              onPress={() => openRequest(requestId(item))}
             >
               <DriverCard style={styles.requestCard}>
                 <View style={styles.requestTop}>
@@ -241,6 +238,16 @@ export default function DriverRequestsScreen() {
           );
         }}
       />
+  );
+
+  return (
+    <DriverScreen>
+      {wide ? (
+        <View style={styles.wideRow}>
+          <View style={styles.wideList}>{list}</View>
+          <View style={[styles.wideMapCol, { paddingTop: insets.top + 16 }]}>{liveMap}</View>
+        </View>
+      ) : list}
     </DriverScreen>
   );
 }
@@ -248,13 +255,18 @@ export default function DriverRequestsScreen() {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 118,
     gap: 12,
   },
   headerContent: { gap: 18, marginBottom: 14 },
   mapCard: { padding: 8 },
   map: { height: 250, overflow: "hidden", borderRadius: 16 },
+  contentWide: { paddingHorizontal: 24 },
+  wideRow: { flex: 1, flexDirection: "row" },
+  wideList: { width: 460, maxWidth: "45%" },
+  wideMapCol: { flex: 1, paddingRight: 24, paddingBottom: 24 },
+  wideMap: { flex: 1, overflow: "hidden", borderRadius: 24 },
+  fullMapBtn: { position: "absolute", right: 10, bottom: 10, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
+  fullMapText: { fontFamily: "Inter_700Bold", fontSize: 12 },
   mapCaption: {
     flexDirection: "row",
     alignItems: "center",

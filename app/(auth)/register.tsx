@@ -1,3 +1,5 @@
+import { useWindowDimensions } from "react-native";
+import { safeBack } from "@/utils/navigation";
 import { useState, memo } from "react";
 import {
   StyleSheet,
@@ -108,6 +110,8 @@ export default function RegisterScreen() {
   };
 
   const s = styles(colors);
+  const { width: windowWidth } = useWindowDimensions();
+  const pairNames = windowWidth >= 420;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -120,7 +124,7 @@ export default function RegisterScreen() {
           <Feather name={isDark ? "sun" : "moon"} size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => safeBack(router)}>
           <Feather name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
 
@@ -134,22 +138,29 @@ export default function RegisterScreen() {
 
         {error ? <Text style={s.errorText}>{error}</Text> : null}
 
-        <InputField
-          label={t("auth.first_name")}
-          value={formData.firstName}
-          onChangeText={(v: string) => update("firstName", v)}
-          placeholder="Jean"
-          required
-          s={s} colors={colors}
-        />
-        <InputField
-          label={t("auth.last_name")}
-          value={formData.lastName}
-          onChangeText={(v: string) => update("lastName", v)}
-          placeholder="Mutoni"
-          required
-          s={s} colors={colors}
-        />
+        {/* First and last name side by side when there is room (tablets, desktop). */}
+        <View style={pairNames ? { flexDirection: "row", gap: 12 } : undefined}>
+          <View style={pairNames ? { flex: 1 } : undefined}>
+            <InputField
+              label={t("auth.first_name")}
+              value={formData.firstName}
+              onChangeText={(v: string) => update("firstName", v)}
+              placeholder="Jean"
+              required
+              s={s} colors={colors}
+            />
+          </View>
+          <View style={pairNames ? { flex: 1 } : undefined}>
+            <InputField
+              label={t("auth.last_name")}
+              value={formData.lastName}
+              onChangeText={(v: string) => update("lastName", v)}
+              placeholder="Mutoni"
+              required
+              s={s} colors={colors}
+            />
+          </View>
+        </View>
 
         <View style={s.inputGroup}>
           <Text style={s.label}>

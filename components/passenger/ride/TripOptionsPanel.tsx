@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker from "@/components/ui/DateTimePicker";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import type { FareOption, ParcelDetails, PaymentMethod, RouteResult, VehicleType } from "@/services/api";

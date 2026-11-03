@@ -14,11 +14,14 @@ import { startDriverTracking, stopBackgroundTracking } from "@/services/driverLo
 import { canTrackDriverLocation } from "@/services/driverLocationTracking";
 import { useRealtimeEvent } from "@/hooks/useRealtime";
 import { RideRequestModal } from "@/components/RideRequestModal";
+import { pageFrame, useWideLayout } from "@/hooks/useWideLayout";
 
 export default function TabLayout() {
   const router = useRouter();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  // Wide browsers: a left sidebar instead of the phone's bottom tab bar.
+  const { wide } = useWideLayout();
   const safeAreaInsets = useSafeAreaInsets();
   const t = useT();
   const { colors, isDark } = useTheme();
@@ -158,7 +161,17 @@ export default function TabLayout() {
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
           headerShown: false,
-          tabBarStyle: {
+          tabBarPosition: wide ? "left" : "bottom",
+          tabBarVariant: wide ? "material" : "uikit",
+          sceneStyle: [{ backgroundColor: colors.background }, pageFrame(wide, 960)],
+          tabBarLabelStyle: wide ? { fontFamily: "Inter_600SemiBold", fontSize: 14 } : undefined,
+          tabBarStyle: wide ? {
+            backgroundColor: colors.tabBarBg,
+            borderRightWidth: 1,
+            borderRightColor: colors.tabBarBorder,
+            width: 220,
+            paddingTop: 24,
+          } : {
             position: "absolute",
             backgroundColor: isIOS ? "transparent" : colors.tabBarBg,
             borderTopWidth: 1,
@@ -168,7 +181,7 @@ export default function TabLayout() {
             ...(isWeb ? { height: 80 } : {}),
           },
           tabBarBackground: () =>
-            isIOS ? (
+            wide ? null : isIOS ? (
               <BlurView
                 intensity={90}
                 tint={isDark ? "dark" : "light"}
@@ -196,6 +209,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="requests"
           options={{
+            sceneStyle: { backgroundColor: colors.background },
             title: "Requests",
             tabBarIcon: ({ color }) => (
               <Feather name="radio" size={22} color={color} />
@@ -214,6 +228,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
+            sceneStyle: [{ backgroundColor: colors.background }, pageFrame(wide, 1120)],
             title: t("profile"),
             tabBarIcon: ({ color }) => (
               <Feather name="user" size={22} color={color} />

@@ -287,7 +287,7 @@ export default function PersonalInfoScreen() {
 
 const styles = (colors: any) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 16 },
+    container: { paddingHorizontal: 16, width: "100%", maxWidth: 720, alignSelf: "center" },
     topBar: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
     backBtn: { padding: 4, marginRight: 12 },
     title: { flex: 1, fontSize: 20, fontFamily: "Inter_700Bold", color: colors.textPrimary },

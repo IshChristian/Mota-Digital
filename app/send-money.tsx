@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
@@ -132,7 +133,7 @@ export default function SendMoneyScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={s.doneBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={s.doneBtn} onPress={() => safeBack(router)}>
             <Text style={s.doneBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
@@ -210,7 +211,7 @@ export default function SendMoneyScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={[s.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+        <TouchableOpacity onPress={() => safeBack(router)} style={s.closeBtn}>
           <Feather name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={s.title}>{isQR ? "QR Transfer" : "Send Money"}</Text>

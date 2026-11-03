@@ -1,6 +1,8 @@
+import { safeBack } from "@/utils/navigation";
 import { Alert } from "@/components/GlobalAlert";
+import { shareMessage } from "@/utils/share";
 import React from "react";
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, Platform, Share, ScrollView, ActivityIndicator, Image } from "react-native";
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, Platform, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -113,7 +115,7 @@ export default function CardScreen() {
 
   const shareCard = async () => {
     try {
-      await Share.share({
+      await shareMessage({
         message: `MOTA Driver Membership\nName: ${driverName}\nTier: ${tier.toUpperCase()}\nPhone: ${user?.phone || ""}\nPlate: ${displayPlate}`,
         title: "My MOTA Membership",
       });
@@ -125,7 +127,7 @@ export default function CardScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top || 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+        <TouchableOpacity onPress={() => safeBack(router)} style={styles.closeBtn}>
           <Feather name="arrow-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Membership Card</Text>

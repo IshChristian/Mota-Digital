@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { Alert } from "@/components/GlobalAlert";
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
@@ -29,7 +30,7 @@ export default function FinanceConsentScreen() {
       const hasSavings = consents.some((c: any) => c.consentType === 'savings_terms');
       
       if (hasLending && hasSavings) {
-        router.back();
+        safeBack(router);
       } else {
         setLendingConsent(hasLending);
         setSavingsConsent(hasSavings);
@@ -53,7 +54,7 @@ export default function FinanceConsentScreen() {
         financeApi.signConsent({ consentType: 'lending_terms', version: 'v1.0' }),
         financeApi.signConsent({ consentType: 'savings_terms', version: 'v1.0' })
       ]);
-      router.back();
+      safeBack(router);
     } catch (err) {
       Alert.alert('Error', 'Failed to save consent. Please try again.');
     } finally {
@@ -74,7 +75,7 @@ export default function FinanceConsentScreen() {
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+        <TouchableOpacity onPress={() => safeBack(router)} style={s.closeBtn}>
           <Feather name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={s.title}>Terms & Conditions</Text>

@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { useState } from "react";
 import {
   StyleSheet,
@@ -86,7 +87,7 @@ export default function ConfirmPhoneScreen() {
         contentContainerStyle={[s.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => safeBack(router)}>
           <Feather name="arrow-left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { callNumber } from "@/utils/share";
 import {
   View,
   Text,
@@ -147,9 +148,7 @@ export default function Help() {
           button(
             "Call MOTA support",
             () =>
-              void Linking.openURL(
-                `tel:${process.env.EXPO_PUBLIC_SUPPORT_PHONE}`,
-              ).catch(() =>
+              void callNumber(String(process.env.EXPO_PUBLIC_SUPPORT_PHONE)).catch(() =>
                 Alert.alert(
                   "Cannot make a call",
                   "Try contacting support by email.",

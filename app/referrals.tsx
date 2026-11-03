@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Share, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { shareMessage } from '@/utils/share';
 import { useFocusEffect } from 'expo-router';
 import { PassengerSettingsScreen } from '@/components/PassengerSettingsScreen';
 import { useTheme } from '@/context/ThemeContext';
@@ -28,7 +29,7 @@ export default function ReferralsScreen() {
         <Text style={{ color: colors.textPrimary, fontSize: 22, fontWeight: '700' }}>Your MOTA referral code</Text>
         <Text selectable style={{ color: colors.primary, fontSize: 28, fontWeight: '800' }}>{data.code || 'Code unavailable'}</Text>
         <Text style={{ color: colors.textSecondary }}>Friends enter this code in the optional referral field when registering. The code must be used at signup.</Text>
-        <TouchableOpacity accessibilityRole="button" disabled={!data.code} onPress={async () => { try { await Share.share({ message: `Join MOTA and enter my referral code ${data.code} when you register. Passenger registration is free.` }); } catch { showMessage('Could not share the code. Please retry.'); } }} style={{ backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', opacity: data.code ? 1 : 0.5 }}><Text style={{ color: '#fff', fontWeight: '700' }}>Share code</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" disabled={!data.code} onPress={async () => { try { await shareMessage({ message: `Join MOTA and enter my referral code ${data.code} when you register. Passenger registration is free.` }); } catch { showMessage('Could not share the code. Please retry.'); } }} style={{ backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', opacity: data.code ? 1 : 0.5 }}><Text style={{ color: '#fff', fontWeight: '700' }}>Share code</Text></TouchableOpacity>
       </View>
       <View style={card}>
         <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700' }}>How referrals work</Text>

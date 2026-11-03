@@ -208,7 +208,9 @@ const styles = (c: any) =>
     heroSub: { color: "#fff", opacity: 0.85 },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
     card: {
-      width: "48%",
+      // Two per row, filling the width exactly (a fixed 48% + gap left a ragged right edge).
+      flexGrow: 1,
+      flexBasis: "40%",
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 16,

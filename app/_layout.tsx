@@ -7,15 +7,16 @@ import {
 } from "@expo-google-fonts/inter";
 import { Feather } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
-import { Image, View } from "react-native";
+import { useEffect, useMemo } from "react";
+import { Image, Platform, View } from "react-native";
 import { Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { pageFrame, useWideLayout } from "@/hooks/useWideLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -100,8 +101,20 @@ function WelcomeLoading({ error, onRetry, onSignOut }: { error?: string; onRetry
 }
 
 function ThemedStack() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  // The navigator paints its own background (React Navigation's light grey by default);
+  // use MOTA's colours so wide browsers never show grey around centred pages.
+  const navigationTheme = useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return { ...base, dark: isDark, colors: { ...base.colors, background: colors.background, card: colors.backgroundCard, text: colors.textPrimary, border: colors.border, primary: colors.primary } };
+  }, [isDark, colors]);
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof document !== "undefined") document.body.style.backgroundColor = colors.background;
+  }, [colors.background]);
+  const { wide } = useWideLayout();
+  const full = { contentStyle: { backgroundColor: colors.background } };
   return (
+    <NavigationThemeProvider value={navigationTheme}>
     <Stack
       screenOptions={{
         headerShown: false,
@@ -109,12 +122,14 @@ function ThemedStack() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.textPrimary,
         headerTitleStyle: { color: colors.textPrimary },
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: [{ backgroundColor: colors.background }, pageFrame(wide)],
       }}
     >
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(driver)" options={{ headerShown: false }} />
-      <Stack.Screen name="(passenger)" options={{ headerShown: false }} />
+      {/* Groups and map screens lay themselves out for wide browsers. */}
+      <Stack.Screen name="(auth)" options={{ headerShown: false, ...full }} />
+      <Stack.Screen name="(driver)" options={{ headerShown: false, ...full }} />
+      <Stack.Screen name="(passenger)" options={{ headerShown: false, ...full }} />
+      <Stack.Screen name="requests-map" options={{ headerShown: false, ...full }} />
       <Stack.Screen
         name="notifications"
         options={{ presentation: "modal", title: "Notifications" }}
@@ -129,7 +144,7 @@ function ThemedStack() {
       />
       <Stack.Screen
         name="active-ride"
-        options={{ presentation: "fullScreenModal", headerShown: false }}
+        options={{ presentation: "fullScreenModal", headerShown: false, ...full }}
       />
       <Stack.Screen
         name="log-ride"
@@ -140,19 +155,20 @@ function ThemedStack() {
         options={{ presentation: "modal", title: "Loans" }}
       />
       <Stack.Screen
-        name="profile/personal-info"
+        name="driver-profile/personal-info"
         options={{ title: "Personal Information" }}
       />
       <Stack.Screen
-        name="profile/vehicle-info"
+        name="driver-profile/vehicle-info"
         options={{ title: "Vehicle Information" }}
       />
       <Stack.Screen
-        name="profile/documents"
+        name="driver-profile/documents"
         options={{ title: "Documents & Permits" }}
       />
       <Stack.Screen name="+not-found" options={{ title: "Oops!" }} />
     </Stack>
+    </NavigationThemeProvider>
   );
 }
 

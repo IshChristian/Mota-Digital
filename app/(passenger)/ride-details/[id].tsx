@@ -82,7 +82,7 @@ export default function PassengerRideDetailsScreen() {
   return <View style={[styles.page, { backgroundColor: colors.background }]}>
     <View style={styles.header}><ScreenHeader title={t("ride.details")} /></View>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {pickup ? <View style={styles.map}><OpenStreetMapView center={pickup} destination={destination} route={destination ? [pickup, destination] : []} drivers={showDriver && driver?.lastLocation ? [{ latitude: driver.lastLocation.latitude, longitude: driver.lastLocation.longitude, label: personName(driver, t("ride.driver")) }] : []} /></View> : null}
+      {pickup ? <View style={styles.map}><OpenStreetMapView center={pickup} pickup={{ ...pickup, label: t("live.pickup") }} destination={destination} route={destination ? [pickup, destination] : []} drivers={showDriver && driver?.lastLocation ? [{ latitude: driver.lastLocation.latitude, longitude: driver.lastLocation.longitude, label: personName(driver, t("ride.driver")) }] : []} /></View> : null}
       <PassengerCard>
         <Text style={[styles.status, { color: colors.primary }]}>{String(status).replaceAll("_", " ").toUpperCase()}</Text>
         {status === "scheduled" ? <Text style={{ color: colors.textSecondary, marginBottom: 8 }}>We will remind you before pickup. Driver matching starts about 15 minutes before the scheduled time.</Text> : null}

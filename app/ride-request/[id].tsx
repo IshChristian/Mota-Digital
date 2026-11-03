@@ -1,3 +1,4 @@
+import { safeBack } from "@/utils/navigation";
 import { Alert } from "@/components/GlobalAlert";
 import { useEffect, useState } from "react";
 import { stopRideAlert } from "@/services/rideAlert";
@@ -5,7 +6,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { RideMap } from "@/components/RideMap";
+import { RequestRouteMap } from "@/components/driver/RequestRouteMap";
 import { ridesApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
@@ -47,7 +48,7 @@ export default function RideRequestDetailsScreen() {
         router.replace({ pathname: "/active-ride", params: { rideId: id } } as any);
       } else {
         await ridesApi.declineRide(id);
-        router.back();
+        safeBack(router);
       }
     } catch (error: any) {
       try {
@@ -68,7 +69,7 @@ export default function RideRequestDetailsScreen() {
     <DriverScreen scroll>
       <DriverHeader title={t("ride.details")} subtitle={t("ride.details_help")} back />
       <View style={styles.statusRow}><StatusPill label={String(ride.rideStatus || ride.status || "requested").replaceAll("_", " ")} tone="warning" /><Text style={[styles.fare, { color: colors.primary }]}>{Number(ride.fare || ride.offeredFare || 0).toLocaleString()} RWF</Text></View>
-      {pickup ? <DriverCard style={styles.mapCard}><View style={styles.map}><RideMap center={pickup} pickup={pickup} destination={destination} /></View></DriverCard> : null}
+      {pickup ? <DriverCard style={styles.mapCard}><RequestRouteMap rideId={id} pickup={pickup} destination={destination} height={310} /></DriverCard> : null}
       <DriverCard>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t("ride.passenger_info")}</Text>
         <View style={styles.personRow}><View style={[styles.avatar, { backgroundColor: `${colors.primary}18` }]}><Feather name="user" size={23} color={colors.primary} /></View><View style={{ flex: 1 }}><Text style={[styles.personName, { color: colors.textPrimary }]}>{name(passenger, t("ride.passenger"))}</Text><Text style={[styles.personMeta, { color: colors.textSecondary }]}>{passenger?.phone || t("ride.phone_after_accept")}</Text></View></View>
