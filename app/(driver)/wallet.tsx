@@ -21,6 +21,12 @@ import { useWideLayout } from "@/hooks/useWideLayout";
 
 type ModalType = "cash_in" | "cash_out" | null;
 
+const DEBIT_TYPES = new Set([
+  "platform_commission", "commission", "cash_out", "cash_out_fee", "transaction_fee",
+  "fine_payment", "fine_loan_repayment", "agent_pay_fine", "admin_debit",
+  "p2p_transfer_sent", "p2p_transfer_fee",
+]);
+
 export default function WalletScreen() {
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -123,7 +129,8 @@ export default function WalletScreen() {
   };
 
   const renderTx = ({ item }: { item: any }) => {
-    const isCredit = item.type === "cash_in" || item.type === "earning";
+    // The backend signs amounts (negative = money out); a few deduction types are stored positive.
+    const isCredit = Number(item.amount) >= 0 && !DEBIT_TYPES.has(item.type);
     const icon =
       item.type === "ride"
         ? "car"
