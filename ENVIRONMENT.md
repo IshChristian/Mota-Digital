@@ -40,6 +40,7 @@ EXPO_PUBLIC_PRIVACY_EMAIL=privacy@example.com
 | `EXPO_PUBLIC_LEGAL_COMPANY_NAME` | Production | Data-controller and contracting entity displayed in legal documents | `MOTA operating company` |
 | `EXPO_PUBLIC_LEGAL_ADDRESS` | Production | Registered address displayed in legal documents | Support referral text |
 | `EXPO_PUBLIC_PRIVACY_EMAIL` | Production | Privacy and data-rights requests | Support email |
+| `EXPO_PUBLIC_ANDROID_APK_URL` | No | "Download the APK" button and QR code shown on wide browsers | Current EAS APK link in `constants/download.ts` |
 
 ## Google Maps configuration
 

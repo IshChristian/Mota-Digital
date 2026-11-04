@@ -78,7 +78,8 @@ export default function RideDisputes() {
   };
   const input = {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBg,
     color: colors.textPrimary,
     padding: 13,
     borderRadius: 12,

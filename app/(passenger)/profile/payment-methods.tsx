@@ -76,7 +76,7 @@ export default function PaymentMethods() {
   };
   const input = [
     s.input,
-    { borderColor: colors.border, color: colors.textPrimary },
+    { borderColor: colors.inputBorder, backgroundColor: colors.inputBg, color: colors.textPrimary },
   ];
   return (
     <PassengerSettingsScreen title="Payment methods">

@@ -214,6 +214,7 @@ const styles = (colors: any) =>
     },
     otpInputFilled: {
       borderColor: colors.primary,
+      backgroundColor: `${colors.primary}1A`,
     },
     button: {
       width: "100%",

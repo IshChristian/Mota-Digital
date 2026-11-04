@@ -1,10 +1,13 @@
 import { NotificationBell } from "@/components/NotificationBell";
+import { GetAppCard } from "@/components/web/GetAppCard";
 import { useRealtimeEvent } from "@/hooks/useRealtime";
 import { Alert } from "@/components/GlobalAlert";
 import React, { useState } from "react";
 import {
+  Platform,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   ScrollView,
   RefreshControl,
@@ -130,7 +133,10 @@ export default function DashboardScreen() {
     return colors.textSecondary;
   };
 
-  const s = styles(colors, isDark);
+  const { width } = useWindowDimensions();
+  // Phone and tablet browsers: tighter spacing so the dashboard isn't mostly padding.
+  const dense = Platform.OS === "web" && width < 1100;
+  const s = withDense(styles(colors, isDark), dense);
 
   return (
     <>
@@ -138,11 +144,11 @@ export default function DashboardScreen() {
       style={{
         flex: 1,
         backgroundColor: colors.background,
-        paddingHorizontal: 16,
       }}
       contentContainerStyle={{
-        paddingTop: insets.top + 16,
-        paddingBottom: insets.bottom + 120,
+        paddingHorizontal: dense && width < 600 ? 12 : 16,
+        paddingTop: insets.top + (dense ? 12 : 16),
+        paddingBottom: insets.bottom + (dense ? 88 : 120),
         width: "100%", maxWidth: 960, alignSelf: "center",
       }}
       refreshControl={
@@ -243,6 +249,8 @@ export default function DashboardScreen() {
           </Text>
         </View>
       )}
+
+      <GetAppCard variant="card" audience="driver" dismissId="driver-home" style={{ marginBottom: 16 }} />
 
       {/* Tier Badge */}
       <View style={[s.tierCard, { borderColor: tierColor }]}>
@@ -814,3 +822,43 @@ const styles = (colors: any, isDark: boolean) =>
       lineHeight: 20,
     },
   });
+
+// Web at phone/tablet widths: same layout, less padding and smaller gaps.
+const denseOverrides = StyleSheet.create({
+  header: { marginBottom: 14 },
+  brandLogo: { width: 88, height: 26, marginBottom: 4 },
+  name: { fontSize: 22 },
+  headerActions: { flexWrap: "nowrap", maxWidth: undefined, gap: 8 },
+  iconButton: { width: 40, height: 40, borderRadius: 20 },
+  availabilityCard: { padding: 14, marginBottom: 12 },
+  availabilityHeader: { marginBottom: 4 },
+  statusText: { fontSize: 16 },
+  availabilityMessage: { fontSize: 13, marginBottom: 12 },
+  toggleBtn: { paddingVertical: 11 },
+  tierCard: { padding: 12, marginBottom: 12 },
+  tierInfo: { marginLeft: 12 },
+  tierTitle: { fontSize: 16 },
+  walletCard: { padding: 16, marginBottom: 12 },
+  walletLabel: { fontSize: 13, marginBottom: 4 },
+  walletAmount: { fontSize: 26 },
+  earningsAmount: { fontSize: 16 },
+  quickActionsWrapper: { padding: 12, marginBottom: 12, borderRadius: 16 },
+  quickActionsTitle: { fontSize: 16, marginBottom: 10 },
+  quickActionsContent: { gap: 8 },
+  actionBtn: { minHeight: 84, flexBasis: 84, paddingVertical: 8, borderRadius: 14 },
+  actionIcon: { width: 42, height: 42, borderRadius: 12, marginBottom: 6 },
+  statsGrid: { gap: 8 },
+  statCard: { padding: 12, flexBasis: 130 },
+  statIcon: { marginBottom: 8 },
+  statValue: { fontSize: 20 },
+  progressTrack: { marginTop: 8 },
+  trophySection: { marginTop: 16 },
+  featuresSection: { marginTop: 14 },
+});
+
+function withDense<T extends Record<string, any>>(base: T, on: boolean): T {
+  if (!on) return base;
+  const merged: Record<string, any> = { ...base };
+  for (const key of Object.keys(denseOverrides)) merged[key] = [base[key], (denseOverrides as Record<string, any>)[key]];
+  return merged as T;
+}

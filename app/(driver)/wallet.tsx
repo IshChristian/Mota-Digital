@@ -157,6 +157,7 @@ export default function WalletScreen() {
           <Text style={s.txTitle}>{item.description || item.type}</Text>
           <Text style={s.txDate}>
             {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+            {item.status === "pending" ? ` · ${t(item.type === "platform_commission" ? "drive.tx_owed" : "drive.tx_pending")}` : ""}
           </Text>
         </View>
         <Text style={[s.txAmount, { color: amtColor }]}>

@@ -12,6 +12,7 @@ import { nameForPoint } from "@/utils/formatPlace";
 import { decodePolyline, haversineKm } from "@/utils/geo";
 import { useLiveLocation } from "@/hooks/useLiveLocation";
 import { useRoadRoute, remaining } from "@/hooks/useRoadRoute";
+import { GetAppCard } from "@/components/web/GetAppCard";
 import { useWideLayout } from "@/hooks/useWideLayout";
 import { kigaliParts } from "@/utils/kigaliTime";
 import { usePassengerRide } from "@/hooks/usePassengerRide";
@@ -336,6 +337,7 @@ export default function PassengerHomeScreen() {
           {etaCard ? <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>{etaCard}</View> : null}
           <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
             {panel}
+            {!ride ? <GetAppCard variant="compact" audience="client" dismissId="rider-home" style={{ marginTop: 16 }} /> : null}
           </ScrollView>
         </View>
         {locationBanner}
