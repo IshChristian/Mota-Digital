@@ -25,16 +25,10 @@ import { useTheme } from "@/context/ThemeContext";
 import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
 import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
 import { useWideLayout } from "@/hooks/useWideLayout";
+import { RideDetailsSheet } from "@/components/wallet/RideDetailsSheet";
+import { idOf, placeName, type RideRecord } from "@/utils/walletLedger";
 
-type Ride = {
-  _id?: string;
-  fare?: number;
-  distance?: number;
-  pickupLocation?: string;
-  dropoffLocation?: string;
-  paymentMethod?: string;
-  createdAt?: string;
-};
+type Ride = RideRecord;
 
 function isToday(dateStr?: string): boolean {
   if (!dateStr) return false;
@@ -95,15 +89,20 @@ export default function LogRideScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [openRide, setOpenRide] = useState<Ride | null>(null);
 
   const { data: ridesData, isLoading, refetch } = useQuery({
     queryKey: ["rides", 1],
     queryFn: async () => {
       const res = await driverApi.getRides(1);
       const rides: Ride[] = res.data?.rides || res.data?.data || res.data || [];
-      setAllRides(rides);
-      setPage(1);
-      setHasMore(rides.length >= 20);
+      // The 5 s refresh only updates the newest page; older pages already loaded stay.
+      setAllRides((prev) => {
+        if (prev.length <= rides.length) return rides;
+        const fresh = new Set(rides.map(idOf));
+        return [...rides, ...prev.filter((r) => !fresh.has(idOf(r)))];
+      });
+      if (rides.length < 20) setHasMore(false);
       return rides;
     },
     refetchInterval: 5000,
@@ -220,41 +219,41 @@ export default function LogRideScreen() {
   const openForm = () => { setFare(""); setPassengerPhone(""); setModalVisible(true); };
   const close = () => router.canGoBack() ? router.back() : router.replace("/(driver)" as any);
 
-  const RideCard = ({ ride }: { ride: Ride }) => (
-    <View style={s.rideCard}>
-      <View style={s.rideLeft}>
-        <View style={s.rideIconWrap}>
-          <Feather name="navigation" size={16} color={colors.primary} />
+  const RideCard = ({ ride }: { ride: Ride }) => {
+    const method = (ride.paymentMethod || "").toLowerCase();
+    const methodLabel = method === "momo" ? "MoMo" : method === "wallet" ? t("ride_log.wallet") : t("ride_log.cash");
+    const from = placeName(ride.pickup, ride.pickupLocation);
+    const to = placeName(ride.destination, ride.dropoffLocation);
+    const status = (ride.rideStatus || ride.status || "").replaceAll("_", " ");
+    const distance = ride.actualDistanceKm ?? ride.distance ?? ride.estimatedDistanceKm;
+    return (
+      <TouchableOpacity accessibilityRole="button" activeOpacity={0.75} onPress={() => setOpenRide(ride)} style={s.rideCard}>
+        <View style={s.rideLeft}>
+          <View style={s.rideIconWrap}>
+            <Feather name="navigation" size={16} color={colors.primary} />
+          </View>
+          <View style={s.rideInfo}>
+            <Text style={s.rideFare}>{Number(ride.fare || 0).toLocaleString()} RWF</Text>
+            {from || to ? <Text style={s.rideRoute} numberOfLines={1}>{from || "—"} → {to || "—"}</Text> : null}
+            <Text style={s.rideMeta} numberOfLines={1}>
+              {isToday(ride.createdAt) ? formatTime(ride.createdAt) : formatDate(ride.createdAt)}
+              {distance ? `  ·  ${Number(distance).toFixed(1)} km` : ""}
+              {status ? `  ·  ${status}` : ""}
+              {ride.passengerPhone ? `  ·  ${ride.passengerPhone}` : ""}
+            </Text>
+          </View>
         </View>
-        <View style={s.rideInfo}>
-          <Text style={s.rideFare}>{Number(ride.fare || 0).toLocaleString()} RWF</Text>
-          <Text style={s.rideMeta}>
-            {isToday(ride.createdAt)
-              ? formatTime(ride.createdAt)
-              : formatDate(ride.createdAt)}
-            {ride.distance ? `  ·  ${ride.distance} km` : ""}
-          </Text>
+        <View style={s.rideRight}>
+          <View style={[s.payBadge, method === "momo" && s.payBadgeMomo]}>
+            <Feather name={method === "momo" ? "smartphone" : method === "wallet" ? "credit-card" : "dollar-sign"} size={12} color={method === "momo" ? colors.primary : colors.success} />
+            <Text style={[s.payText, method === "momo" ? s.payTextMomo : s.payTextCash]}>{methodLabel}</Text>
+          </View>
+          {ride.commissionAmount ? <Text style={s.rideCommission}>-{Number(ride.commissionAmount).toLocaleString()}</Text> : null}
+          <Feather name="chevron-right" size={16} color={colors.textTertiary} style={{ marginTop: 4 }} />
         </View>
-      </View>
-      <View style={s.rideRight}>
-        <View style={[s.payBadge, ride.paymentMethod === "momo" && s.payBadgeMomo]}>
-          <Feather
-            name={ride.paymentMethod === "momo" ? "smartphone" : "dollar-sign"}
-            size={12}
-            color={ride.paymentMethod === "momo" ? colors.primary : colors.success}
-          />
-          <Text
-            style={[
-              s.payText,
-              ride.paymentMethod === "momo" ? s.payTextMomo : s.payTextCash,
-            ]}
-          >
-            {ride.paymentMethod === "momo" ? "MoMo" : "Cash"}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={s.container}>
@@ -370,6 +369,8 @@ export default function LogRideScreen() {
           <Text style={s.fabText}>{t("pages.logride.add")}</Text>
         </TouchableOpacity>
       ) : null}
+
+      <RideDetailsSheet ride={openRide} passenger={false} onClose={() => setOpenRide(null)} />
 
       {/* Log Ride Modal */}
       <Modal
@@ -586,7 +587,19 @@ const styles = (colors: any, isDark: boolean) =>
       color: colors.textSecondary,
       marginTop: 2,
     },
-    rideRight: { alignItems: "flex-end" },
+    rideRight: { alignItems: "flex-end", marginLeft: 8 },
+    rideRoute: {
+      fontSize: 13,
+      fontFamily: "Inter_500Medium",
+      color: colors.textPrimary,
+      marginTop: 2,
+    },
+    rideCommission: {
+      fontSize: 11,
+      fontFamily: "Inter_500Medium",
+      color: colors.error,
+      marginTop: 4,
+    },
     payBadge: {
       flexDirection: "row",
       alignItems: "center",

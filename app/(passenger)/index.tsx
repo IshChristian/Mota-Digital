@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
+import { ActivityIndicator, Animated, Image, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -59,17 +59,24 @@ export default function PassengerHomeScreen() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   // Road route for the map line and turn-by-turn directions (Google, else OpenStreetMap).
   const [routeInfo, setRouteInfo] = useState<RouteResult | null>(null);
+  // GPS updates every few seconds; re-quote only when the pickup moves ~100 m, or the
+  // destination/ride type changes. A re-quote for the same trip keeps the current prices on
+  // screen (no blank spinner) so the offer the passenger is typing is never wiped.
+  const quotePickupKey = `${pickup.latitude.toFixed(3)},${pickup.longitude.toFixed(3)}`;
+  const tripKey = destination ? `${destination.latitude},${destination.longitude}:${rideType}` : "";
+  const quotedTrip = useRef("");
   useEffect(() => {
-    setRouteInfo(null);
-    if (!destination) return;
+    if (!destination) { setRouteInfo(null); return; }
     let active = true;
     mapsApi.getRoute(pickup, destination).then((res) => active && setRouteInfo(res.data.data)).catch(() => {});
     return () => { active = false; };
-  }, [destination?.latitude, destination?.longitude, pickup.latitude, pickup.longitude]);
+  }, [destination?.latitude, destination?.longitude, quotePickupKey]);
   useEffect(() => {
-    if (!destination) { setOptions(null); return; }
+    if (!destination) { setOptions(null); setRouteInfo(null); quotedTrip.current = ""; return; }
     let active = true;
-    setOptions(null); setOptionsError("");
+    if (quotedTrip.current !== tripKey) { setOptions(null); setRouteInfo(null); }
+    quotedTrip.current = tripKey;
+    setOptionsError("");
     ridesApi.estimateOptions(pickup, destination, rideType)
       .then((res) => {
         if (!active) return;
@@ -80,7 +87,7 @@ export default function PassengerHomeScreen() {
       .catch((e) => active && setOptionsError(getApiErrorMessage(e)));
     walletApi.getBalance().then((res) => active && setWalletBalance(Number(res.data?.balance ?? 0))).catch(() => {});
     return () => { active = false; };
-  }, [destination?.latitude, destination?.longitude, pickup.latitude, pickup.longitude, rideType]);
+  }, [tripKey, quotePickupKey]);
 
   // ─── Nearby drivers while planning (coarse positions from the server) ──────
   // ─── Available drivers around the pickup, refreshed every few seconds so they're seen moving ──
@@ -237,7 +244,50 @@ export default function PassengerHomeScreen() {
   const [sheetHeight, setSheetHeight] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const scroll = useRef<ScrollView>(null);
-  useEffect(() => { setCollapsed(false); scroll.current?.scrollTo({ y: 0, animated: false }); }, [ride?.rideStatus, Boolean(destination)]);
+  // Draggable sheet: pull the handle down to uncover the map, up to see more of the form.
+  // The drag sets the sheet's maximum height; a short panel simply stays its own size.
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetMax = Math.round(windowHeight * 0.88);
+  const sheetDefault = Math.round(windowHeight * 0.68);
+  const PEEK = 64 + Math.max(insets.bottom, 16);
+  const sheetLimit = useRef(new Animated.Value(sheetDefault)).current;
+  const dragStart = useRef(0);
+  const measured = useRef(0);
+  measured.current = sheetHeight;
+  const bounds = useRef({ PEEK, sheetMax, sheetDefault });
+  bounds.current = { PEEK, sheetMax, sheetDefault };
+  const snapTo = (value: number) => {
+    setCollapsed(value <= bounds.current.PEEK);
+    Animated.spring(sheetLimit, { toValue: value, useNativeDriver: false, bounciness: 0, speed: 18 }).start();
+  };
+  const drag = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+    onPanResponderGrant: () => {
+      dragStart.current = measured.current || bounds.current.sheetDefault;
+      sheetLimit.stopAnimation();
+      setCollapsed(false);
+    },
+    onPanResponderMove: (_e, g) => {
+      const { PEEK: peek, sheetMax: max } = bounds.current;
+      sheetLimit.setValue(Math.min(max, Math.max(peek, dragStart.current - g.dy)));
+    },
+    onPanResponderRelease: (_e, g) => {
+      const { PEEK: peek, sheetMax: max } = bounds.current;
+      const end = Math.min(max, Math.max(peek, dragStart.current - g.dy));
+      // A flick or a drag close to the bottom tucks the sheet away; otherwise it stays where it was left.
+      if (g.vy > 1.2 || end < peek + 80) snapTo(peek);
+      else if (g.vy < -1.2) snapTo(max);
+      else sheetLimit.setValue(end);
+    },
+    onPanResponderTerminationRequest: () => false,
+  })).current;
+  const toggleSheet = () => snapTo(collapsed ? bounds.current.sheetDefault : bounds.current.PEEK);
+  useEffect(() => {
+    setCollapsed(false);
+    sheetLimit.setValue(bounds.current.sheetDefault);
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [ride?.rideStatus, Boolean(destination)]);
   const s = styles(colors);
   const mapPadding = layout.wide
     ? { top: 90, left: layout.panelWidth + 48, right: 60, bottom: 60 }
@@ -362,22 +412,22 @@ export default function PassengerHomeScreen() {
       </View>
       {locationBanner}
 
-      <View style={[s.floating, { bottom: (collapsed ? 0 : sheetHeight) + 12 }]} pointerEvents="box-none">
+      <View style={[s.floating, { bottom: sheetHeight + 12 }]} pointerEvents="box-none">
         <View style={{ flex: 1 }}>{etaCard}</View>
         {locateButton}
       </View>
 
-      <View onLayout={(e: LayoutChangeEvent) => setSheetHeight(e.nativeEvent.layout.height)} style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={collapsed ? "Expand ride panel" : "Collapse ride panel to see the map"} onPress={() => setCollapsed(!collapsed)} style={s.handleArea}>
-          <View style={s.handle} />
-          {collapsed ? <Text style={s.collapsedText} numberOfLines={1}>{summary}</Text> : null}
-        </TouchableOpacity>
-        {!collapsed ? (
-          <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 8 }}>
-            {panel}
-          </ScrollView>
-        ) : null}
-      </View>
+      <Animated.View onLayout={(e: LayoutChangeEvent) => setSheetHeight(e.nativeEvent.layout.height)} style={[s.sheet, { maxHeight: sheetLimit, paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View {...drag.panHandlers} style={s.dragZone}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={collapsed ? "Expand ride panel" : "Collapse ride panel to see the map"} accessibilityHint="Drag up or down to resize" onPress={toggleSheet} style={s.handleArea}>
+            <View style={s.handle} />
+            {collapsed ? <Text style={s.collapsedText} numberOfLines={1}>{summary}</Text> : null}
+          </TouchableOpacity>
+        </View>
+        <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0, flexShrink: 1, display: collapsed ? "none" : "flex" }} contentContainerStyle={{ paddingBottom: 8 }}>
+          {panel}
+        </ScrollView>
+      </Animated.View>
 
       {sheets}
     </View>
@@ -405,8 +455,9 @@ const styles = (c: ReturnType<typeof useTheme>["colors"]) => StyleSheet.create({
   panelSub: { color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 12, marginTop: 2 },
   roundBtnFlat: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.backgroundElevated, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   wideMapButtons: { position: "absolute", right: 16, bottom: 110, gap: 10 },
-  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "68%", maxWidth: 640, marginHorizontal: "auto", backgroundColor: c.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 12, elevation: 12 },
-  handleArea: { alignItems: "center", paddingVertical: 10, minHeight: 32 },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, overflow: "hidden", maxWidth: 640, marginHorizontal: "auto", backgroundColor: c.backgroundCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 12, elevation: 12 },
+  dragZone: { cursor: "grab", touchAction: "none" } as any,
+  handleArea: { alignItems: "center", paddingTop: 10, paddingBottom: 14, minHeight: 40 },
   handle: { width: 44, height: 5, borderRadius: 3, backgroundColor: c.border },
   collapsedText: { marginTop: 8, color: c.textPrimary, fontFamily: "Inter_600SemiBold" },
 });
