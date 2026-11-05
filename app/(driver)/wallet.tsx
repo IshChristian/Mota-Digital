@@ -2,12 +2,16 @@ import { Alert } from "@/components/GlobalAlert";
 import React, { useRef, useState } from "react";
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { RideDetailsSheet } from "@/components/wallet/RideDetailsSheet";
+import { buildLedger, isCredit as txIsCredit, type LedgerEntry, type RideEntry, type WalletTx } from "@/utils/walletLedger";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   createIdempotencyKey,
+  driverApi,
   getApiErrorMessage,
+  ridesApi,
   walletApi,
 } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -59,7 +63,23 @@ export default function WalletScreen() {
   };
   const heldBalance = balanceData?.heldBalance ?? 0;
   const today = balanceData?.today;
-  const recentTransactions = balanceData?.recentTransactions || [];
+  const recentTransactions: WalletTx[] = balanceData?.recentTransactions || [];
+
+  // The rides behind ride payments: fare, route and payment method for each entry.
+  const { data: rides = [] } = useQuery({
+    queryKey: ["wallet_rides", passenger ? "passenger" : "driver"],
+    queryFn: async () => {
+      const res = passenger ? await ridesApi.getMyRides(1) : await driverApi.getRides(1);
+      return res.data?.rides || res.data?.data?.rides || res.data?.data || [];
+    },
+    refetchInterval: 30000,
+  });
+  const ledger = React.useMemo(
+    () => buildLedger(recentTransactions, Array.isArray(rides) ? rides : [], passenger),
+    [recentTransactions, rides, passenger],
+  );
+  const [openRide, setOpenRide] = useState<RideEntry | null>(null);
+  const [openTx, setOpenTx] = useState<WalletTx | null>(null);
 
   const openModal = (type: ModalType) => {
     setAmount("");
@@ -122,41 +142,51 @@ export default function WalletScreen() {
     }
   };
 
-  const renderTx = ({ item }: { item: any }) => {
-    const isCredit = item.type === "cash_in" || item.type === "earning";
-    const icon =
-      item.type === "ride"
-        ? "car"
-        : isCredit
-          ? "arrow-down-left"
-          : "arrow-up-right";
-    const amtColor = isCredit ? colors.success : colors.error;
+  const renderTx = ({ item }: { item: LedgerEntry }) => {
+    let title: string, sub: string, credit: boolean, amount: number, icon: string, extra = "";
+    if (item.kind === "ride") {
+      // Driver: the fare is money in, the commission shows underneath. Passenger: the fare paid.
+      credit = !passenger;
+      amount = item.fare;
+      icon = "navigation";
+      title = t("ride_log.ride_payment");
+      const method = item.method === "cash" ? t("ride_log.cash") : item.method === "momo" ? t("ride_log.momo") : t("ride_log.wallet");
+      sub = `${new Date(item.createdAt || Date.now()).toLocaleDateString()} · ${method}${item.pending ? ` · ${t("drive.tx_pending")}` : ""}`;
+      if (!passenger && item.commission > 0) {
+        extra = t(item.commissionOwed ? "ride_log.commission_owed" : "ride_log.commission_paid", { amount: item.commission.toLocaleString() });
+      }
+    } else {
+      const tx = item.tx;
+      // The backend signs amounts (negative = money out); a few deduction types are stored positive.
+      credit = txIsCredit(tx);
+      amount = Math.abs(Number(tx.amount || 0));
+      icon = credit ? "arrow-down-left" : "arrow-up-right";
+      title = tx.description || tx.type.replaceAll("_", " ");
+      sub = `${new Date(tx.createdAt || Date.now()).toLocaleDateString()}${tx.status === "pending" ? ` · ${t(tx.type === "platform_commission" ? "drive.tx_owed" : "drive.tx_pending")}` : ""}${tx.status === "failed" ? " · failed" : ""}`;
+    }
+    const amtColor = credit ? colors.success : colors.error;
 
     return (
-      <View style={s.txCard}>
-        <View
-          style={[
-            s.txIcon,
-            {
-              backgroundColor: isCredit
-                ? `${colors.success}18`
-                : `${colors.error}10`,
-            },
-          ]}
-        >
+      <TouchableOpacity
+        accessibilityRole="button"
+        activeOpacity={0.7}
+        onPress={() => (item.kind === "ride" ? setOpenRide(item) : setOpenTx(item.tx))}
+        style={s.txCard}
+      >
+        <View style={[s.txIcon, { backgroundColor: credit ? `${colors.success}18` : `${colors.error}10` }]}>
           <Feather name={icon as any} size={20} color={amtColor} />
         </View>
         <View style={s.txInfo}>
-          <Text style={s.txTitle}>{item.description || item.type}</Text>
-          <Text style={s.txDate}>
-            {new Date(item.createdAt || Date.now()).toLocaleDateString()}
-          </Text>
+          <Text style={s.txTitle} numberOfLines={2}>{title}</Text>
+          <Text style={s.txDate}>{sub}</Text>
+          {extra ? <Text style={[s.txDate, { color: colors.error, marginTop: 2 }]}>{extra}</Text> : null}
         </View>
         <Text style={[s.txAmount, { color: amtColor }]}>
-          {isCredit ? "+" : "-"}
-          {Math.abs(item.amount || 0).toLocaleString()}
+          {credit ? "+" : "-"}
+          {amount.toLocaleString()}
         </Text>
-      </View>
+        <Feather name="chevron-right" size={16} color={colors.textTertiary} style={{ marginLeft: 6 }} />
+      </TouchableOpacity>
     );
   };
 
@@ -242,8 +272,8 @@ export default function WalletScreen() {
       {wide ? <View style={s.wideAside}>{balanceCard}</View> : null}
       <FlatList
         style={{ flex: 1 }}
-        data={recentTransactions}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        data={ledger}
+        keyExtractor={(item) => item.key}
         renderItem={renderTx}
         contentContainerStyle={s.listContent}
         refreshing={manualRefresh}
@@ -270,6 +300,8 @@ export default function WalletScreen() {
         }
       />
       </View>
+
+      <RideDetailsSheet entry={openRide} tx={openTx} passenger={passenger} onClose={() => { setOpenRide(null); setOpenTx(null); }} />
 
       {/* Cash In / Cash Out Modal */}
       <Modal
@@ -300,7 +332,7 @@ export default function WalletScreen() {
               <Text style={s.modalDesc}>
                 {modalType === "cash_in"
                   ? "Add money to your MOTA wallet via MTN MoMo. You'll receive a push notification to confirm."
-                  : "Amounts below 10,000 RWF remain reserved and queued until your pending withdrawals reach Paypack's 10,000 RWF payout minimum."}
+                  : "The money is sent to your MoMo number. It usually arrives within 2 hours, depending on the provider."}
               </Text>
 
               {modalType === "cash_in" ? (

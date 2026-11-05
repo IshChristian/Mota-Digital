@@ -57,7 +57,7 @@ export default function ForgotPasswordScreen() {
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
-          { color: colors.textPrimary, borderColor: colors.border },
+          { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.inputBg },
         ]}
       />
       {message ? (

@@ -38,7 +38,7 @@ export function FormField({ label, hint, readOnly, value, ...input }: TextInputP
         </View>
       ) : (
         <TextInput accessibilityLabel={label} value={value} placeholderTextColor={colors.textTertiary} {...input}
-          style={[styles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.background }, input.style]} />
+          style={[styles.input, { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.background }, input.style]} />
       )}
       {hint ? <Text style={[styles.hint, { color: colors.textTertiary }]}>{hint}</Text> : null}
     </View>

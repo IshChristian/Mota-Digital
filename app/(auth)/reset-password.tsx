@@ -57,7 +57,7 @@ export default function ResetPasswordScreen() {
           placeholderTextColor={colors.textTertiary}
           style={[
             s.input,
-            { color: colors.textPrimary, borderColor: colors.border },
+            { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.inputBg },
           ]}
         />
       ) : null}
@@ -69,7 +69,7 @@ export default function ResetPasswordScreen() {
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
-          { color: colors.textPrimary, borderColor: colors.border },
+          { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.inputBg },
         ]}
       />
       <TextInput
@@ -80,7 +80,7 @@ export default function ResetPasswordScreen() {
         placeholderTextColor={colors.textTertiary}
         style={[
           s.input,
-          { color: colors.textPrimary, borderColor: colors.border },
+          { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.inputBg },
         ]}
       />
       {message ? (

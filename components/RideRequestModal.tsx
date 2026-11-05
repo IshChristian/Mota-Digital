@@ -63,8 +63,9 @@ export function RideRequestModal({
   const [counterSent, setCounterSent] = useState<number | null>(null);
   const [counterError, setCounterError] = useState("");
 
-  useEffect(() => { setAction(null); setCounterSent(null); setCounterError(""); }, [request]);
   const receiptId = request?.id || request?._id;
+  // Reset only for a different request: a live refresh of the same one keeps "offer sent".
+  useEffect(() => { setAction(null); setCounterSent(null); setCounterError(""); }, [receiptId]);
   useEffect(() => {
     if (receiptId) void driverApi.acknowledgeOffer(receiptId).catch(() => console.warn('Offer receipt could not be recorded.'));
   }, [receiptId]);

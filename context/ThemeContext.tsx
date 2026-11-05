@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Web: text fields have no border at all; a fill a shade off the card keeps them visible.
+const WEB = Platform.OS === 'web';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -36,8 +40,8 @@ export const darkTheme: ThemeColors = {
   error: '#EF4444',
   tabBarBg: '#111827',
   tabBarBorder: 'rgba(255,255,255,0.06)',
-  inputBg: '#111827',
-  inputBorder: 'rgba(255,255,255,0.1)',
+  inputBg: WEB ? '#182131' : '#111827',
+  inputBorder: WEB ? 'transparent' : 'rgba(255,255,255,0.1)',
   sectionBg: '#0F1623',
   overlay: 'rgba(0,0,0,0.7)',
   secondary: '#1D3557',
@@ -57,7 +61,7 @@ export const lightTheme: ThemeColors = {
   tabBarBg: '#FFFFFF',
   tabBarBorder: 'rgba(0,0,0,0.06)',
   inputBg: '#F1F3F5',
-  inputBorder: 'rgba(0,0,0,0.12)',
+  inputBorder: WEB ? 'transparent' : 'rgba(0,0,0,0.12)',
   sectionBg: '#F8F9FA',
   overlay: 'rgba(0,0,0,0.5)',
   secondary: '#1D3557',

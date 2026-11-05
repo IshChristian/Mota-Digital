@@ -12,6 +12,7 @@ import { Alert } from "@/components/GlobalAlert";
 import { NotificationBell } from "@/components/NotificationBell";
 import { driverApi, getApiErrorMessage, usersApi } from "@/services/api";
 import { useWideLayout } from "@/hooks/useWideLayout";
+import { GetAppCard } from "@/components/web/GetAppCard";
 
 type Role = "client" | "driver";
 type Icon = React.ComponentProps<typeof Feather>["name"];
@@ -223,7 +224,7 @@ export function AccountScreen({ role }: { role: Role }) {
         {header}
         {wide ? (
           <View style={s.wideRow}>
-            <View style={s.wideAside}>{profileCard}{verification}{appearance}{logoutCard}</View>
+            <View style={s.wideAside}>{profileCard}{verification}<GetAppCard variant="compact" audience={role === "driver" ? "driver" : "client"} dismissId={`account-${role}`} />{appearance}{logoutCard}</View>
             <View style={s.wideMain}>{sectionCards}</View>
           </View>
         ) : (

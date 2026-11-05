@@ -46,7 +46,7 @@ export default function Safety() {
     } },
   ]);
 
-  const input = [styles.input, { color: colors.textPrimary, borderColor: colors.border }];
+  const input = [styles.input, { color: colors.textPrimary, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }];
   return <PassengerSettingsScreen title={t("safety.title")}>
     <Text style={{ color: colors.textSecondary }}>{t("safety.intro")}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : contacts.map((c) => (

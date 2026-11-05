@@ -212,6 +212,7 @@ const styles = (colors: any) =>
     },
     otpInputFilled: {
       borderColor: colors.primary,
+      backgroundColor: `${colors.primary}1A`,
     },
     buttonDisabled: {
       opacity: 0.5,

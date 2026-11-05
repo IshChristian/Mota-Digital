@@ -27,6 +27,7 @@ import { isPassengerRole, isStaffRole, normalizeRole } from "@/constants/roles";
 import { PrivacyConsentBanner } from "@/components/PrivacyConsentBanner";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { GlobalAlert } from "@/components/GlobalAlert";
+import { useWebInputStyles } from "@/components/web/useWebInputStyles";
 // Registers the background location task before any screen mounts.
 import "@/services/driverLocation";
 
@@ -111,6 +112,7 @@ function ThemedStack() {
   useEffect(() => {
     if (Platform.OS === "web" && typeof document !== "undefined") document.body.style.backgroundColor = colors.background;
   }, [colors.background]);
+  useWebInputStyles(colors, isDark);
   const { wide } = useWideLayout();
   const full = { contentStyle: { backgroundColor: colors.background } };
   return (

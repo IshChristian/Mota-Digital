@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@/components/ui/DateTimePicker";
@@ -53,17 +53,25 @@ export function TripOptionsPanel({ route, destinationName, rideType, options, op
   const [parcel, setParcel] = useState<ParcelDetails>({ recipientName: "", recipientPhone: "", description: "", size: "small" });
   const [error, setError] = useState("");
 
-  // New quote or vehicle → start at the suggested fare.
+  // Start at the suggested fare when a vehicle is picked. Once the passenger has typed or
+  // stepped their own offer, a refreshed quote never overwrites it (it is only kept inside
+  // the new allowed range, and never while they are typing).
+  const edited = useRef(false);
+  const typing = useRef(false);
+  useEffect(() => { edited.current = false; }, [vehicleType]);
   useEffect(() => {
-    if (!option) return;
-    setOffer(option.suggestedFare);
-    setOfferText(String(option.suggestedFare));
-  }, [option?.suggestedFare, vehicleType]);
+    if (!option || typing.current) return;
+    const next = edited.current ? clamp(offer, option.minimumFare, option.maximumFare) : option.suggestedFare;
+    setOffer(next);
+    setOfferText(String(next));
+  }, [option?.suggestedFare, option?.minimumFare, option?.maximumFare, vehicleType]);
   useEffect(() => { setPassengers((p) => clamp(p, 1, MAX_PASSENGERS[vehicleType])); }, [vehicleType]);
   useEffect(() => { if (vehicleType === "motor" && parcel.size === "large") setParcel((p) => ({ ...p, size: "medium" })); }, [vehicleType]);
 
   const commitOfferText = () => {
+    typing.current = false;
     if (!option) return;
+    edited.current = true;
     const typed = Number.parseInt(offerText.replace(/\D/g, ""), 10);
     const next = clamp(Number.isFinite(typed) ? Math.round(typed / STEP) * STEP : option.suggestedFare, option.minimumFare, option.maximumFare);
     setOffer(next);
@@ -71,6 +79,7 @@ export function TripOptionsPanel({ route, destinationName, rideType, options, op
   };
   const step = (delta: number) => {
     if (!option) return;
+    edited.current = true;
     const next = clamp(offer + delta, option.minimumFare, option.maximumFare);
     setOffer(next);
     setOfferText(String(next));
@@ -79,6 +88,9 @@ export function TripOptionsPanel({ route, destinationName, rideType, options, op
   const submit = () => {
     setError("");
     if (!option) return;
+    // Pressing Request straight after typing: use the typed amount, not the last committed one.
+    const typed = Number.parseInt(offerText, 10);
+    const offer = clamp(Number.isFinite(typed) ? Math.round(typed / STEP) * STEP : option.suggestedFare, option.minimumFare, option.maximumFare);
     if (payment === "wallet" && walletBalance != null && walletBalance < offer) {
       setError(`Your wallet has ${rwf(walletBalance)}. Top up, or pay with cash or mobile money.`);
       return;
@@ -123,7 +135,7 @@ export function TripOptionsPanel({ route, destinationName, rideType, options, op
           <View style={[s.row, { justifyContent: "space-between", marginTop: 8 }]}>
             <TouchableOpacity accessibilityLabel="Lower offer by 100" disabled={offer <= option.minimumFare} onPress={() => step(-STEP)} style={[s.stepBtn, offer <= option.minimumFare && { opacity: 0.4 }]}><Feather name="minus" size={20} color={colors.primary} /></TouchableOpacity>
             <View style={s.row}>
-              <TextInput accessibilityLabel={t("trip.your_offer")} value={offerText} onChangeText={setOfferText} onBlur={commitOfferText} onSubmitEditing={commitOfferText} keyboardType="number-pad" style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: colors.textPrimary, minWidth: 90, textAlign: "center" }} />
+              <TextInput accessibilityLabel={t("trip.your_offer")} value={offerText} onFocus={() => { typing.current = true; }} onChangeText={(v) => { typing.current = true; edited.current = true; setOfferText(v.replace(/\D/g, "")); }} onBlur={commitOfferText} onSubmitEditing={commitOfferText} keyboardType="number-pad" style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: colors.textPrimary, minWidth: 90, textAlign: "center" }} />
               <Text style={s.subtitle}>RWF</Text>
             </View>
             <TouchableOpacity accessibilityLabel="Raise offer by 100" disabled={offer >= option.maximumFare} onPress={() => step(STEP)} style={[s.stepBtn, offer >= option.maximumFare && { opacity: 0.4 }]}><Feather name="plus" size={20} color={colors.primary} /></TouchableOpacity>

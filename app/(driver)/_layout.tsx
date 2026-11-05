@@ -170,7 +170,10 @@ export default function TabLayout() {
             borderRightWidth: 1,
             borderRightColor: colors.tabBarBorder,
             width: 220,
-            paddingTop: 24,
+            // The sidebar otherwise takes Material's 360px minimum, half of a small laptop screen.
+            minWidth: 0,
+            paddingTop: 16,
+            paddingHorizontal: 8,
           } : {
             position: "absolute",
             backgroundColor: isIOS ? "transparent" : colors.tabBarBg,
@@ -178,7 +181,7 @@ export default function TabLayout() {
             borderTopColor: colors.tabBarBorder,
             elevation: 0,
             paddingBottom: safeAreaInsets.bottom,
-            ...(isWeb ? { height: 80 } : {}),
+            ...(isWeb ? { height: 64 } : {}),
           },
           tabBarBackground: () =>
             wide ? null : isIOS ? (
