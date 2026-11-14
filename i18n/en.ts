@@ -383,11 +383,19 @@ export default {
     saving: "Saving…",
     add: "Add emergency contact",
   },
+  verify: {
+    title: "Verify to ride",
+    body: "Before your first ride, confirm your email and submit your ID. It takes about two minutes and keeps every trip safe.",
+    email: "Confirm your email",
+    identity: "Submit your ID (front, back and a selfie)",
+    done: "Done",
+    email_required: "Email is required for passengers.",
+  },
   promo: {
     label: "Promo code",
-    apply: "Apply",
+    apply: "Verify",
     remove: "Remove",
-    applied: "−{{discount}} RWF · you pay {{payAmount}} RWF",
+    applied: "{{percent}}% off · you pay {{payAmount}} RWF",
     placeholder: "Enter code",
   },
   money: {

@@ -46,6 +46,7 @@ export default function PaymentRegistrationScreen() {
   // The fee can be paid from any MoMo number; paying from the account's own number also confirms it.
   const [payerPhone, setPayerPhone] = useState(displayPhone);
   const [promo, setPromo] = useState<PromoPreview | null>(null);
+  const [promoKey, setPromoKey] = useState(0);
   const toPay = promo ? promo.payAmount : fee;
 
   const [loading, setLoading] = useState(false);
@@ -113,6 +114,8 @@ export default function PaymentRegistrationScreen() {
         }
       }
     } catch (err: any) {
+      // A code refused at payment time is cleared so the next tap pays the normal fee.
+      if (err.response?.data?.reason) { setPromo(null); setPromoKey((k) => k + 1); }
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
         router.replace("/(driver)" as any);
@@ -194,7 +197,7 @@ export default function PaymentRegistrationScreen() {
           <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
         </View>
         <View style={{ alignSelf: "stretch", marginTop: 12 }}>
-          <PromoCodeInput appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
+          <PromoCodeInput key={promoKey} appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
         </View>
       </View>
 

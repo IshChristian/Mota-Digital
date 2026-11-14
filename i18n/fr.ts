@@ -383,11 +383,19 @@ export default {
     saving: "Enregistrement…",
     add: "Ajouter un contact",
   },
+  verify: {
+    title: "Vérifiez-vous pour voyager",
+    body: "Avant votre premier trajet, confirmez votre e-mail et envoyez votre pièce d'identité. Cela prend environ deux minutes et sécurise chaque trajet.",
+    email: "Confirmer votre e-mail",
+    identity: "Envoyer votre pièce d'identité (recto, verso et selfie)",
+    done: "Fait",
+    email_required: "L'e-mail est obligatoire pour les passagers.",
+  },
   promo: {
     label: "Code promo",
-    apply: "Appliquer",
+    apply: "Vérifier",
     remove: "Retirer",
-    applied: "−{{discount}} RWF · vous payez {{payAmount}} RWF",
+    applied: "{{percent}}% de réduction · vous payez {{payAmount}} RWF",
     placeholder: "Saisir le code",
   },
   money: {

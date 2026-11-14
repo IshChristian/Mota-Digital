@@ -66,6 +66,11 @@ export default function RegisterScreen() {
       setError(t("auth.phone_invalid"));
       return;
     }
+    // Passengers confirm an email before their first ride, so it's required for them.
+    if (formData.role !== "driver" && !formData.email.trim()) {
+      setError(t("verify.email_required"));
+      return;
+    }
     setLoading(true);
     setError("");
     try {

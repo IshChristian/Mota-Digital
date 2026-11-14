@@ -19,6 +19,7 @@ import { usePassengerRide } from "@/hooks/usePassengerRide";
 import { MapCanvas } from "@/components/passenger/ride/MapCanvas";
 import { WhereToPanel } from "@/components/passenger/ride/WhereToPanel";
 import { TripOptionsPanel, type TripChoice } from "@/components/passenger/ride/TripOptionsPanel";
+import { VerifyToRideCard, usePassengerVerification } from "@/components/passenger/VerifyToRideCard";
 import { SearchingPanel } from "@/components/passenger/ride/SearchingPanel";
 import { TripPanel } from "@/components/passenger/ride/TripPanel";
 import { CancelSheet, RatingSheet, SosSheet } from "@/components/passenger/ride/RideModals";
@@ -129,6 +130,8 @@ export default function PassengerHomeScreen() {
 
   // ─── Requesting ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
+  // Email confirmed + ID submitted before booking (the backend enforces it too).
+  const verification = usePassengerVerification();
   const request = async (choice: TripChoice) => {
     if (!destination) return;
     setSubmitting(true);
@@ -158,6 +161,7 @@ export default function PassengerHomeScreen() {
     } catch (e: any) {
       const body = e?.response?.data;
       if (e?.response?.status === 409 && body?.rideId) { await trip.refresh(); return; } // already had a ride: show it
+      if (body?.code === "VERIFY_TO_RIDE") { await verification.refresh(); return; } // the card explains what's missing
       if (body?.code === "INSUFFICIENT_WALLET_BALANCE") {
         Alert.alert("Wallet balance too low", getApiErrorMessage(e), [{ text: "Top up", onPress: () => router.push("/(passenger)/wallet" as any) }, { text: "OK" }]);
         return;
@@ -308,6 +312,8 @@ export default function PassengerHomeScreen() {
           <SearchingPanel ride={ride} notifiedDrivers={trip.notifiedDrivers} offers={trip.offers} onNotified={trip.setNotifiedDrivers} onDismissOffer={trip.dismissOffer} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} />
         ) : ride ? (
           <TripPanel ride={ride} momoAvailable={momoAvailable} onChanged={trip.refresh} onCancel={() => setCancelOpen(true)} onSos={() => setSosOpen(true)} />
+        ) : verification.blocked && verification.needs ? (
+          <VerifyToRideCard needs={verification.needs} />
         ) : destination ? (
           <TripOptionsPanel route={routeInfo} destinationName={destination.name} rideType={rideType} options={options} optionsError={optionsError} walletBalance={walletBalance}
             preferredPayment={user?.preferredPayment === "MOMO" && momoAvailable ? "momo" : "cash"} momoAvailable={momoAvailable} submitting={submitting} onBack={() => setDestination(null)} onSubmit={request} />
