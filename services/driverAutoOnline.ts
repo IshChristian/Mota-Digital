@@ -29,7 +29,6 @@ export function createDriverAutoOnline() {
         account.availabilityManuallyOffline === true ||
         account.kycLevel !== "full" ||
         !account.isActive ||
-        !account.isVerified ||
         !account.registrationPaid
       )
         return Promise.resolve(undefined);

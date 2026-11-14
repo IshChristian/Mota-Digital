@@ -70,7 +70,6 @@ for (const account of [
   { ...driver, role: "passenger" },
   { ...driver, kycLevel: "basic" },
   { ...driver, isActive: false },
-  { ...driver, isVerified: false },
   { ...driver, registrationPaid: false },
 ])
   test(
@@ -186,4 +185,12 @@ test("already-online account does not send another availability request", async 
     },
   );
   assert.equal(calls, 0);
+});
+
+// Drivers no longer need a proven phone: KYC, the fee and admin approval are the gates.
+test("an approved driver with an unproven phone still goes online", async () => {
+  let calls = 0;
+  const go = async () => { calls++; return { data: { isOnline: true } }; };
+  assert.equal(await factory().run({ ...driver, isVerified: false }, "token", async () => "token", go), true);
+  assert.equal(calls, 1);
 });

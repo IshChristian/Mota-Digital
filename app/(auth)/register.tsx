@@ -77,15 +77,12 @@ export default function RegisterScreen() {
       const res = await authApi.register(submitData);
       const data = res.data || {};
       
-      // The backend returns { message, userId, payment }
-      const uid = data.userId || (data.user && (data.user.id || data.user._id));
-      
-      if (uid) {
-        // Go to confirm phone before sending OTP
-        router.push({
-          pathname: "/(auth)/confirm-phone",
-          params: { userId: uid, phone: getSubmitPhone(), fromRegister: "1", email: formData.email },
-        } as any);
+      // The backend returns { message, userId, token, user, payment }: sign-up needs no phone code,
+      // so the new account is signed in straight away and the root layout routes it.
+      if (data.token && data.user) {
+        await login(data.token, data.user);
+      } else if (data.userId) {
+        router.replace("/(auth)/login"); // older backend: sign in to continue
       } else {
         setError(data.message || t("auth.parse_failed"));
       }
@@ -95,8 +92,7 @@ export default function RegisterScreen() {
         try {
           const recovery = await authApi.recoverRegistration({ phone: getSubmitPhone()!, password: formData.password });
           if (recovery.data?.userId) {
-            if (recovery.data.isVerified) router.replace("/(auth)/login");
-            else router.push({ pathname: "/(auth)/confirm-phone", params: { userId: recovery.data.userId, phone: getSubmitPhone(), fromRegister: "1", email: formData.email } } as any);
+            router.replace("/(auth)/login");
             return;
           }
         } catch { /* The result remains uncertain when recovery is unavailable. */ }

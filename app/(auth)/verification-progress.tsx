@@ -33,9 +33,8 @@ export default function VerificationProgress() {
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const steps = [
-    { title: "Phone number", done: !!user?.isVerified, detail: "Required for every account", route: "/(auth)/confirm-phone" },
     { title: "Email address", done: !!user?.isEmailVerified, detail: user?.email ? "Optional — verify when ready" : "Optional — add an email later", route: user?.email ? "/(auth)/verify-email" : undefined },
-    { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : user?.isVerified ? "Upload ID, selfie, licence and vehicle documents" : "Verify your phone before uploading documents", route: user?.isVerified ? "/(auth)/driver-kyc" : undefined },
+    { title: "Driver identity and vehicle", done: ["submitted", "approved"].includes(kycStatus), detail: kycStatus === "approved" ? "Approved" : kycStatus === "submitted" ? "Submitted for review" : "Upload ID, selfie, licence and vehicle documents", route: "/(auth)/driver-kyc" },
     { title: "Registration fee", done: !!user?.registrationPaid, detail: `${rwf(pricing.registrationFee.driver)} via MoMo after KYC submission`, route: ["submitted", "approved"].includes(kycStatus) ? "/(auth)/payment-registration" : undefined },
     { title: "Account activation", done: user?.kycLevel === "full" && !!user?.isActive, detail: user?.activationBlocked || (user?.registrationStatus === "approved" && !user?.isActive) ? "Account disabled — contact MOTA support" : "Approved full KYC activates your driver account automatically", route: undefined },
   ];

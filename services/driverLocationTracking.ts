@@ -1,6 +1,6 @@
 type TrackingAccount = { role?: string; isActive?: boolean; isVerified?: boolean; registrationPaid?: boolean; kycLevel?: string };
 export function canTrackDriverLocation(user: TrackingAccount | null | undefined, token: string | null | undefined): boolean {
-  return !!token && user?.role === 'driver' && user.isActive === true && user.isVerified === true && user.registrationPaid === true && user.kycLevel === 'full';
+  return !!token && user?.role === 'driver' && user.isActive === true && user.registrationPaid === true && user.kycLevel === 'full';
 }
 // One request at a time; authorization denial suspends this watcher until account/session refresh.
 export function createDriverLocationPublisher(send: (coordinates: {latitude: number; longitude: number}) => Promise<unknown>, blocked: (message: string) => void, unavailable: () => void) {

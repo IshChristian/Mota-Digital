@@ -37,6 +37,8 @@ export default function WalletScreen() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState(user?.phone || "");
+  // Withdrawals can go to any number, so the account password is re-entered every time.
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [manualRefresh, setManualRefresh] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -84,6 +86,7 @@ export default function WalletScreen() {
   const openModal = (type: ModalType) => {
     setAmount("");
     setPhone(user?.phone || "");
+    setPassword("");
     setSubmitError("");
     setModalType(type);
   };
@@ -101,8 +104,12 @@ export default function WalletScreen() {
       setSubmitError("Please enter a valid amount");
       return;
     }
-    if (modalType === "cash_in" && !normalizeRwandaPhone(phone)) {
-      setSubmitError("Enter a valid Rwanda phone number starting with 07 or 7");
+    if (!normalizeRwandaPhone(phone)) {
+      setSubmitError(t("money.invalid_phone"));
+      return;
+    }
+    if (modalType !== "cash_in" && !password) {
+      setSubmitError(t("money.password_hint"));
       return;
     }
 
@@ -121,7 +128,7 @@ export default function WalletScreen() {
         );
       } else {
         const response = await walletApi.cashOut(
-          { amount: amt },
+          { amount: amt, phone: normalizeRwandaPhone(phone)!, password },
           createIdempotencyKey("wallet-cash-out"),
         );
         const result = response.data?.data;
@@ -335,10 +342,25 @@ export default function WalletScreen() {
                   : "The money is sent to your MoMo number. It usually arrives within 2 hours, depending on the provider."}
               </Text>
 
-              {modalType === "cash_in" ? (
+              <View style={s.inputGroup}>
+                <Text style={s.inputLabel}>{modalType === "cash_in" ? "MoMo Phone Number" : t("money.withdraw_to")}</Text>
+                <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Mobile Money phone number" />
+              </View>
+
+              {modalType !== "cash_in" ? (
                 <View style={s.inputGroup}>
-                  <Text style={s.inputLabel}>MoMo Phone Number</Text>
-                  <RwandaPhoneInput value={phone} onChangeText={setPhone} accessibilityLabel="Mobile Money phone number" />
+                  <Text style={s.inputLabel}>{t("money.password_confirm")}</Text>
+                  <TextInput
+                    style={[s.modalInput, s.passwordInput]}
+                    placeholder={t("money.password_hint")}
+                    placeholderTextColor={colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="current-password"
+                    accessibilityLabel={t("money.password_confirm")}
+                  />
                 </View>
               ) : null}
 
@@ -594,6 +616,13 @@ const styles = (colors: any) =>
       fontFamily: "Inter_600SemiBold",
       color: colors.textSecondary,
       marginRight: 8,
+    },
+    passwordInput: {
+      flex: 0,
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 12,
     },
     modalInput: {
       flex: 1,

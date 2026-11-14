@@ -71,6 +71,11 @@ export const authApi = {
   login: (data: any) => api.post("/auth/login", data),
   verifyOtp: (data: any) => api.post("/auth/verify-otp", data),
   resendOtp: (data: any) => api.post("/auth/resend-otp", data),
+  // Free SMS fallback: the user sends "MOTA verify <code>" to MOTA's WhatsApp number.
+  whatsappStart: (userId: string) =>
+    api.post<{ link: string; expiresAt: string }>("/auth/whatsapp/start", { userId }),
+  whatsappStatus: (userId: string) =>
+    api.get<{ verified: boolean }>("/auth/whatsapp/status", { params: { userId } }),
   resendEmailOtp: (data: { email: string }) =>
     api.post("/auth/resend-email-otp", data),
   verifyEmailOtp: (data: { email: string; otp: string }) =>
@@ -168,6 +173,13 @@ export function normalizeEstimate(body: any): FareOption[] {
 
 export type FareOption = { vehicleType: VehicleType; distanceKm: number; durationMinutes: number; minimumFare: number; maximumFare: number; suggestedFare: number; encodedPolyline?: string | null; routeSource: "google" | "estimate" };
 
+// Promo codes: the backend computes the price; preview reserves nothing.
+export type PromoPreview = { code: string; discount: number; payAmount: number; originalAmount: number };
+export const promoApi = {
+  preview: (data: { code: string; appliesTo: "ride" | "registration_fee"; rideId?: string }) =>
+    api.post<{ data: PromoPreview }>("/promos/preview", data),
+};
+
 export const ridesApi = {
   // Driver-side
   acceptRide: (id: string) => api.post(`/rides/${id}/accept`),
@@ -223,9 +235,10 @@ export const ridesApi = {
   requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
   confirmStart: (id: string) => api.post(`/rides/${id}/confirm-start`),
   requestStop: (id: string, deliveryPin?: string) => api.post(`/rides/${id}/request-stop`, deliveryPin ? { deliveryPin } : {}),
-  confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
+  confirmStop: (id: string, promoCode?: string) => api.post(`/rides/${id}/confirm-stop`, promoCode ? { promoCode } : {}),
   claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
-  payRide: (id: string, phone?: string) => api.post(`/rides/${id}/pay`, phone ? { phone } : {}),
+  payRide: (id: string, phone?: string, promoCode?: string) =>
+    api.post(`/rides/${id}/pay`, { ...(phone ? { phone } : {}), ...(promoCode ? { promoCode } : {}) }),
   share: (id: string) => api.post<{ data: { url: string; expiresAt: string } }>(`/rides/${id}/share`),
   getMessages: (id: string) => api.get(`/rides/${id}/messages`),
   sendMessage: (id: string, text: string) => api.post(`/rides/${id}/messages`, { text }),
@@ -358,7 +371,7 @@ export const walletApi = {
     api.post("/wallet/cash-in", data, {
       headers: { "Idempotency-Key": idempotencyKey },
     }),
-  cashOut: (data: { amount: number }, idempotencyKey: string) =>
+  cashOut: (data: { amount: number; phone: string; password: string }, idempotencyKey: string) =>
     api.post("/wallet/cash-out", data, {
       headers: { "Idempotency-Key": idempotencyKey },
     }),

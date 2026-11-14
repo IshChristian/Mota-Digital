@@ -15,6 +15,11 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isPassengerRole } from "@/constants/roles";
 import { rwf, usePricing } from "@/hooks/usePricing";
+import { useT } from "@/context/I18nContext";
+import { RwandaPhoneInput } from "@/components/RwandaPhoneInput";
+import { normalizeRwandaPhone } from "@/utils/rwandaPhone";
+import { PromoCodeInput } from "@/components/payments/PromoCodeInput";
+import type { PromoPreview } from "@/services/api";
 
 export default function PaymentRegistrationScreen() {
   // The fee set in admin Settings (the server charges the same amount).
@@ -37,6 +42,11 @@ export default function PaymentRegistrationScreen() {
     : `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
   const displayPhone = params.phone || user?.phone || "";
   const displayEmail = params.email || user?.email || "";
+  const t = useT();
+  // The fee can be paid from any MoMo number; paying from the account's own number also confirms it.
+  const [payerPhone, setPayerPhone] = useState(displayPhone);
+  const [promo, setPromo] = useState<PromoPreview | null>(null);
+  const toPay = promo ? promo.payAmount : fee;
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -56,10 +66,13 @@ export default function PaymentRegistrationScreen() {
 
   const handlePay = async () => {
     if (isPassengerRole(user?.role)) return;
+    const payFrom = normalizeRwandaPhone(payerPhone);
+    if (!payFrom) { setError(t("money.invalid_phone")); return; }
     setLoading(true);
     setError("");
     try {
-      const res = await authApi.payRegistration({ phone: displayPhone });
+      // `phone` identifies the account; `payerPhone` is the MoMo number that gets the prompt.
+      const res = await authApi.payRegistration({ phone: displayPhone, payerPhone: payFrom, ...(promo ? { promoCode: promo.code } : {}) });
       const ref = res.data?.ref || res.data?.data?.ref; // Extract Paypack ref from response
       setSuccess(true);
       
@@ -170,10 +183,18 @@ export default function PaymentRegistrationScreen() {
       {/* Payment amount */}
       <View style={s.payCard}>
         <Text style={s.payLabel}>Amount to Pay</Text>
-        <Text style={s.payAmount}>{rwf(fee)}</Text>
+        <Text style={s.payAmount}>{rwf(toPay)}</Text>
+        {promo ? <Text style={[s.payNote, { textDecorationLine: "line-through" }]}>{rwf(fee)}</Text> : null}
         <View style={s.payRow}>
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
-          <Text style={s.payNote}>via MTN MoMo to {displayPhone}</Text>
+          <Text style={s.payNote}>{t("money.fee_pay_from")}</Text>
+        </View>
+        {/* The card centres its content; stretch the box so it keeps the card's padding. */}
+        <View style={{ alignSelf: "stretch", marginTop: 12 }}>
+          <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
+        </View>
+        <View style={{ alignSelf: "stretch", marginTop: 12 }}>
+          <PromoCodeInput appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
         </View>
       </View>
 
@@ -190,7 +211,7 @@ export default function PaymentRegistrationScreen() {
         ) : (
           <>
             <Feather name="credit-card" size={20} color="#fff" />
-            <Text style={s.payBtnText}>Pay {rwf(fee)}</Text>
+            <Text style={s.payBtnText}>Pay {rwf(toPay)}</Text>
           </>
         )}
       </TouchableOpacity>
