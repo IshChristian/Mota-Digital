@@ -184,7 +184,10 @@ export default function PaymentRegistrationScreen() {
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
           <Text style={s.payNote}>{t("money.fee_pay_from")}</Text>
         </View>
-        <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
+        {/* The card centres its content; stretch the box so it keeps the card's padding. */}
+        <View style={{ alignSelf: "stretch", marginTop: 12 }}>
+          <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
+        </View>
       </View>
 
       {error ? (
