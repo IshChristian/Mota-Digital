@@ -91,7 +91,7 @@ export default function OtpScreen() {
     }
   };
 
-  // While the user is in WhatsApp: poll every 3 s until the code expires, and check
+  // While the user is in WhatsApp: poll every 5 s until the code expires, and check
   // straight away when they come back to the app.
   useEffect(() => {
     if (waState !== "waiting" || !userId) return;
@@ -104,7 +104,7 @@ export default function OtpScreen() {
         if (data.verified && !done) { done = true; await onVerified(); }
       } catch { /* keep polling; a dropped request isn't a failure */ }
     };
-    const interval = setInterval(check, 3000);
+    const interval = setInterval(check, 5000);
     const sub = AppState.addEventListener("change", (next) => { if (next === "active") check(); });
     const onFocus = () => check();
     if (Platform.OS === "web") window.addEventListener("focus", onFocus);
