@@ -384,6 +384,13 @@ export default {
     saving: "Inahifadhi…",
     add: "Ongeza mtu wa dharura",
   },
+  promo: {
+    label: "Msimbo wa ofa",
+    apply: "Tumia",
+    remove: "Ondoa",
+    applied: "−{{discount}} RWF · utalipa {{payAmount}} RWF",
+    placeholder: "Weka msimbo",
+  },
   money: {
     withdraw_to: "Tuma kwa namba hii",
     password_confirm: "Nenosiri lako la MOTA",

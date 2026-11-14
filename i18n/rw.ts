@@ -383,6 +383,13 @@ export default {
     saving: "Birabikwa…",
     add: "Ongeraho umuntu",
   },
+  promo: {
+    label: "Kode ya poromosiyo",
+    apply: "Koresha",
+    remove: "Kuramo",
+    applied: "−{{discount}} RWF · uriha {{payAmount}} RWF",
+    placeholder: "Andika kode",
+  },
   money: {
     withdraw_to: "Ohereza kuri iyi nimero",
     password_confirm: "Ijambo ry'ibanga rya MOTA",

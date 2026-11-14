@@ -173,6 +173,13 @@ export function normalizeEstimate(body: any): FareOption[] {
 
 export type FareOption = { vehicleType: VehicleType; distanceKm: number; durationMinutes: number; minimumFare: number; maximumFare: number; suggestedFare: number; encodedPolyline?: string | null; routeSource: "google" | "estimate" };
 
+// Promo codes: the backend computes the price; preview reserves nothing.
+export type PromoPreview = { code: string; discount: number; payAmount: number; originalAmount: number };
+export const promoApi = {
+  preview: (data: { code: string; appliesTo: "ride" | "registration_fee"; rideId?: string }) =>
+    api.post<{ data: PromoPreview }>("/promos/preview", data),
+};
+
 export const ridesApi = {
   // Driver-side
   acceptRide: (id: string) => api.post(`/rides/${id}/accept`),
@@ -228,9 +235,10 @@ export const ridesApi = {
   requestStart: (id: string) => api.post(`/rides/${id}/request-start`),
   confirmStart: (id: string) => api.post(`/rides/${id}/confirm-start`),
   requestStop: (id: string, deliveryPin?: string) => api.post(`/rides/${id}/request-stop`, deliveryPin ? { deliveryPin } : {}),
-  confirmStop: (id: string) => api.post(`/rides/${id}/confirm-stop`),
+  confirmStop: (id: string, promoCode?: string) => api.post(`/rides/${id}/confirm-stop`, promoCode ? { promoCode } : {}),
   claimFare: (id: string) => api.post(`/rides/${id}/claim-fare`),
-  payRide: (id: string, phone?: string) => api.post(`/rides/${id}/pay`, phone ? { phone } : {}),
+  payRide: (id: string, phone?: string, promoCode?: string) =>
+    api.post(`/rides/${id}/pay`, { ...(phone ? { phone } : {}), ...(promoCode ? { promoCode } : {}) }),
   share: (id: string) => api.post<{ data: { url: string; expiresAt: string } }>(`/rides/${id}/share`),
   getMessages: (id: string) => api.get(`/rides/${id}/messages`),
   sendMessage: (id: string, text: string) => api.post(`/rides/${id}/messages`, { text }),

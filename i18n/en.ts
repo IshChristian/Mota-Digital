@@ -383,6 +383,13 @@ export default {
     saving: "Saving…",
     add: "Add emergency contact",
   },
+  promo: {
+    label: "Promo code",
+    apply: "Apply",
+    remove: "Remove",
+    applied: "−{{discount}} RWF · you pay {{payAmount}} RWF",
+    placeholder: "Enter code",
+  },
   money: {
     withdraw_to: "Send to this number",
     password_confirm: "Your MOTA password",
