@@ -6,6 +6,10 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
@@ -46,6 +50,7 @@ export default function PaymentRegistrationScreen() {
   // The fee can be paid from any MoMo number; paying from the account's own number also confirms it.
   const [payerPhone, setPayerPhone] = useState(displayPhone);
   const [promo, setPromo] = useState<PromoPreview | null>(null);
+  const [promoKey, setPromoKey] = useState(0);
   const toPay = promo ? promo.payAmount : fee;
 
   const [loading, setLoading] = useState(false);
@@ -53,6 +58,17 @@ export default function PaymentRegistrationScreen() {
   const [error, setError] = useState("");
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  // The MoMo number, promo box and Pay button sit at the bottom: keep them above the keyboard.
+  const scrollToBottom = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+
+  useEffect(() => {
+    const sub = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", scrollToBottom);
+    return () => sub.remove();
+  }, []);
+
+  // A new error or an applied code changes the height: bring the message and Pay button into view.
+  useEffect(() => { if (error || promo) scrollToBottom(); }, [error, promo]);
 
   useEffect(() => {
     if (isPassengerRole(user?.role)) router.replace("/(passenger)" as any);
@@ -113,6 +129,8 @@ export default function PaymentRegistrationScreen() {
         }
       }
     } catch (err: any) {
+      // A code refused at payment time is cleared so the next tap pays the normal fee.
+      if (err.response?.data?.reason) { setPromo(null); setPromoKey((k) => k + 1); }
       const msg = err.response?.data?.message || "Payment initiation failed";
       if (msg.toLowerCase().includes("already active")) {
         router.replace("/(driver)" as any);
@@ -147,7 +165,17 @@ export default function PaymentRegistrationScreen() {
   }
 
   return (
-    <View style={[s.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+    <ScrollView
+      ref={scrollRef}
+      style={{ flex: 1 }}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <View style={s.iconWrap}>
         <Feather name="smartphone" size={40} color={colors.primary} />
       </View>
@@ -194,7 +222,7 @@ export default function PaymentRegistrationScreen() {
           <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
         </View>
         <View style={{ alignSelf: "stretch", marginTop: 12 }}>
-          <PromoCodeInput appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
+          <PromoCodeInput key={promoKey} appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
         </View>
       </View>
 
@@ -219,7 +247,8 @@ export default function PaymentRegistrationScreen() {
       <Text style={s.disclaimer}>
         You will receive a MoMo push notification to confirm the payment. Make sure your phone is on.
       </Text>
-    </View>
+    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -230,6 +259,14 @@ const styles = (colors: any) =>
       backgroundColor: colors.background,
       paddingHorizontal: 24,
       alignItems: "center",
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+      alignItems: "center",
+      width: "100%",
+      maxWidth: 520,
+      alignSelf: "center",
     },
     iconWrap: {
       width: 80,

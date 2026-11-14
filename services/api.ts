@@ -174,7 +174,7 @@ export function normalizeEstimate(body: any): FareOption[] {
 export type FareOption = { vehicleType: VehicleType; distanceKm: number; durationMinutes: number; minimumFare: number; maximumFare: number; suggestedFare: number; encodedPolyline?: string | null; routeSource: "google" | "estimate" };
 
 // Promo codes: the backend computes the price; preview reserves nothing.
-export type PromoPreview = { code: string; discount: number; payAmount: number; originalAmount: number };
+export type PromoPreview = { code: string; discount: number; payAmount: number; originalAmount: number; percent: number };
 export const promoApi = {
   preview: (data: { code: string; appliesTo: "ride" | "registration_fee"; rideId?: string }) =>
     api.post<{ data: PromoPreview }>("/promos/preview", data),

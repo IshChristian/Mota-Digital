@@ -1,4 +1,5 @@
 import { Alert } from "@/components/GlobalAlert";
+import { rwf, usePricing } from "@/hooks/usePricing";
 import React, { useRef, useState } from "react";
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -97,6 +98,13 @@ export default function WalletScreen() {
     setSubmitError("");
   };
 
+  // The cash-out fee comes out of the amount: withdrawing 7,000 at 2% sends 6,860 to MoMo.
+  const { pricing } = usePricing();
+  const cashOutPercent = pricing.fees.cashOutPercent;
+  const typedAmount = Math.floor(Number(amount) || 0);
+  const cashOutFee = Math.round(typedAmount * (cashOutPercent / 100));
+  const cashOutReceive = Math.max(0, typedAmount - cashOutFee);
+
   const handleSubmit = async () => {
     if (submissionLock.current) return;
     const amt = parseFloat(amount);
@@ -132,11 +140,10 @@ export default function WalletScreen() {
           createIdempotencyKey("wallet-cash-out"),
         );
         const result = response.data?.data;
+        const receive = typeof result?.payoutAmount === "number" ? result.payoutAmount : amt - Math.round(amt * (cashOutPercent / 100));
         Alert.alert(
           "Withdrawal request received",
-          result?.status === "queued"
-            ? `Your request for ${amt.toLocaleString()} RWF is queued. Payout starts once queued withdrawals reach 10,000 RWF. After payout starts, it usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`
-            : `Your request for ${amt.toLocaleString()} RWF was received. Payout usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`,
+          `Your request for ${rwf(amt)} was received. You will get ${rwf(receive)} on MoMo after the cash-out fee. Payout usually arrives within 2 hours, depending on the provider. Track the status in your wallet.`,
         );
       }
       closeModal();
@@ -378,6 +385,13 @@ export default function WalletScreen() {
                   />
                 </View>
               </View>
+
+              {modalType !== "cash_in" && typedAmount > 0 && cashOutPercent > 0 ? (
+                <View style={s.feeBreakdown}>
+                  <Text style={s.feeLine}>Cash-out fee ({cashOutPercent}%): −{rwf(cashOutFee)}</Text>
+                  <Text style={s.feeReceive}>You receive {rwf(cashOutReceive)}</Text>
+                </View>
+              ) : null}
 
               {/* Quick amounts */}
               <View style={s.quickAmounts}>
@@ -651,6 +665,21 @@ const styles = (colors: any) =>
       color: colors.textSecondary,
     },
     quickAmtTextActive: { color: colors.primary },
+    feeBreakdown: {
+      marginTop: -4,
+      marginBottom: 12,
+      gap: 2,
+    },
+    feeLine: {
+      fontSize: 12,
+      fontFamily: "Inter_400Regular",
+      color: colors.textSecondary,
+    },
+    feeReceive: {
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.textPrimary,
+    },
     errorRow: {
       flexDirection: "row",
       alignItems: "center",

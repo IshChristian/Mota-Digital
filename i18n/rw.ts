@@ -383,11 +383,19 @@ export default {
     saving: "Birabikwa…",
     add: "Ongeraho umuntu",
   },
+  verify: {
+    title: "Emeza konti kugira ngo ugende",
+    body: "Mbere y'urugendo rwa mbere, emeza imeli yawe kandi wohereze indangamuntu. Bitwara iminota nka ibiri kandi bituma urugendo rwose rugira umutekano.",
+    email: "Emeza imeli yawe",
+    identity: "Ohereza indangamuntu (imbere, inyuma n'ifoto yawe)",
+    done: "Byakozwe",
+    email_required: "Imeli irakenewe ku bagenzi.",
+  },
   promo: {
     label: "Kode ya poromosiyo",
-    apply: "Koresha",
+    apply: "Genzura",
     remove: "Kuramo",
-    applied: "−{{discount}} RWF · uriha {{payAmount}} RWF",
+    applied: "Igabanyirizwa rya {{percent}}% · wishyura {{payAmount}} RWF",
     placeholder: "Andika kode",
   },
   money: {

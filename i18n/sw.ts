@@ -384,11 +384,19 @@ export default {
     saving: "Inahifadhi…",
     add: "Ongeza mtu wa dharura",
   },
+  verify: {
+    title: "Thibitisha ili usafiri",
+    body: "Kabla ya safari yako ya kwanza, thibitisha barua pepe yako na utume kitambulisho chako. Inachukua kama dakika mbili na huweka kila safari salama.",
+    email: "Thibitisha barua pepe yako",
+    identity: "Tuma kitambulisho (mbele, nyuma na selfie)",
+    done: "Imekamilika",
+    email_required: "Barua pepe inahitajika kwa abiria.",
+  },
   promo: {
     label: "Msimbo wa ofa",
-    apply: "Tumia",
+    apply: "Thibitisha",
     remove: "Ondoa",
-    applied: "−{{discount}} RWF · utalipa {{payAmount}} RWF",
+    applied: "Punguzo la {{percent}}% · utalipa {{payAmount}} RWF",
     placeholder: "Weka msimbo",
   },
   money: {

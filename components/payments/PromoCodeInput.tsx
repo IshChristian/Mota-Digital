@@ -57,7 +57,7 @@ export function PromoCodeInput({ appliesTo, rideId, disabled, onChange }: Props)
         <View style={s.appliedRow}>
           <Feather name="tag" size={16} color={colors.success} />
           <Text style={[s.appliedText, { color: colors.success }]}>
-            {applied.code} · {t("promo.applied", { discount: applied.discount.toLocaleString(), payAmount: applied.payAmount.toLocaleString() })}
+            {applied.code} · {t("promo.applied", { percent: String(applied.percent), payAmount: applied.payAmount.toLocaleString() })}
           </Text>
           <TouchableOpacity accessibilityRole="button" onPress={remove} disabled={disabled}>
             <Text style={s.link}>{t("promo.remove")}</Text>
