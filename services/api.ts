@@ -71,6 +71,11 @@ export const authApi = {
   login: (data: any) => api.post("/auth/login", data),
   verifyOtp: (data: any) => api.post("/auth/verify-otp", data),
   resendOtp: (data: any) => api.post("/auth/resend-otp", data),
+  // Free SMS fallback: the user sends "MOTA verify <code>" to MOTA's WhatsApp number.
+  whatsappStart: (userId: string) =>
+    api.post<{ link: string; expiresAt: string }>("/auth/whatsapp/start", { userId }),
+  whatsappStatus: (userId: string) =>
+    api.get<{ verified: boolean }>("/auth/whatsapp/status", { params: { userId } }),
   resendEmailOtp: (data: { email: string }) =>
     api.post("/auth/resend-email-otp", data),
   verifyEmailOtp: (data: { email: string; otp: string }) =>

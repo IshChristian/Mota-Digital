@@ -7,6 +7,9 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  AppState,
+  Linking,
+  Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +24,10 @@ export default function OtpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
+  // WhatsApp fallback: "idle" → "waiting" (link opened, polling) | "unavailable" (backend not set up).
+  const [waState, setWaState] = useState<"idle" | "starting" | "waiting" | "unavailable">("idle");
+  const [waLink, setWaLink] = useState("");
+  const [waExpiresAt, setWaExpiresAt] = useState(0);
 
   const { user, updateUser } = useAuth();
   const t = useT();
@@ -50,6 +57,65 @@ export default function OtpScreen() {
     if (!value && index > 0) inputs.current[index - 1]?.focus();
   };
 
+  // Same next step as a correct SMS code.
+  const onVerified = async () => {
+    if (user) {
+      await updateUser({ isVerified: true });
+    } else {
+      router.replace("/(auth)/login");
+    }
+  };
+
+  const openWhatsApp = (link: string) => {
+    if (Platform.OS === "web") window.open(link, "_blank", "noopener");
+    else Linking.openURL(link).catch(() => setError(t("auth.wa_unavailable")));
+  };
+
+  const startWhatsApp = async () => {
+    if (!userId) return;
+    setError("");
+    setWaState("starting");
+    try {
+      const { data } = await authApi.whatsappStart(String(userId));
+      setWaLink(data.link);
+      setWaExpiresAt(new Date(data.expiresAt).getTime());
+      setWaState("waiting");
+      openWhatsApp(data.link);
+    } catch (err: any) {
+      if (err.response?.status === 503) {
+        setWaState("unavailable");
+      } else {
+        setWaState("idle");
+        setError(err.response?.data?.message || t("auth.wa_unavailable"));
+      }
+    }
+  };
+
+  // While the user is in WhatsApp: poll every 3 s until the code expires, and check
+  // straight away when they come back to the app.
+  useEffect(() => {
+    if (waState !== "waiting" || !userId) return;
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      if (Date.now() > waExpiresAt) { done = true; setWaState("idle"); return; }
+      try {
+        const { data } = await authApi.whatsappStatus(String(userId));
+        if (data.verified && !done) { done = true; await onVerified(); }
+      } catch { /* keep polling; a dropped request isn't a failure */ }
+    };
+    const interval = setInterval(check, 3000);
+    const sub = AppState.addEventListener("change", (next) => { if (next === "active") check(); });
+    const onFocus = () => check();
+    if (Platform.OS === "web") window.addEventListener("focus", onFocus);
+    return () => {
+      done = true;
+      clearInterval(interval);
+      sub.remove();
+      if (Platform.OS === "web") window.removeEventListener("focus", onFocus);
+    };
+  }, [waState, waExpiresAt, userId]);
+
   const verifyOtp = async () => {
     const code = otp.join("");
     if (code.length < 6) { setError(t("auth.enter_6")); return; }
@@ -57,11 +123,7 @@ export default function OtpScreen() {
     setError("");
     try {
       await authApi.verifyOtp({ userId, otp: code });
-      if (user) {
-        await updateUser({ isVerified: true });
-      } else {
-        router.replace("/(auth)/login");
-      }
+      await onVerified();
     } catch (err: any) {
       setError(err.response?.data?.message || t("auth.invalid_otp"));
     } finally {
@@ -145,6 +207,29 @@ export default function OtpScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {userId && waState !== "unavailable" ? (
+          <>
+            <TouchableOpacity
+              style={s.waButton}
+              onPress={waState === "waiting" ? () => openWhatsApp(waLink) : startWhatsApp}
+              disabled={waState === "starting"}
+            >
+              {waState === "starting" ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <Feather name="message-circle" size={18} color={colors.primary} />
+                  <Text style={s.waButtonText}>
+                    {waState === "waiting" ? t("auth.wa_open_again") : t("auth.wa_verify")}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {waState === "waiting" ? <Text style={s.waHint}>{t("auth.wa_waiting")}</Text> : null}
+          </>
+        ) : null}
+        {waState === "unavailable" ? <Text style={s.waHint}>{t("auth.wa_unavailable")}</Text> : null}
       </View>
     </View>
   );
@@ -255,5 +340,29 @@ const styles = (colors: any) =>
     },
     resendDisabled: {
       color: colors.textTertiary,
+    },
+    waButton: {
+      width: "100%",
+      marginTop: 24,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      borderRadius: 12,
+      padding: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    waButtonText: {
+      color: colors.primary,
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+    },
+    waHint: {
+      marginTop: 12,
+      color: colors.textSecondary,
+      fontFamily: "Inter_400Regular",
+      fontSize: 14,
+      textAlign: "center",
     },
   });
