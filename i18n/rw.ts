@@ -383,6 +383,15 @@ export default {
     saving: "Birabikwa…",
     add: "Ongeraho umuntu",
   },
+  money: {
+    withdraw_to: "Ohereza kuri iyi nimero",
+    password_confirm: "Ijambo ry'ibanga rya MOTA",
+    password_hint: "Andika ijambo ry'ibanga kugira ngo wemeze kubikuza.",
+    pay_from: "Ishyura ukoresheje iyi nimero ya MoMo",
+    fee_pay_from: "Ishyura amafaranga y'iyandikwa ukoresheje iyi nimero ya MoMo",
+    phone_unproven: "Nimero yawe yemezwa ubwayo nyuma yo kwishyura bwa mbere na mobile money uyikoresheje.",
+    invalid_phone: "Andika nimero y'u Rwanda itangirwa na 07 cyangwa 7",
+  },
   auth: {
     join_as: "Injira muri MOTA nka {{role}}",
     tagline: "Genda. Injiza. Kura.",

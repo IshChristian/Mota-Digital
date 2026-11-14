@@ -384,6 +384,15 @@ export default {
     saving: "Inahifadhi…",
     add: "Ongeza mtu wa dharura",
   },
+  money: {
+    withdraw_to: "Tuma kwa namba hii",
+    password_confirm: "Nenosiri lako la MOTA",
+    password_hint: "Weka nenosiri lako kuthibitisha utoaji huu.",
+    pay_from: "Lipa kutoka namba hii ya MoMo",
+    fee_pay_from: "Lipa ada kutoka namba hii ya MoMo",
+    phone_unproven: "Namba yako inathibitishwa yenyewe baada ya malipo yako ya kwanza ya pesa kwa simu kutoka namba hiyo.",
+    invalid_phone: "Weka namba sahihi ya Rwanda inayoanza na 07 au 7",
+  },
   auth: {
     join_as: "Jiunge na MOTA kama {{role}}",
     tagline: "Songa. Pata. Kua.",

@@ -383,6 +383,15 @@ export default {
     saving: "Enregistrement…",
     add: "Ajouter un contact",
   },
+  money: {
+    withdraw_to: "Envoyer à ce numéro",
+    password_confirm: "Votre mot de passe MOTA",
+    password_hint: "Saisissez votre mot de passe pour confirmer ce retrait.",
+    pay_from: "Payer depuis ce numéro MoMo",
+    fee_pay_from: "Payer les frais depuis ce numéro MoMo",
+    phone_unproven: "Votre numéro est confirmé automatiquement après votre premier paiement mobile money depuis ce numéro.",
+    invalid_phone: "Saisissez un numéro rwandais valide commençant par 07 ou 7",
+  },
   auth: {
     join_as: "Rejoindre MOTA en tant que {{role}}",
     tagline: "Bougez. Gagnez. Grandissez.",

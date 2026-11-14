@@ -13,6 +13,7 @@ import axios from "axios";
 
 import { financeApi, fineRequestsApi, getApiErrorMessage, loansApi } from "@/services/api";
 import { useT } from "@/context/I18nContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme, type ThemeColors } from "@/context/ThemeContext";
 import { Alert } from "@/components/GlobalAlert";
 import { useFinanceStore } from "@/store/financeStore";
@@ -37,6 +38,7 @@ export default function LoansScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const t = useT();
+  const { user } = useAuth();
   const { colors } = useTheme();
   const s = styles(colors);
   const client = useQueryClient();
@@ -147,6 +149,10 @@ export default function LoansScreen() {
             <Text style={[s.small, { marginTop: 8, color: eligibility.eligible ? colors.success : colors.error }]}>
               {eligibility.eligible ? t("loan.limit", { amount: money(eligibility.maxAmount) }) : eligibility.reason}
             </Text>
+          ) : null}
+          {/* Loans need a confirmed number; it confirms itself on the first MoMo payment from it. */}
+          {eligibility && !eligibility.eligible && user?.isVerified === false ? (
+            <Text style={[s.small, { marginTop: 4 }]}>{t("money.phone_unproven")}</Text>
           ) : null}
         </View>
 

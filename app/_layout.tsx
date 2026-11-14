@@ -54,16 +54,14 @@ function RootLayoutNav() {
       segments[0] === "+not-found";
     const isPassenger = isPassengerRole(user?.role);
 
-    const needsPhoneVerification = isAuthenticated && user?.isVerified === false;
+    // No phone code any more: a MoMo payment from the registered number proves the phone.
     const needsDriverReview = isAuthenticated && user?.role === "driver" &&
-      (user.isVerified !== true || user.isActive !== true || user.registrationPaid !== true || user.registrationStatus !== "approved" || user.kycLevel !== "full");
+      (user.isActive !== true || user.registrationPaid !== true || user.registrationStatus !== "approved" || user.kycLevel !== "full");
 
     if (!isAuthenticated && !inAuthGroup && !isPublicInformation) {
       router.replace("/(auth)/welcome" as any);
     } else if (isAuthenticated) {
-      if (needsPhoneVerification && user?.role !== "driver") {
-        if (segments[1] !== "otp" && segments[1] !== "confirm-phone") router.replace("/(auth)/confirm-phone");
-      } else if (needsDriverReview) {
+      if (needsDriverReview) {
         const allowed = (segments[0] === "(auth)" && ["verification-progress", "confirm-phone", "otp", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||
           (segments[0] === "(driver)" && segments[1] === "kyc");
         if (!allowed) router.replace("/(auth)/verification-progress" as any);

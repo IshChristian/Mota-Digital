@@ -383,6 +383,15 @@ export default {
     saving: "Saving…",
     add: "Add emergency contact",
   },
+  money: {
+    withdraw_to: "Send to this number",
+    password_confirm: "Your MOTA password",
+    password_hint: "Enter your password to confirm this withdrawal.",
+    pay_from: "Pay from this MoMo number",
+    fee_pay_from: "Pay the fee from this MoMo number",
+    phone_unproven: "Your number is confirmed automatically after your first mobile money payment from it.",
+    invalid_phone: "Enter a valid Rwanda phone number starting with 07 or 7",
+  },
   auth: {
     join_as: "Join MOTA as a {{role}}",
     tagline: "Move. Earn. Grow.",

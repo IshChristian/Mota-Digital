@@ -363,7 +363,7 @@ export const walletApi = {
     api.post("/wallet/cash-in", data, {
       headers: { "Idempotency-Key": idempotencyKey },
     }),
-  cashOut: (data: { amount: number }, idempotencyKey: string) =>
+  cashOut: (data: { amount: number; phone: string; password: string }, idempotencyKey: string) =>
     api.post("/wallet/cash-out", data, {
       headers: { "Idempotency-Key": idempotencyKey },
     }),
