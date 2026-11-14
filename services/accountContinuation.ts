@@ -1,6 +1,6 @@
 type Account = {role?:string;isVerified?:boolean;isActive?:boolean;registrationPaid?:boolean;registrationStatus?:string;kycLevel?:string;onboarding?:{kycStatus?:string}};
 export function accountContinuation(user:Account): string {
-  if (user.isVerified !== true) return '/(auth)/confirm-phone';
+  // No phone step any more: a MoMo payment from the registered number proves it.
   if (user.role === 'driver') {
     const kycStatus=user.onboarding?.kycStatus || (user.kycLevel==='full'?'approved':'not_submitted');
     if (!['submitted','approved'].includes(kycStatus)) return '/(auth)/driver-kyc';

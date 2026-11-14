@@ -96,35 +96,9 @@ export default function LoginScreen() {
           return;
         }
 
-        // Check cached verification data to avoid sending a verified user to confirm-phone
-        let cachedVerification: any = null;
-        try {
-          const cached = await AsyncStorage.getItem(`verification_cache_${loginIdentifier}`);
-          if (cached) cachedVerification = JSON.parse(cached);
-        } catch {}
-
-        // Determine if the user actually needs phone verification
-        const responseUser = errData.user;
-        const isAlreadyVerified =
-          responseUser?.isVerified === true ||
-          cachedVerification?.isVerified === true;
-
-        if (isAlreadyVerified) {
-          // User is already verified — the 403 is for another reason (isActive: false)
-          setError(
-            errData.message ||
-            t("auth.inactive")
-          );
-        } else {
-          // User genuinely needs phone verification
-          router.push({
-            pathname: "/(auth)/confirm-phone",
-            params: {
-              phone: errData.phone || loginIdentifier,
-              userId: errData.userId,
-            },
-          });
-        }
+        // There is no phone-code step any more (SMS is down; a MoMo payment proves the number),
+        // so a refused login only shows why — it never opens the SMS code screen.
+        setError(errData.message || t("auth.inactive"));
       } else {
         setError(err.response?.data?.message || t("error"));
       }

@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasDriverProfile(resolved.hasDriverProfile === true);
       setAccountError('');
       setIsAccountReady(true);
-      if (resolved.role === 'driver' && resolved.isActive && resolved.isVerified && resolved.registrationPaid) void fetchRiderStatus();
+      if (resolved.role === 'driver' && resolved.isActive && resolved.registrationPaid) void fetchRiderStatus();
       return resolved;
     } catch (error) {
       if (expectedToken && await getStoredToken() === expectedToken) {
