@@ -10,27 +10,29 @@ import {
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { authApi } from "@/services/api";
+import { authApi, getApiErrorMessage } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function VerifyEmailScreen() {
+  const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ email?: string }>();
   const { colors } = useTheme();
   const { user, refreshAccount } = useAuth();
 
-  const email = params.email || user?.email || "your email";
+  const email = params.email || user?.email || "";
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [resendMsg, setResendMsg] = useState("");
-  const [timer, setTimer] = useState(60);
+  const [timer, setTimer] = useState(0);
   const inputs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
@@ -40,7 +42,15 @@ export default function VerifyEmailScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleOtpChange = (value: string, index: number) => {
+  const handleOtpChange = (text: string, index: number) => {
+    const value = text.replace(/\D/g, "");
+    if (value.length > 1) {
+      // A pasted or autofilled code fills the boxes from the first one.
+      const next = value.length >= 6 ? value.slice(0, 6).split("") : otp.map((d, i) => value[i - index] ?? d);
+      setOtp(next);
+      inputs.current[Math.min(value.length >= 6 ? 5 : index + value.length, 5)]?.focus();
+      return;
+    }
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
@@ -51,36 +61,38 @@ export default function VerifyEmailScreen() {
   const handleContinue = async () => {
     const code = otp.join("");
     if (code.length < 6) {
-      setError("Please enter all 6 digits");
+      setError(t("auth.enter_6"));
       return;
     }
     setLoading(true);
     setError("");
+    setResendMsg("");
     try {
       await authApi.verifyEmailOtp({ email, otp: code });
       await refreshAccount();
       safeBack(router);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid verification code");
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (timer > 0) return;
+    if (timer > 0 || resending) return;
+    if (!email) { setError(t("email_verify.no_email")); return; }
     setResending(true);
     setError("");
     setResendMsg("");
     try {
       await authApi.resendEmailOtp({ email });
       setTimer(60);
-      setResendMsg("A new code has been sent to your email");
+      setResendMsg(t("email_verify.resent"));
       // Clear the OTP inputs
       setOtp(["", "", "", "", "", ""]);
       setTimeout(() => setResendMsg(""), 5000);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to resend code");
+      setError(getApiErrorMessage(err));
     } finally {
       setResending(false);
     }
@@ -94,13 +106,13 @@ export default function VerifyEmailScreen() {
         <Feather name="mail" size={48} color={colors.primary} />
       </View>
 
-      <Text style={s.title}>Verify Your Email</Text>
-      <TouchableOpacity onPress={() => safeBack(router)} accessibilityRole="button" style={{ padding: 12 }}><Text style={{ color: colors.primary }}>Do this later</Text></TouchableOpacity>
+      <Text style={s.title}>{t("email_verify.title")}</Text>
+      <TouchableOpacity onPress={() => safeBack(router)} accessibilityRole="button" style={{ padding: 12 }}><Text style={{ color: colors.primary }}>{t("email_verify.later")}</Text></TouchableOpacity>
       <Text style={s.subtitle}>
-        We sent a 6-digit verification code to{"\n"}
+        {t("email_verify.sent_to")}{"\n"}
         <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>{email}</Text>
         {"\n\n"}
-        Please check your inbox and enter the code below.
+        {t("email_verify.expires")}
       </Text>
 
       {error ? <Text style={s.errorText}>{error}</Text> : null}
@@ -118,7 +130,11 @@ export default function VerifyEmailScreen() {
             ref={(ref) => { inputs.current[index] = ref; }}
             style={[s.otpInput, digit ? s.otpInputFilled : null]}
             keyboardType="number-pad"
-            maxLength={1}
+            maxLength={6}
+            selectTextOnFocus
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
+            accessibilityLabel={t("email_verify.digit", { n: String(index + 1) })}
             value={digit}
             onChangeText={(value) => handleOtpChange(value, index)}
             onKeyPress={({ nativeEvent }) => {
@@ -138,18 +154,18 @@ export default function VerifyEmailScreen() {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={s.buttonText}>Verify Email</Text>
+          <Text style={s.buttonText}>{t("email_verify.button")}</Text>
         )}
       </TouchableOpacity>
 
       <View style={s.resendContainer}>
-        <Text style={s.resendText}>Didn't receive code? </Text>
+        <Text style={s.resendText}>{t("auth.no_code")} </Text>
         <TouchableOpacity onPress={handleResendOtp} disabled={timer > 0 || resending}>
           {resending ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Text style={[s.resendLink, timer > 0 && s.resendDisabled]}>
-              Resend {timer > 0 ? `(${timer}s)` : ""}
+              {t("email_verify.resend")} {timer > 0 ? `(${timer}s)` : ""}
             </Text>
           )}
         </TouchableOpacity>
@@ -195,11 +211,14 @@ const styles = (colors: any) =>
       flexDirection: "row",
       justifyContent: "space-between",
       width: "100%",
+      maxWidth: 440,
       marginBottom: 32,
       gap: 8,
     },
     otpInput: {
       flex: 1,
+      // Browser inputs won't shrink below their default width without this.
+      minWidth: 0,
       height: 60,
       backgroundColor: colors.inputBg,
       borderWidth: 1.5,
@@ -219,6 +238,7 @@ const styles = (colors: any) =>
     },
     button: {
       width: "100%",
+      maxWidth: 440,
       backgroundColor: colors.primary,
       borderRadius: 12,
       padding: 16,
@@ -245,6 +265,7 @@ const styles = (colors: any) =>
       padding: 10,
       marginBottom: 16,
       width: "100%",
+      maxWidth: 440,
     },
     successText: {
       fontSize: 13,

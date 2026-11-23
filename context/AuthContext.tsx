@@ -203,8 +203,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     autoOnline.current!.reset();
-    await authApi.logout().catch((error) => console.warn('Unable to revoke remote session', error));
-    await unregisterPushNotifications().catch((error) => console.warn('Unable to unregister push token', error));
+    // Both need the session, so they run before it is cleared; a slow network must not keep the person signed in.
+    await Promise.race([
+      (async () => {
+        await unregisterPushNotifications().catch((error) => console.warn('Unable to unregister push token', error));
+        await authApi.logout().catch((error) => console.warn('Unable to revoke remote session', error));
+      })(),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
     await clearSensitiveSession();
     setToken(null);
     setUser(null);

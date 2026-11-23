@@ -46,9 +46,9 @@ export function TripPanel({ ride, momoAvailable, onChanged, onCancel, onSos }: P
   const toPay = promo ? promo.payAmount : ride.fare;
   const payByMomo = () => {
     const phone = normalizeRwandaPhone(payPhone);
-    if (!phone) { setPayError(t("money.invalid_phone")); return; }
+    if (!phone && promo?.payAmount !== 0) { setPayError(t("money.invalid_phone")); return; }
     setPayError("");
-    act("pay", withPromo(() => ridesApi.payRide(ride._id, phone, promo?.code)));
+    act("pay", withPromo(() => ridesApi.payRide(ride._id, phone || undefined, promo?.code)));
   };
   const d = ride.driver;
   const status = ride.rideStatus;
@@ -149,7 +149,7 @@ export function TripPanel({ ride, momoAvailable, onChanged, onCancel, onSos }: P
           {/* Wallet rides are charged at "Confirm arrival", so their promo box sits here. */}
           {ride.paymentMethod === "wallet" ? <PromoCodeInput key={promoKey} appliesTo="ride" rideId={ride._id} disabled={!!busy} onChange={setPromo} /> : null}
           <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("stop", withPromo(() => ridesApi.confirmStop(ride._id, ride.paymentMethod === "wallet" ? promo?.code : undefined)))} style={s.primaryBtn}>
-            {busy === "stop" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("trip.confirm_arrival")}{ride.paymentMethod === "wallet" && promo ? ` · ${promo.payAmount.toLocaleString()} RWF` : ""}</Text>}
+            {busy === "stop" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("trip.confirm_arrival")}{ride.paymentMethod === "wallet" && promo ? ` · ${promo.payAmount === 0 ? t("promo.free") : `${promo.payAmount.toLocaleString()} RWF`}` : ""}</Text>}
           </TouchableOpacity>
         </View>
       ) : null}
@@ -160,12 +160,12 @@ export function TripPanel({ ride, momoAvailable, onChanged, onCancel, onSos }: P
           <View style={s.card}><Text style={s.body}>{t("trip.pay_cash", { amount: ride.fare.toLocaleString() })}</Text></View>
         ) : ride.paymentMethod === "momo" && momoAvailable ? (
           <View style={{ gap: 8 }}>
-            <Text style={s.body}>{t("money.pay_from")}</Text>
-            <RwandaPhoneInput value={payPhone} onChangeText={setPayPhone} accessibilityLabel={t("money.pay_from")} />
+            {promo?.payAmount === 0 ? null : <><Text style={s.body}>{t("money.pay_from")}</Text>
+            <RwandaPhoneInput value={payPhone} onChangeText={setPayPhone} accessibilityLabel={t("money.pay_from")} /></>}
             <PromoCodeInput key={promoKey} appliesTo="ride" rideId={ride._id} disabled={!!busy} onChange={setPromo} />
             {payError ? <Text style={[s.body, { color: colors.error }]}>{payError}</Text> : null}
             <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={payByMomo} style={s.primaryBtn}>
-              {busy === "pay" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("trip.pay_now", { amount: toPay.toLocaleString() })} · MoMo</Text>}
+              {busy === "pay" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{promo?.payAmount === 0 ? t("fee.pay_free") : `${t("trip.pay_now", { amount: toPay.toLocaleString() })} · MoMo`}</Text>}
             </TouchableOpacity>
           </View>
         ) : (

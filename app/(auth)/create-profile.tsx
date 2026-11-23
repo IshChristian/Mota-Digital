@@ -142,12 +142,11 @@ export default function CreateProfileScreen() {
       } catch {}
 
       // After profile creation, update state with pending admin review
-      await updateUser({ kycLevel: "full", registrationStatus: "pending" });
+      await updateUser({ registrationStatus: "pending" });
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to create profile";
       if (msg.toLowerCase().includes("already exists")) {
-        // Profile already exists — update state
-        await updateUser({ kycLevel: "full" });
+        // Profile already exists: nothing to update (KYC approval comes from staff only).
       } else {
         setError(msg);
       }
