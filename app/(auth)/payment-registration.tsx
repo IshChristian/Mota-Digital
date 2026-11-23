@@ -17,6 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { authApi, paymentApi } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { accountContinuation } from "@/services/accountContinuation";
 import { isPassengerRole } from "@/constants/roles";
 import { rwf, usePricing } from "@/hooks/usePricing";
 import { useT } from "@/context/I18nContext";
@@ -51,6 +52,7 @@ export default function PaymentRegistrationScreen() {
   const [payerPhone, setPayerPhone] = useState(displayPhone);
   const [promo, setPromo] = useState<PromoPreview | null>(null);
   const [promoKey, setPromoKey] = useState(0);
+  const free = promo?.payAmount === 0;
   const toPay = promo ? promo.payAmount : fee;
 
   const [loading, setLoading] = useState(false);
@@ -80,15 +82,22 @@ export default function PaymentRegistrationScreen() {
     };
   }, []);
 
+  // The fee is settled: show what is left to do instead of waiting here.
+  const finish = async () => {
+    const account = await refreshAccount();
+    router.replace(accountContinuation(account) as any);
+  };
+
   const handlePay = async () => {
     if (isPassengerRole(user?.role)) return;
     const payFrom = normalizeRwandaPhone(payerPhone);
-    if (!payFrom) { setError(t("money.invalid_phone")); return; }
+    if (!payFrom && !free) { setError(t("money.invalid_phone")); return; }
     setLoading(true);
     setError("");
     try {
       // `phone` identifies the account; `payerPhone` is the MoMo number that gets the prompt.
-      const res = await authApi.payRegistration({ phone: displayPhone, payerPhone: payFrom, ...(promo ? { promoCode: promo.code } : {}) });
+      const res = await authApi.payRegistration({ phone: displayPhone, ...(payFrom ? { payerPhone: payFrom } : {}), ...(promo ? { promoCode: promo.code } : {}) });
+      if (res.data?.paid === true) { await finish(); return; }
       const ref = res.data?.ref || res.data?.data?.ref; // Extract Paypack ref from response
       setSuccess(true);
       
@@ -106,15 +115,15 @@ export default function PaymentRegistrationScreen() {
               
               if (user) {
                 const verified = await authApi.registrationStatus({ userId: user.id });
-                if (verified.data?.paid === true) await refreshAccount();
-                else { setSuccess(false); setError("Payment was received but confirmation is still pending. Refresh your setup status shortly."); }
+                if (verified.data?.paid === true) await finish();
+                else { setSuccess(false); setError(t("fee.pending")); }
               }
             } else if (status === 'failed') {
               if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
               pollIntervalRef.current = null;
               
               setSuccess(false);
-              setError("Payment failed. Please try again.");
+              setError(t("fee.failed"));
             }
           } catch (err) {
             console.error("Error checking payment status", err);
@@ -124,14 +133,14 @@ export default function PaymentRegistrationScreen() {
         // A missing reference is never proof of payment.
         if (user) {
           const profile = await authApi.registrationStatus({ userId: user.id }).catch(() => null);
-          if (profile?.data?.paid === true) await refreshAccount();
-          else { setSuccess(false); setError("Payment reference unavailable. Check your setup status before trying again."); }
+          if (profile?.data?.paid === true) await finish();
+          else { setSuccess(false); setError(t("fee.no_ref")); }
         }
       }
     } catch (err: any) {
       // A code refused at payment time is cleared so the next tap pays the normal fee.
       if (err.response?.data?.reason) { setPromo(null); setPromoKey((k) => k + 1); }
-      const msg = err.response?.data?.message || "Payment initiation failed";
+      const msg = err.response?.data?.message || t("fee.start_failed");
       if (msg.toLowerCase().includes("already active")) {
         router.replace("/(driver)" as any);
       } else {
@@ -153,11 +162,10 @@ export default function PaymentRegistrationScreen() {
         <View style={s.successIcon}>
           <Feather name="check-circle" size={64} color={colors.success} />
         </View>
-        <Text style={s.successTitle}>Payment Initiated!</Text>
+        <Text style={s.successTitle}>{t("fee.started")}</Text>
         <Text style={s.successDesc}>
-          You'll receive a MoMo push notification to approve the payment of{" "}
-          <Text style={{ color: colors.primary, fontFamily: "Inter_700Bold" }}>{rwf(fee)}</Text>.
-          {"\n\n"}Waiting for payment confirmation...
+          {t("fee.started_body", { amount: rwf(toPay) })}
+          {"\n\n"}{t("fee.waiting")}
         </Text>
         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
       </View>
@@ -180,14 +188,14 @@ export default function PaymentRegistrationScreen() {
         <Feather name="smartphone" size={40} color={colors.primary} />
       </View>
 
-      <Text style={s.title}>Registration Fee</Text>
+      <Text style={s.title}>{t("fee.title")}</Text>
       <Text style={s.subtitle}>
-        A one-time registration fee is required to activate your MOTA driver account.
+        {t("fee.subtitle")}
       </Text>
 
       {/* User info card */}
       <View style={s.infoCard}>
-        <Text style={s.infoCardTitle}>Account Details</Text>
+        <Text style={s.infoCardTitle}>{t("fee.details")}</Text>
         {displayName ? (
           <View style={s.infoRow}>
             <Feather name="user" size={15} color={colors.textSecondary} />
@@ -210,17 +218,17 @@ export default function PaymentRegistrationScreen() {
 
       {/* Payment amount */}
       <View style={s.payCard}>
-        <Text style={s.payLabel}>Amount to Pay</Text>
+        <Text style={s.payLabel}>{t("fee.amount")}</Text>
         <Text style={s.payAmount}>{rwf(toPay)}</Text>
         {promo ? <Text style={[s.payNote, { textDecorationLine: "line-through" }]}>{rwf(fee)}</Text> : null}
-        <View style={s.payRow}>
+        {free ? null : <><View style={s.payRow}>
           <Feather name="smartphone" size={14} color={colors.textSecondary} />
           <Text style={s.payNote}>{t("money.fee_pay_from")}</Text>
         </View>
         {/* The card centres its content; stretch the box so it keeps the card's padding. */}
         <View style={{ alignSelf: "stretch", marginTop: 12 }}>
           <RwandaPhoneInput value={payerPhone} onChangeText={setPayerPhone} accessibilityLabel={t("money.fee_pay_from")} />
-        </View>
+        </View></>}
         <View style={{ alignSelf: "stretch", marginTop: 12 }}>
           <PromoCodeInput key={promoKey} appliesTo="registration_fee" disabled={loading || success} onChange={setPromo} />
         </View>
@@ -238,14 +246,14 @@ export default function PaymentRegistrationScreen() {
           <ActivityIndicator color="#fff" />
         ) : (
           <>
-            <Feather name="credit-card" size={20} color="#fff" />
-            <Text style={s.payBtnText}>Pay {rwf(toPay)}</Text>
+            <Feather name={free ? "gift" : "credit-card"} size={20} color="#fff" />
+            <Text style={s.payBtnText}>{free ? t("fee.pay_free") : t("fee.pay", { amount: rwf(toPay) })}</Text>
           </>
         )}
       </TouchableOpacity>
 
       <Text style={s.disclaimer}>
-        You will receive a MoMo push notification to confirm the payment. Make sure your phone is on.
+        {free ? t("fee.note_free") : t("fee.note")}
       </Text>
     </ScrollView>
     </KeyboardAvoidingView>

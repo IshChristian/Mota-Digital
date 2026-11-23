@@ -160,7 +160,7 @@ export default function OtpScreen() {
         </View>
         <Text style={s.title}>{t("otp_verify")}</Text>
         <Text style={s.subtitle}>
-          We sent a 6-digit code to{"\n"}
+          {t("email_verify.code_sent_to")}{"\n"}
           <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>
             {phone || "+250 XXX XXX XXX"}
           </Text>
@@ -203,7 +203,7 @@ export default function OtpScreen() {
           <Text style={s.resendText}>{t("auth.no_code")} </Text>
           <TouchableOpacity onPress={handleResend} disabled={timer > 0}>
             <Text style={[s.resendLink, timer > 0 && s.resendDisabled]}>
-              Resend {timer > 0 ? `(${timer}s)` : ""}
+              {t("email_verify.resend")} {timer > 0 ? `(${timer}s)` : ""}
             </Text>
           </TouchableOpacity>
         </View>
@@ -287,6 +287,8 @@ const styles = (colors: any) =>
     },
     otpInput: {
       flex: 1,
+      // Browser inputs won't shrink below their default width without this.
+      minWidth: 0,
       height: 60,
       backgroundColor: colors.inputBg,
       borderWidth: 1.5,

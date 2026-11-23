@@ -35,6 +35,9 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// Screens in the (auth) group that only make sense for a signed-in account.
+const SIGNED_IN_SETUP = ["verification-progress", "driver-kyc", "payment-registration", "create-profile", "verify-email"];
+
 function RootLayoutNav() {
   const { isAuthenticated, isLoading, isAccountReady, accountError, refreshAccount, logout, user } = useAuth();
   const segments = useSegments() as string[];
@@ -60,6 +63,10 @@ function RootLayoutNav() {
 
     if (!isAuthenticated && !inAuthGroup && !isPublicInformation) {
       router.replace("/(auth)/welcome" as any);
+    } else if (!isAuthenticated && inAuthGroup && SIGNED_IN_SETUP.includes(segments[1])) {
+      // Signed out (or session ended) on a setup screen: these need an account, so go to sign in.
+      if (router.canDismiss()) router.dismissAll();
+      router.replace("/(auth)/login" as any);
     } else if (isAuthenticated) {
       if (needsDriverReview) {
         const allowed = (segments[0] === "(auth)" && ["verification-progress", "confirm-phone", "otp", "verify-email", "driver-kyc", "payment-registration"].includes(segments[1])) ||

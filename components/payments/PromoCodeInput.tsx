@@ -57,7 +57,7 @@ export function PromoCodeInput({ appliesTo, rideId, disabled, onChange }: Props)
         <View style={s.appliedRow}>
           <Feather name="tag" size={16} color={colors.success} />
           <Text style={[s.appliedText, { color: colors.success }]}>
-            {applied.code} · {t("promo.applied", { percent: String(applied.percent), payAmount: applied.payAmount.toLocaleString() })}
+            {applied.code} · {applied.payAmount === 0 ? t("promo.free") : t("promo.applied", { percent: String(applied.percent), payAmount: applied.payAmount.toLocaleString() })}
           </Text>
           <TouchableOpacity accessibilityRole="button" onPress={remove} disabled={disabled}>
             <Text style={s.link}>{t("promo.remove")}</Text>
@@ -91,12 +91,13 @@ const styles = (colors: any) =>
   StyleSheet.create({
     wrap: { alignSelf: "stretch", gap: 6 },
     label: { color: colors.textSecondary, fontSize: 13, fontFamily: "Inter_500Medium" },
-    row: { flexDirection: "row", gap: 8 },
+    row: { flexDirection: "row", gap: 8, alignSelf: "stretch" },
+    // minWidth 0: browsers give a text box a built-in minimum width, which pushed "Verify" out of narrow cards.
     input: {
-      flex: 1, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12,
+      flex: 1, minWidth: 0, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12,
       paddingHorizontal: 14, paddingVertical: 12, color: colors.textPrimary, fontFamily: "Inter_600SemiBold", fontSize: 15, letterSpacing: 1,
     },
-    applyBtn: { borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, paddingHorizontal: 16, justifyContent: "center", minWidth: 80, alignItems: "center" },
+    applyBtn: { borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, paddingHorizontal: 16, justifyContent: "center", minWidth: 80, flexShrink: 0, alignItems: "center" },
     applyText: { color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 14 },
     appliedRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: `${colors.success}18` },
     appliedText: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 14 },

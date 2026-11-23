@@ -2,30 +2,29 @@ import React, { useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const slides = [
   {
     icon: "map-pin",
-    title: "Request with confidence",
-    message:
-      "Choose pickup and destination, review the fare, and follow every ride stage.",
+    title: "onboard.t1",
+    message: "onboard.m1",
   },
   {
     icon: "navigation",
-    title: "Track the journey",
-    message:
-      "See nearby drivers, arrival progress, route movement, and confirmations in one place.",
+    title: "onboard.t2",
+    message: "onboard.m2",
   },
   {
     icon: "shield",
-    title: "Payments and support",
-    message:
-      "Use recorded wallet transactions and reach MOTA support when a ride needs help.",
+    title: "onboard.t3",
+    message: "onboard.m3",
   },
 ] as const;
 export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
+  const t = useT();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const slide = slides[index];
@@ -39,10 +38,10 @@ export default function OnboardingScreen() {
         <Feather name={slide.icon} size={46} color={colors.primary} />
       </View>
       <Text style={[s.title, { color: colors.textPrimary }]}>
-        {slide.title}
+        {t(slide.title)}
       </Text>
       <Text style={[s.message, { color: colors.textSecondary }]}>
-        {slide.message}
+        {t(slide.message)}
       </Text>
       <View style={s.dots}>
         {slides.map((_, i) => (
@@ -67,13 +66,13 @@ export default function OnboardingScreen() {
         }
       >
         <Text style={s.buttonText}>
-          {index < slides.length - 1 ? "Next" : "Get started"}
+          {index < slides.length - 1 ? t("onboard.next") : t("onboard.start")}
         </Text>
         <Feather name="arrow-right" size={18} color="#fff" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.replace("/(auth)/welcome")}>
         <Text style={[s.skip, { color: colors.textSecondary }]}>
-          Skip walkthrough
+          {t("onboard.skip")}
         </Text>
       </TouchableOpacity>
     </View>

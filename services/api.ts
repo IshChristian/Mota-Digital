@@ -270,7 +270,7 @@ async function searchOpenStreetMap(q: string, near?: { latitude: number; longitu
     }
   } catch { /* try Nominatim */ }
   const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=rw&limit=10`, {
-    headers: { Accept: "application/json", "User-Agent": "MOTA-App/1.0 (support@mota.africa)" },
+    headers: { Accept: "application/json", "User-Agent": "MOTA-App/1.0 (tiangroupinnovation@gmail.com)" },
   });
   if (!response.ok) throw new Error("Place search is unavailable. Tap the map to choose a place.");
   const rows: any[] = await response.json();
