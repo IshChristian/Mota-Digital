@@ -255,6 +255,12 @@ export default {
     next: "Ibikurikira",
   },
   drive: {
+    slide_to: "Sunika: {{action}}",
+    request_n: "Icyifuzo cya {{n}} muri {{total}}",
+    later: "Nyuma",
+    next_request: "Icyifuzo gikurikira",
+    prev_request: "Icyifuzo kibanza",
+    request_gone: "Icyo cyifuzo ntikikiboneka.",
     to_pickup: "Jya aho umugenzi ari",
     at_pickup: "Ugeze aho umugenzi ari",
     waiting_passenger: "Utegereje umugenzi",
@@ -778,6 +784,7 @@ export default {
     skip: "Simbuka",
   },
   email_verify: {
+    sending: "Turi kohereza kode yawe…",
     title: "Emeza imeyili yawe",
     later: "Bikore nyuma",
     sent_to: "Andika kode y'imibare 6 yoherejwe kuri",

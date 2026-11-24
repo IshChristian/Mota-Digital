@@ -17,6 +17,10 @@ import { authApi, getApiErrorMessage } from "@/services/api";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// When a code was last requested, so reopening the screen does not send another.
+const lastSent = new Map<string, number>();
+const RESEND_AFTER_S = 60;
+
 export default function VerifyEmailScreen() {
   const t = useT();
   const router = useRouter();
@@ -78,6 +82,15 @@ export default function VerifyEmailScreen() {
     }
   };
 
+  // Codes last 5 minutes, so someone opening this screen later needs a new one.
+  useEffect(() => {
+    if (!email) return;
+    const wait = RESEND_AFTER_S - Math.floor((Date.now() - (lastSent.get(email) ?? 0)) / 1000);
+    if (wait > 0) setTimer(wait);
+    else void handleResendOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
+
   const handleResendOtp = async () => {
     if (timer > 0 || resending) return;
     if (!email) { setError(t("email_verify.no_email")); return; }
@@ -86,7 +99,8 @@ export default function VerifyEmailScreen() {
     setResendMsg("");
     try {
       await authApi.resendEmailOtp({ email });
-      setTimer(60);
+      lastSent.set(email, Date.now());
+      setTimer(RESEND_AFTER_S);
       setResendMsg(t("email_verify.resent"));
       // Clear the OTP inputs
       setOtp(["", "", "", "", "", ""]);
@@ -109,7 +123,7 @@ export default function VerifyEmailScreen() {
       <Text style={s.title}>{t("email_verify.title")}</Text>
       <TouchableOpacity onPress={() => safeBack(router)} accessibilityRole="button" style={{ padding: 12 }}><Text style={{ color: colors.primary }}>{t("email_verify.later")}</Text></TouchableOpacity>
       <Text style={s.subtitle}>
-        {t("email_verify.sent_to")}{"\n"}
+        {t(resending ? "email_verify.sending" : "email_verify.sent_to")}{"\n"}
         <Text style={{ color: colors.textPrimary, fontFamily: "Inter_600SemiBold" }}>{email}</Text>
         {"\n\n"}
         {t("email_verify.expires")}

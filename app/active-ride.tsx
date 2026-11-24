@@ -9,6 +9,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import { Alert } from "@/components/GlobalAlert";
 import { ridesApi, productionApi, mapsApi, getApiErrorMessage, type RouteResult } from "@/services/api";
+import { SlideButton } from "@/components/driver/SlideButton";
 import { NextTurn } from "@/components/passenger/ride/DirectionsList";
 import { callNumber } from "@/utils/share";
 import { useLiveLocation } from "@/hooks/useLiveLocation";
@@ -181,17 +182,13 @@ export default function ActiveRideScreen() {
         ) : null}
 
         {(status === "accepted" || status === "approaching") ? (
-          <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("arrive", () => ridesApi.notifyArrival(ride._id))} style={s.primaryBtn}>
-            {busy === "arrive" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.arrived")}{kmToPickup != null && kmToPickup > 2 ? ` · ${t("drive.km_away", { km: kmToPickup.toFixed(1) })}` : ""}</Text>}
-          </TouchableOpacity>
+          <SlideButton key="arrive" label={`${t("drive.arrived")}${kmToPickup != null && kmToPickup > 2 ? ` · ${t("drive.km_away", { km: kmToPickup.toFixed(1) })}` : ""}`} disabled={!!busy} loading={busy === "arrive"} onConfirm={() => act("arrive", () => ridesApi.notifyArrival(ride._id))} />
         ) : null}
 
         {(status === "arrived" || status === "start_requested") ? (
           <View style={{ gap: 10 }}>
             {status === "arrived" ? (
-              <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("reqStart", () => ridesApi.requestStart(ride._id))} style={s.primaryBtn}>
-                {busy === "reqStart" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.ask_start")}</Text>}
-              </TouchableOpacity>
+              <SlideButton key="reqStart" label={t("drive.ask_start")} disabled={!!busy} loading={busy === "reqStart"} onConfirm={() => act("reqStart", () => ridesApi.requestStart(ride._id))} />
             ) : <View style={[s.card, s.row]}><ActivityIndicator color={colors.primary} /><Text style={s.body}>{t("drive.waiting_start")}</Text></View>}
             <Text style={s.subtitle}>{t("drive.or_pin")}</Text>
             <View style={s.row}>
@@ -209,9 +206,7 @@ export default function ActiveRideScreen() {
                 <View style={s.inputBox}><TextInput style={[s.input, { letterSpacing: 8, fontSize: 20 }]} value={deliveryPin} onChangeText={(v) => setDeliveryPin(v.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" placeholder={t("drive.delivery_code")} placeholderTextColor={colors.textTertiary} accessibilityLabel={t("drive.delivery_code")} /></View>
               </>
             ) : null}
-            <TouchableOpacity accessibilityRole="button" disabled={!!busy || (isParcel && deliveryPin.length !== 4)} onPress={() => act("stop", () => ridesApi.requestStop(ride._id, isParcel ? deliveryPin : undefined))} style={[s.primaryBtn, isParcel && deliveryPin.length !== 4 && { opacity: 0.5 }]}>
-              {busy === "stop" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t(isParcel ? "drive.confirm_delivery" : "drive.end_ride")}</Text>}
-            </TouchableOpacity>
+            <SlideButton key="stop" label={t(isParcel ? "drive.confirm_delivery" : "drive.end_ride")} disabled={!!busy || (isParcel && deliveryPin.length !== 4)} loading={busy === "stop"} onConfirm={() => act("stop", () => ridesApi.requestStop(ride._id, isParcel ? deliveryPin : undefined))} />
           </View>
         ) : null}
 
@@ -219,13 +214,9 @@ export default function ActiveRideScreen() {
 
         {status === "awaiting_payment" ? (
           ride.paymentStatus === "successful" ? (
-            <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("claim", () => ridesApi.claimFare(ride._id))} style={s.primaryBtn}>
-              {busy === "claim" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.payment_received_finish")}</Text>}
-            </TouchableOpacity>
+            <SlideButton key="claim" label={t("drive.payment_received_finish")} disabled={!!busy} loading={busy === "claim"} onConfirm={() => act("claim", () => ridesApi.claimFare(ride._id))} />
           ) : ride.paymentMethod === "cash" ? (
-            <TouchableOpacity accessibilityRole="button" disabled={!!busy} onPress={() => act("cash", () => ridesApi.claimFare(ride._id))} style={s.primaryBtn}>
-              {busy === "cash" ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{t("drive.received_cash", { amount: ride.fare.toLocaleString() })}</Text>}
-            </TouchableOpacity>
+            <SlideButton key="cash" label={t("drive.received_cash", { amount: ride.fare.toLocaleString() })} disabled={!!busy} loading={busy === "cash"} onConfirm={() => act("cash", () => ridesApi.claimFare(ride._id))} />
           ) : ride.paymentStatus === "failed" ? (
             <View style={s.card}><Text style={s.body}>{t("drive.payment_failed")}</Text></View>
           ) : <View style={[s.card, s.row]}><ActivityIndicator color={colors.primary} /><Text style={[s.body, { flex: 1 }]}>{t("drive.waiting_payment")}</Text></View>

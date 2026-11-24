@@ -256,6 +256,12 @@ export default {
     next: "Inayofuata",
   },
   drive: {
+    slide_to: "Telezesha: {{action}}",
+    request_n: "Ombi {{n}} kati ya {{total}}",
+    later: "Baadaye",
+    next_request: "Ombi linalofuata",
+    prev_request: "Ombi lililotangulia",
+    request_gone: "Ombi hilo halipatikani tena.",
     to_pickup: "Nenda kumchukua abiria",
     at_pickup: "Umefika kwa abiria",
     waiting_passenger: "Unamsubiri abiria",
@@ -816,6 +822,7 @@ export default {
     skip: "Ruka maelezo",
   },
   email_verify: {
+    sending: "Tunatuma msimbo wako…",
     title: "Thibitisha barua pepe yako",
     later: "Fanya baadaye",
     sent_to: "Weka nambari ya tarakimu 6 iliyotumwa kwa",
