@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +13,8 @@ import { driverApi, ridesApi, getApiErrorMessage } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import { Metric, StatusPill } from "@/components/driver/DriverUI";
+import { SlideButton } from "@/components/driver/SlideButton";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RequestRouteMap } from "@/components/driver/RequestRouteMap";
 import { useWideLayout } from "@/hooks/useWideLayout";
 
@@ -34,6 +36,8 @@ type RideRequest = {
   estimatedDistanceKm?: number;
   estimatedDurationMin?: number;
   maximumFare?: number;
+  /** Price this driver already proposed. */
+  counterSent?: number;
   rideType?: "ride" | "parcel";
   vehicleType?: "motor" | "car";
   paymentMethod?: "cash" | "momo" | "wallet";
@@ -42,6 +46,13 @@ type RideRequest = {
 
 interface RideRequestModalProps {
   request: RideRequest | null;
+  /** Position among the open requests (0-based) and how many there are. */
+  index?: number;
+  total?: number;
+  onMove?: (step: 1 | -1) => void;
+  /** Put the alert away without answering; the request stays in the Requests tab. */
+  onLater: () => void;
+  notice?: string;
   onAccept: (id: string) => Promise<void> | void;
   onDecline: (id: string) => Promise<void> | void;
 }
@@ -53,19 +64,25 @@ function place(value: RideRequest["pickup"], fallback: string) {
 
 export function RideRequestModal({
   request,
+  index = 0,
+  total = 1,
+  onMove,
+  onLater,
+  notice,
   onAccept,
   onDecline,
 }: RideRequestModalProps) {
   const { colors } = useTheme();
   const t = useT();
   const { wide } = useWideLayout();
+  const insets = useSafeAreaInsets();
   const [action, setAction] = useState<"accept" | "decline" | "counter" | null>(null);
   const [counterSent, setCounterSent] = useState<number | null>(null);
   const [counterError, setCounterError] = useState("");
 
   const receiptId = request?.id || request?._id;
   // Reset only for a different request: a live refresh of the same one keeps "offer sent".
-  useEffect(() => { setAction(null); setCounterSent(null); setCounterError(""); }, [receiptId]);
+  useEffect(() => { setAction(null); setCounterSent(request?.counterSent ?? null); setCounterError(""); }, [receiptId]);
   useEffect(() => {
     if (receiptId) void driverApi.acknowledgeOffer(receiptId).catch(() => console.warn('Offer receipt could not be recorded.'));
   }, [receiptId]);
@@ -96,7 +113,7 @@ export function RideRequestModal({
   };
 
   return (
-    <Modal visible transparent animationType={wide ? "fade" : "slide"} statusBarTranslucent>
+    <Modal visible transparent onRequestClose={() => { if (action !== "accept") onLater(); }} animationType={wide ? "fade" : "slide"} statusBarTranslucent>
       <View style={[styles.overlay, wide && styles.overlayWide]}>
         <View
           style={[styles.sheet, wide && styles.sheetWide, { backgroundColor: colors.backgroundCard }]}
@@ -106,8 +123,16 @@ export function RideRequestModal({
               <RequestRouteMap rideId={rideId} pickup={request.pickup} destination={request.destination} height="100%" zoomControls />
             </View>
           ) : <View style={[styles.handle, { backgroundColor: colors.border }]} />}
+          <View style={wide ? { flex: 1 } : { flexShrink: 1 }}>
+          {total > 1 ? (
+            <View style={styles.pager}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("drive.prev_request")} disabled={action !== null || index === 0} onPress={() => onMove?.(-1)} style={[styles.pagerBtn, { backgroundColor: colors.backgroundElevated, opacity: index === 0 ? 0.4 : 1 }]}><Feather name="chevron-left" size={22} color={colors.textPrimary} /></TouchableOpacity>
+              <Text accessibilityLiveRegion="polite" style={[styles.pagerText, { color: colors.textPrimary }]}>{t("drive.request_n", { n: String(index + 1), total: String(total) })}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("drive.next_request")} disabled={action !== null || index >= total - 1} onPress={() => onMove?.(1)} style={[styles.pagerBtn, { backgroundColor: colors.backgroundElevated, opacity: index >= total - 1 ? 0.4 : 1 }]}><Feather name="chevron-right" size={22} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+          ) : null}
           <ScrollView
-            style={wide ? { flex: 1 } : undefined}
+            style={[wide ? { flex: 1 } : { flexShrink: 1 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : null]}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}
           >
@@ -269,55 +294,25 @@ export function RideRequestModal({
             {!rideId ? (
               <Text style={[styles.error, { color: colors.error }]}>{t("drive.missing_id")}</Text>
             ) : null}
-
+          </ScrollView>
+          {/* Outside the scroll area: always in reach, and sliding never fights scrolling. */}
+          <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+            {notice ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: colors.error }]}>{notice}</Text> : null}
+            <View style={styles.footerFare}>
+              <Text style={[styles.footerAmount, { color: colors.success }]}>{Number(request.offeredFare ?? request.fare ?? 0).toLocaleString()} RWF</Text>
+              {typeof request.driverEarning === "number" ? <Text style={[styles.fareLabel, { color: colors.textSecondary, flexShrink: 1, textAlign: "right" }]}>{t("drive.take_home")}: {request.driverEarning.toLocaleString()} RWF</Text> : null}
+            </View>
+            <SlideButton key={rideId} label={t("drive.accept_ride")} icon="check" color={colors.success} disabled={!rideId} loading={action === "accept"} onConfirm={() => submit("accept")} />
             <View style={styles.actions}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                disabled={!rideId || action !== null}
-                onPress={() => void submit("decline")}
-                style={[
-                  styles.button,
-                  {
-                    backgroundColor: colors.backgroundElevated,
-                    opacity: !rideId || action ? 0.55 : 1,
-                  },
-                ]}
-              >
-                {action === "decline" ? (
-                  <ActivityIndicator color={colors.textPrimary} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.secondaryText,
-                      { color: colors.textPrimary },
-                    ]}
-                  >{t("drive.decline")}</Text>
-                )}
+              <TouchableOpacity accessibilityRole="button" disabled={action === "accept"} onPress={onLater} style={[styles.button, { backgroundColor: colors.backgroundElevated, opacity: action === "accept" ? 0.55 : 1 }]}>
+                <Text style={[styles.secondaryText, { color: colors.textPrimary }]}>{t("drive.later")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                disabled={!rideId || action !== null}
-                onPress={() => void submit("accept")}
-                style={[
-                  styles.button,
-                  styles.accept,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity: !rideId || action ? 0.55 : 1,
-                  },
-                ]}
-              >
-                {action === "accept" ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Feather name="check" size={18} color="#fff" />
-                    <Text style={styles.acceptText}>{t("drive.accept_ride")}</Text>
-                  </>
-                )}
+              <TouchableOpacity accessibilityRole="button" disabled={!rideId || action !== null} onPress={() => void submit("decline")} style={[styles.button, { backgroundColor: colors.backgroundElevated, opacity: !rideId || action ? 0.55 : 1 }]}>
+                <Text style={[styles.secondaryText, { color: colors.error }]}>{t("drive.decline")}</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
+          </View>
         </View>
       </View>
     </Modal>
@@ -341,7 +336,13 @@ const styles = StyleSheet.create({
   overlayWide: { justifyContent: "center", padding: 32 },
   sheetWide: { flexDirection: "row", maxWidth: 1040, height: "86%", maxHeight: 720, borderRadius: 28, paddingTop: 0, overflow: "hidden" },
   wideMap: { flex: 1.1, padding: 12 },
-  content: { padding: 20, paddingBottom: 36, gap: 18 },
+  content: { padding: 20, gap: 18 },
+  footer: { paddingHorizontal: 20, paddingTop: 12, gap: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  footerFare: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  footerAmount: { flexShrink: 0, fontFamily: "Inter_700Bold", fontSize: 20 },
+  pager: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 12 },
+  pagerBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  pagerText: { fontFamily: "Inter_700Bold", fontSize: 14 },
   titleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -397,14 +398,12 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   button: {
     flexGrow: 1, flexBasis: 120,
-    minHeight: 54,
+    minHeight: 48,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
   },
-  accept: { flex: 1.5 },
   secondaryText: { flexShrink: 1, textAlign: "center", fontFamily: "Inter_700Bold", fontSize: 15 },
-  acceptText: { flexShrink: 1, textAlign: "center", color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
 });

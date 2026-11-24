@@ -255,6 +255,12 @@ export default {
     next: "Suivant",
   },
   drive: {
+    slide_to: "Glissez : {{action}}",
+    request_n: "Demande {{n}} sur {{total}}",
+    later: "Plus tard",
+    next_request: "Demande suivante",
+    prev_request: "Demande précédente",
+    request_gone: "Cette demande n'est plus disponible.",
     to_pickup: "Allez au point de départ",
     at_pickup: "Au point de départ",
     waiting_passenger: "En attente du passager",
@@ -778,6 +784,7 @@ export default {
     skip: "Passer la présentation",
   },
   email_verify: {
+    sending: "Envoi de votre code…",
     title: "Vérifiez votre e-mail",
     later: "Plus tard",
     sent_to: "Saisissez le code à 6 chiffres envoyé à",

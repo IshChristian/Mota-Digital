@@ -10,6 +10,7 @@ import { RequestRouteMap } from "@/components/driver/RequestRouteMap";
 import { ridesApi } from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
+import { SlideButton } from "@/components/driver/SlideButton";
 import { DriverButton, DriverCard, DriverHeader, DriverScreen, Metric, StatusPill } from "@/components/driver/DriverUI";
 
 const coordinate = (location: any) => location?.latitude != null || location?.lat != null
@@ -84,7 +85,7 @@ export default function RideRequestDetailsScreen() {
         </View>
         <View style={styles.detailGrid}><Info label={t("ride.requested")} value={ride.requestedAt || ride.createdAt ? new Date(ride.requestedAt || ride.createdAt).toLocaleString() : "—"} /><Info label={t("ride.scheduled")} value={scheduled} /><Info label={t("ride.payment")} value={ride.paymentMethod || "wallet"} /></View>
       </DriverCard>
-      <View style={styles.actions}><View style={{ flex: 1 }}><DriverButton label={t("ride.decline")} variant="secondary" disabled={submitting} onPress={() => void act(false)} /></View><View style={{ flex: 1 }}><DriverButton label={submitting ? t("ride.working") : t("ride.accept")} loading={submitting} onPress={() => void act(true)} /></View></View>
+      <View style={styles.actions}><View><SlideButton label={t("ride.accept")} icon="check" color={colors.success} loading={submitting} onConfirm={() => act(true)} /></View><DriverButton label={t("ride.decline")} variant="secondary" disabled={submitting} onPress={() => void act(false)} /></View>
     </DriverScreen>
   );
 }
@@ -102,5 +103,5 @@ const styles = StyleSheet.create({
   personMeta: { fontSize: 12, marginTop: 3 }, route: { flexDirection: "row" }, rail: { width: 20, alignItems: "center", marginRight: 10 },
   dot: { width: 10, height: 10, borderRadius: 5 }, line: { width: 2, flex: 1, minHeight: 40 }, label: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" },
   value: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 4 }, metrics: { flexDirection: "row", borderTopWidth: 1, marginTop: 18, paddingTop: 16 },
-  detailGrid: { gap: 12, marginTop: 18 }, actions: { flexDirection: "row", gap: 12 },
+  detailGrid: { gap: 12, marginTop: 18 }, actions: { gap: 12 },
 });

@@ -1,3 +1,4 @@
+import { SlideButton } from "@/components/driver/SlideButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GetAppCard } from "@/components/web/GetAppCard";
 import { useRealtimeEvent } from "@/hooks/useRealtime";
@@ -227,18 +228,7 @@ export default function DashboardScreen() {
             ? t("home.available")
             : t("home.not_receiving")}
         </Text>
-        <TouchableOpacity
-          style={[
-            s.toggleBtn,
-            { backgroundColor: isOnline ? "#EF4444" : "#10B981" },
-          ]}
-          onPress={toggleAvailability}
-          disabled={toggling}
-        >
-          <Text style={s.toggleBtnText}>
-            {toggling ? t("home.updating") : isOnline ? t("home.go_offline") : t("home.go_online")}
-          </Text>
-        </TouchableOpacity>
+        <SlideButton key={isOnline ? "offline" : "online"} label={isOnline ? t("home.go_offline") : t("home.go_online")} icon="power" color={isOnline ? "#EF4444" : "#10B981"} loading={toggling} onConfirm={toggleAvailability} />
       </View>
 
       {migrationStage?.currentStage === "repayment_trust" && (

@@ -1,20 +1,25 @@
 import { Alert, showMessage } from "@/components/GlobalAlert";
 import { BlurView } from "expo-blur";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { startRideAlert, stopRideAlert } from "@/services/rideAlert";
+import { stopRideAlert } from "@/services/rideAlert";
 import { useT } from "@/context/I18nContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { ridesApi } from "@/services/api";
+import { ridesApi, getApiErrorMessage } from "@/services/api";
 import { startDriverTracking, stopBackgroundTracking } from "@/services/driverLocation";
 import { canTrackDriverLocation } from "@/services/driverLocationTracking";
 import { useRealtimeEvent } from "@/hooks/useRealtime";
+import { useRideOffers } from "@/hooks/useRideOffers";
+import { offerId } from "@/utils/rideOffers";
 import { RideRequestModal } from "@/components/RideRequestModal";
 import { pageFrame, useWideLayout } from "@/hooks/useWideLayout";
+
+// A raised price is worth showing again, so "Later" covers a request at its current fare only.
+const laterKey = (offer: any) => `${offerId(offer)}:${offer.offeredFare}`;
 
 export default function TabLayout() {
   const router = useRouter();
@@ -26,7 +31,6 @@ export default function TabLayout() {
   const t = useT();
   const { colors, isDark } = useTheme();
   const { token, user } = useAuth();
-  const [incomingRequest, setIncomingRequest] = useState<any>(null);
   const [locationStatus, setLocationStatus] = useState<
     "granted" | "denied" | "off"
   >("granted");
@@ -51,72 +55,73 @@ export default function TabLayout() {
     return () => { cancelled = true; stop(); };
   }, [shouldTrack]);
 
-  // Ride offers arrive on the shared live connection.
-  useRealtimeEvent("ride_request", (request) => {
-    setIncomingRequest(request);
-    void startRideAlert(request?.rideId ?? request?.id);
-  });
+  // Every open request is kept; one is shown at a time and new ones queue behind it.
+  const { offers, close, clear, refresh } = useRideOffers(Boolean(user?.isOnline));
+  const [shownId, setShownId] = useState<string | null>(null);
+  const [later, setLater] = useState<ReadonlySet<string>>(new Set());
+  const [notice, setNotice] = useState("");
+  const pathname = usePathname();
+  // These screens already show the request or the trip.
+  const answering = pathname.startsWith("/ride-request") || pathname.startsWith("/active-ride");
+  useEffect(() => { void refresh(); }, [answering, refresh]);
+
+  const waiting = offers.filter((offer) => !later.has(laterKey(offer)));
+  const index = Math.max(0, waiting.findIndex((offer) => offerId(offer) === shownId));
+  const shown = answering ? null : waiting[index] ?? null;
+  const currentId = shown ? offerId(shown) : null;
+  // Stay on the request being read when others arrive or close.
+  useEffect(() => { if (currentId) setShownId(currentId); }, [currentId]);
+  useEffect(() => { if (!waiting.length) setNotice(""); }, [waiting.length]);
+
   useRealtimeEvent("rideAssigned", (data) => {
-    setIncomingRequest(null);
+    clear();
     stopRideAlert();
     if (data?.rideId) router.push({ pathname: "/active-ride", params: { rideId: String(data.rideId) } } as any);
   });
-  useRealtimeEvent("ride_request_closed", (data) => {
-    setIncomingRequest((current: any) => {
-      if (current && String(current.id ?? current.rideId) === String(data?.rideId)) { stopRideAlert(data?.rideId); return null; }
-      return current;
-    });
-  });
+
+  const openRide = (id: string) => {
+    clear();
+    setNotice("");
+    router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
+  };
 
   const handleAcceptRide = async (id: string) => {
+    stopRideAlert();
+    setNotice("");
     try {
-      stopRideAlert();
       await ridesApi.acceptRide(id);
-      setIncomingRequest(null);
-      router.push({ pathname: "/active-ride", params: { rideId: id } } as any);
+      openRide(id);
     } catch (e: any) {
-      console.error("Failed to accept ride", e);
       try {
+        // The reply may have been lost after the ride was given to this driver.
         const current = (await ridesApi.getRideStatus(id)).data;
-        if (
-          current?.driverId &&
-          [
-            "accepted",
-            "approaching",
-            "arrived",
-            "start_requested",
-            "in_progress",
-            "stop_requested",
-            "awaiting_payment",
-          ].includes(current.rideStatus)
-        ) {
-          setIncomingRequest(null);
-          router.push({
-            pathname: "/active-ride",
-            params: { rideId: id },
-          } as any);
+        if (String(current?.driverId?._id ?? current?.driverId ?? "") === String(user?.id) &&
+          ["accepted", "approaching", "arrived", "start_requested", "in_progress", "stop_requested", "awaiting_payment"].includes(current.rideStatus)) {
+          openRide(id);
           return;
         }
-      } catch {
-        /* Use the API message below. */
-      }
-      showMessage(
-        e?.response?.data?.message ||
-          "Unable to accept this ride. Refresh to see its current timeline.",
-      );
-      setIncomingRequest(null);
+      } catch { /* Use the API message below. */ }
+      const message = e?.response?.data?.message || getApiErrorMessage(e) || t("drive.request_gone");
+      // A refusal means it is gone; a lost connection keeps it so the driver can try again.
+      const gone = e?.response?.status >= 400 && e?.response?.status < 500 && e.response.status !== 429;
+      const others = waiting.length > 1;
+      if (gone) close(id);
+      if (others || !gone) setNotice(message);
+      else setTimeout(() => showMessage(message), 400); // after the alert has closed: two modals cannot open together
     }
   };
 
+  // Answered at once; the server is told in the background so the next request is not held up.
   const handleDeclineRide = async (id: string) => {
-    try {
-      stopRideAlert();
-      await ridesApi.declineRide(id);
-    } catch (e) {
-      console.error("Failed to decline ride", e);
-    } finally {
-      setIncomingRequest(null);
-    }
+    setNotice("");
+    close(id);
+    ridesApi.declineRide(id).catch((e) => console.warn("Declining the ride failed", getApiErrorMessage(e)));
+  };
+
+  const handleLater = () => {
+    stopRideAlert();
+    setNotice("");
+    setLater(new Set(offers.map(laterKey)));
   };
 
   return (
@@ -245,7 +250,12 @@ export default function TabLayout() {
       </Tabs>
 
       <RideRequestModal
-        request={incomingRequest}
+        request={shown}
+        index={index}
+        total={waiting.length}
+        onMove={(step) => setShownId(offerId(waiting[index + step] ?? waiting[index]))}
+        onLater={handleLater}
+        notice={notice}
         onAccept={handleAcceptRide}
         onDecline={handleDeclineRide}
       />

@@ -255,6 +255,12 @@ export default {
     next: "Next",
   },
   drive: {
+    slide_to: "Slide: {{action}}",
+    request_n: "Request {{n}} of {{total}}",
+    later: "Later",
+    next_request: "Next request",
+    prev_request: "Previous request",
+    request_gone: "That request is no longer available.",
     to_pickup: "Drive to pickup",
     at_pickup: "At pickup",
     waiting_passenger: "Waiting for passenger",
@@ -815,6 +821,7 @@ export default {
     skip: "Skip walkthrough",
   },
   email_verify: {
+    sending: "Sending your code…",
     title: "Verify Your Email",
     later: "Do this later",
     sent_to: "Enter the 6-digit verification code sent to",
