@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useT } from "@/context/I18nContext";
 import { mapsApi, placesApi, type Place } from "@/services/api";
 import { rideStyles } from "./rideStyles";
 import { PARCEL_DELIVERY_ENABLED } from "@/constants/features";
+import { TRUCK_PHOTOS } from "@/constants/moving";
 
 type SavedPlace = Place & { _id: string; label: string };
 type Props = {
@@ -62,6 +64,7 @@ export function WhereToPanel({ pickup, pickupIsGps, near, rideType, onRideType, 
     else onDestination(place);
   };
 
+  const router = useRouter();
   const shortcut = (label: string) => saved.find((p) => p.label.toLowerCase() === label.toLowerCase());
 
   return (
@@ -141,6 +144,17 @@ export function WhereToPanel({ pickup, pickupIsGps, near, rideType, onRideType, 
             </TouchableOpacity>
           ))}
         </>
+      ) : null}
+
+      {!query && editing === "destination" ? (
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${t("move.entry_title")} ${t("move.entry_body")}`} onPress={() => router.push("/move" as any)} style={[s.card, s.row, { padding: 10 }]}>
+          <Image source={TRUCK_PHOTOS.small} style={{ width: 72, height: 48, borderRadius: 10 }} accessibilityIgnoresInvertColors />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.body, { fontFamily: "Inter_700Bold" }]}>{t("move.entry_title")} · {t("move.brand")}</Text>
+            <Text style={s.subtitle} numberOfLines={2}>{t("move.entry_body")}</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       ) : null}
     </View>
   );
