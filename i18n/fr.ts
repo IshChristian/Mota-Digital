@@ -1010,7 +1010,6 @@ export default {
     tw_evening: "Soir",
     tw_any: "N'importe quand",
     loaders: "Porteurs",
-    loaders_hint: "{{price}} par porteur",
     packing: "Aide à l'emballage",
     packing_hint: "Nous emballons les objets fragiles",
     assembly: "Démontage et remontage des meubles",

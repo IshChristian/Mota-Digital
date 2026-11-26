@@ -220,7 +220,6 @@ export default function NewMoveScreen() {
             <View style={[s.row, { justifyContent: "space-between", flexWrap: "wrap" }]}>
               <View style={{ gap: 2, flex: 1 }}>
                 <Text style={s.body}>{t("move.loaders")}</Text>
-                {ex ? <Text style={s.subtitle}>{t("move.loaders_hint", { price: money(ex.loaderPrice) })}</Text> : null}
               </View>
               <Stepper value={loaders} onChange={setLoaders} max={ex?.maxLoaders || 12} label={t("move.loaders")} />
             </View>
