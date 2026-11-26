@@ -27,7 +27,7 @@ const stopBody = (s: StopForm) => ({
 const dateText = (d: Date | null) => (d ? d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "—");
 const today = () => new Date(new Date().setHours(0, 0, 0, 0));
 
-/** MOTA Kwimuka booking: where → what → truck (or free home visit) → when → review. */
+/** MOTA HomeMove booking: where → what → truck (or free home visit) → when → review. */
 export default function NewMoveScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

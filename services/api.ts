@@ -180,7 +180,7 @@ export const promoApi = {
     api.post<{ data: PromoPreview }>("/promos/preview", data),
 };
 
-/** MOTA Kwimuka: house moving with partner trucks. */
+/** MOTA HomeMove: house moving with partner trucks. */
 export const movingApi = {
   catalog: () => api.get("/moves/catalog"),
   estimate: (body: any) => api.post("/moves/estimate", body),

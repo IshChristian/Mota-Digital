@@ -914,7 +914,7 @@ export default {
     submit_failed: "Kohereza byanze. Reba interineti wongere ugerageze.",
   },
   move: {
-    brand: "MOTA Kwimuka",
+    brand: "MOTA HomeMove",
     tagline: "Urimuka? Tukuzanira imodoka ikwiye.",
     entry_title: "Urimuka?",
     entry_body: "Fata imodoka n'abakozi bo gutwara ibintu byawe byose.",

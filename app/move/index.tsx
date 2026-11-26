@@ -14,7 +14,7 @@ import { callNumber } from "@/utils/share";
 import { StatusPill } from "@/components/moving/StatusPill";
 import { Photo } from "@/components/moving/parts";
 
-/** MOTA Kwimuka home: what it is, the trucks with real photos and prices, and the customer's moves. */
+/** MOTA HomeMove home: what it is, the trucks with real photos and prices, and the customer's moves. */
 export default function MovingHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

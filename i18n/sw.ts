@@ -952,7 +952,7 @@ export default {
     submit_failed: "Kutuma kumeshindwa. Angalia mtandao na ujaribu tena.",
   },
   move: {
-    brand: "MOTA Kwimuka",
+    brand: "MOTA HomeMove",
     tagline: "Unahama? Tunaleta lori linalofaa.",
     entry_title: "Unahama nyumba?",
     entry_body: "Kodi lori na wapakiaji kwa vitu vyako vyote.",

@@ -914,7 +914,7 @@ export default {
     submit_failed: "Échec de l'envoi. Vérifiez votre connexion et réessayez.",
   },
   move: {
-    brand: "MOTA Kwimuka",
+    brand: "MOTA HomeMove",
     tagline: "Vous déménagez ? Nous apportons le bon camion.",
     entry_title: "Vous déménagez ?",
     entry_body: "Réservez un camion et des porteurs pour toutes vos affaires.",

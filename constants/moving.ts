@@ -1,4 +1,4 @@
-// MOTA Kwimuka — house moving with partner trucks.
+// MOTA HomeMove — house moving with partner trucks.
 import type { ImageSourcePropType } from "react-native";
 
 export type TruckKey = "pickup" | "small" | "medium" | "large";

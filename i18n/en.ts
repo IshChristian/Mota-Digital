@@ -951,7 +951,7 @@ export default {
     submit_failed: "KYC submission failed. Check your connection and try again.",
   },
   move: {
-    brand: "MOTA Kwimuka",
+    brand: "MOTA HomeMove",
     tagline: "Moving house? We bring the right truck.",
     entry_title: "Moving house?",
     entry_body: "Book a truck and loaders for all your things.",
