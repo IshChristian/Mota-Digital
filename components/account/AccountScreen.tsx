@@ -113,6 +113,7 @@ export function AccountScreen({ role }: { role: Role }) {
     ] : [
       { title: t("account.section_money"), rows: [
         { icon: "credit-card", label: t("account.wallet"), path: "/(passenger)/wallet" },
+        { icon: "truck", label: t("move.brand"), path: "/move" },
         { icon: "dollar-sign", label: t("account.payment_methods"), path: "/(passenger)/profile/payment-methods" },
         { icon: "gift", label: t("account.invite"), path: "/referrals" },
       ] },

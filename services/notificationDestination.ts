@@ -10,6 +10,8 @@ export function notificationDestination(
     typeof value === "string" && /^[a-f0-9]{24}$/i.test(value);
   if (valid(metadata?.supportCaseId))
     return `/info/help?caseId=${metadata.supportCaseId}`;
+  // MOTA Kwimuka: staff notices are handled in MOTA Control; customers open their move.
+  if (valid(metadata?.moveId)) return metadata?.audience === "staff" ? undefined : `/move/${metadata.moveId}`;
   if (!valid(metadata?.rideId)) return undefined;
   const rideId = metadata.rideId;
   if (metadata?.event === "chatMessage") return `/ride-chat/${rideId}`;

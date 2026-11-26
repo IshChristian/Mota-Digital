@@ -180,6 +180,17 @@ export const promoApi = {
     api.post<{ data: PromoPreview }>("/promos/preview", data),
 };
 
+/** MOTA HomeMove: house moving with partner trucks. */
+export const movingApi = {
+  catalog: () => api.get("/moves/catalog"),
+  estimate: (body: any) => api.post("/moves/estimate", body),
+  create: (body: any) => api.post("/moves", body),
+  mine: () => api.get("/moves"),
+  get: (id: string) => api.get(`/moves/${id}`),
+  cancel: (id: string, reason?: string) => api.post(`/moves/${id}/cancel`, { reason }),
+  accept: (id: string) => api.post(`/moves/${id}/accept`),
+};
+
 export const ridesApi = {
   // Driver-side
   acceptRide: (id: string) => api.post(`/rides/${id}/accept`),
