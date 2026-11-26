@@ -1047,7 +1047,6 @@ export default {
     tw_evening: "Evening",
     tw_any: "Any time",
     loaders: "Loaders",
-    loaders_hint: "{{price}} per loader",
     packing: "Packing help",
     packing_hint: "We wrap and box fragile things",
     assembly: "Take apart and rebuild furniture",

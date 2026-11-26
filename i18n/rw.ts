@@ -1010,7 +1010,6 @@ export default {
     tw_evening: "Nimugoroba",
     tw_any: "Igihe icyo ari cyo cyose",
     loaders: "Abakozi bapakira",
-    loaders_hint: "{{price}} ku mukozi umwe",
     packing: "Gufasha gupfunyika",
     packing_hint: "Dupfunyika ibintu byoroshye kumeneka",
     assembly: "Gusenya no kongera guteranya ibikoresho",

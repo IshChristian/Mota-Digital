@@ -1048,7 +1048,6 @@ export default {
     tw_evening: "Jioni",
     tw_any: "Wakati wowote",
     loaders: "Wapakiaji",
-    loaders_hint: "{{price}} kwa kila mpakiaji",
     packing: "Msaada wa kufunga",
     packing_hint: "Tunafunga vitu vinavyovunjika",
     assembly: "Kufungua na kuunganisha samani",
